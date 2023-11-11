@@ -24,6 +24,7 @@ import pprint
 from mpl_toolkits.mplot3d import Axes3D
 import functools
 import math
+from datetime import datetime
 
 # %matplotlib widget
 all_results_columns = ['mesh_file', 'np','metis_lambda', 'metis_rho_max','metis_rho_min','SFC_lambda','SFC_rho_max','SFC_rho_min','grow_lambda','grow_rho_max','grow_rho_min']
@@ -31,31 +32,39 @@ all_results = pd.DataFrame()
 folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
 gmsh.initialize() #sys.argv)
 
-stop_after = 50
+stop_after = 70
 
 partition_count=9
 
 
 def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
-    partition_sizes = defaultdict(int)
+    partition_sizes = [0 for _ in range(p_count)]
+    partition_cuts = [0 for _ in range(p_count)]
     for cl in parition_labels:
         partition_sizes[cl]+=1
 
     edge_cuts = 0
 
     for u,v in graph.edges:
-        if parition_labels[elem_to_idx_mapping[u]] != parition_labels[elem_to_idx_mapping[v]]:
+        part_u = parition_labels[elem_to_idx_mapping[u]]
+        part_v = parition_labels[elem_to_idx_mapping[v]]
+        if part_u != part_v:
             edge_cuts+=1
-    rho_max = max(partition_sizes.values())/(graph.number_of_nodes()/p_count)
-    rho_min = min(partition_sizes.values())/(graph.number_of_nodes()/p_count)
+            partition_cuts[part_u]+=1
+            partition_cuts[part_v]+=1
+
+    rho_max = max(partition_sizes)/(graph.number_of_nodes()/p_count)
+    rho_min = min(partition_sizes)/(graph.number_of_nodes()/p_count)
     lmb = edge_cuts/graph.number_of_edges()
     return {
         'lambda': lmb,
         'lambda_expr':f"{edge_cuts}/{graph.number_of_edges()}",
         'rho_max': rho_max,
-        'rho_max_expr': f"{max(partition_sizes.values())}/{int(graph.number_of_nodes()/p_count)}",
+        'rho_max_expr': f"{max(partition_sizes)}/{int(graph.number_of_nodes()/p_count)}",
         'rho_min': rho_min,
-        'rho_min_expr': f"{min(partition_sizes.values())}/{int(graph.number_of_nodes()/p_count)}"
+        'rho_min_expr': f"{min(partition_sizes)}/{int(graph.number_of_nodes()/p_count)}",
+        'partition_sizes': partition_sizes,
+        'partitions_cuts': partition_cuts
     }
 
 
@@ -155,11 +164,11 @@ sorted_list_of_files = sorted( list_of_files,
 # for fname in glob.glob(folder):
 file_count = 0
 # for fname in glob.glob(folder):
-# for fname in sorted_list_of_files:
-for fname in [fname_]:
+for fname in sorted_list_of_files:
+# for fname in [fname_]:
 
 
-    if file_count > stop_after:
+    if file_count >= stop_after:
         break
 
 
@@ -392,6 +401,7 @@ for fname in [fname_]:
     grow_metrics = get_metrics(partition_count,BFS_partition_labels,G,element_to_idx)
     metis_metrics = get_metrics(partition_count,METIS_partition_labels,G,element_to_idx)
     result_row = pd.Series()
+    result_row['mesh_idx'] = file_count
     result_row['mesh_file'] = fname
     result_row['np'] = partition_count
     for metric, method_name in zip([SFC_metrics,grow_metrics,metis_metrics],['SFC','grow','metis']):
@@ -408,9 +418,13 @@ for fname in [fname_]:
 
 # print(result_row)
 print(all_results)
-# all_results.to_csv('partition_results.csv',index=False)
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S')
+# out_file_name = 'new_results'
+all_results.to_csv(out_file_name+ '.csv',index=False)
+all_results.to_json(out_file_name+'.json',index=False)
 
-# exit(0)
+
+exit(0)
 
 
 ### viz part
