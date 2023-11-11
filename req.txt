@@ -1,0 +1,17 @@
+gmsh
+glob2
+networkx
+metis
+matplotlib
+fast-matrix-market
+grave
+jupyter
+pygraphviz
+pandas
+scipy
+numpy
+ipympl
+mayavi
+PyQt5
+ipyevents
+open3d
