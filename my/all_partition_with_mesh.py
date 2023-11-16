@@ -144,17 +144,35 @@ def morton_compare(p1_data, p2_data):
 
 # %%
 
-# fname = '../../Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'
+def get_stretched_increment(partition_current_size, frontier_current_size):
+    # return math.log2(partition_current_size) + frontier_current_size
+    # return partition_current_size
+    return math.log2(partition_current_size) + 1
+    # return math.sqrt(partition_current_size)
+
+
+
+# %%
+
+# fname_ = '../../Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'
 # fname = '../../Meshes/10k_tet/136935_sf_hexa.mesh_3592_12718.obj.mesh'
 # fname = '../../Meshes/10k_tet/919984_sf_hexa.mesh_3960_15443.obj.mesh'
 # fname = '../../Meshes/10k_tet/86233_sf_hexa.mesh_4136_15060.obj.mesh'
 # fname = '../../Meshes/10k_tet/40363_sf_hexa.mesh_4618_15439.obj.mesh'
-# fname = '../../Meshes/10k_tet/311329_sf_hexa.mesh_3800_14680.obj.mesh'
+# fname_ = '../../Meshes/10k_tet/311329_sf_hexa.mesh_3800_14680.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/104512_sf_hexa.mesh_5408_18867.obj.mesh'     # disconnected
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/57181_sf_hexa.mesh_5006_17194.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/42836_sf_hexa.mesh_4992_16853.obj.mesh'
-fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/135214_sf_hexa.mesh_4224_14478.obj.mesh'
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/135214_sf_hexa.mesh_4224_14478.obj.mesh'
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/168074_sf_hexa.mesh_5604_19453.obj.mesh'
 
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68509_sf_hexa.mesh_4744_20488.obj.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_5292_20631.obj.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/42836_sf_hexa.mesh_4992_16853.obj.mesh"
+
+fname_ = "/home/budvin/research/Partitioning/Meshes/coil.msh"       # coil mesh
 
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
@@ -317,6 +335,7 @@ for fname in sorted_list_of_files:
         for i in range(offset, offset+size):
             morton_sfc_partition_labels[morton_order[i]] = partition_idx
             partition_to_elem_idx[partition_idx].append(morton_order[i])
+    assert(None not in morton_sfc_partition_labels)
     print("SFC partitoning done")
     # calculating center elements for each partition
     # ignoring disconnectedness
@@ -358,38 +377,103 @@ for fname in sorted_list_of_files:
     # BFS from partition centers
     # ==================================
 
+    # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
+
+
     element_to_BFS_partition = {}
+    BFS_partition_to_frontier = {}
+    BFS_partition_growing_status = [True for _ in range(partition_count)]
 
     #initial seeds
-    for i, center_idx in enumerate(center_element_indices):
-        element_to_BFS_partition[idx_to_element[center_idx]] = i
+    for p_i, center_idx in enumerate(center_element_indices):
+        element_to_BFS_partition[idx_to_element[center_idx]] = p_i
+        BFS_partition_to_frontier[p_i] = set([idx_to_element[center_idx]])
 
-    not_visited = set(elems)
-    while len(not_visited) > 0:
-        element_to_BFS_partition_copy = copy.deepcopy(element_to_BFS_partition)
-        visited_this_round = set()
-        for vertex in not_visited:
-            for neigh in G.neighbors(vertex):
-                if neigh in element_to_BFS_partition_copy:
-                    element_to_BFS_partition[vertex] = element_to_BFS_partition_copy[neigh]
-                    visited_this_round.add(vertex)
-                    break
+    while any(BFS_partition_growing_status):
+        for p_i in range(partition_count):
+            if not BFS_partition_growing_status[p_i]:
+                continue
+            new_frontier = set()
+            for curr_frontier_elem in BFS_partition_to_frontier[p_i]:
+                    for neigh in G.neighbors(curr_frontier_elem):
+                        if neigh not in element_to_BFS_partition:
+                            element_to_BFS_partition[neigh] = p_i
+                            new_frontier.add(neigh)  
+            BFS_partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0:
+                BFS_partition_growing_status[p_i] = False
 
-
-        not_visited = not_visited.difference(visited_this_round)
 
     BFS_partition_labels = [None for _ in range(len(elems))]
 
     for elem in element_to_BFS_partition:
         BFS_partition_labels[element_to_idx[elem]] = element_to_BFS_partition[elem]
 
+    assert(None not in BFS_partition_labels)
     print("BFS partitioning done")
+
+    # %%
+    # BFS with strech factor
+    # element_to_BFS_stretch_partition = {}
+    BFS_stretch_partition_labels = [None for _ in range(len(elems))]
+    # BFS_stretch_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
+    BFS_stretch_seeds = [idx_to_element[center_elem_idx] for center_elem_idx in center_element_indices ]
+    BFS_stretch_partition_to_elements = {}
+    BFS_stretch_partition_to_frontier = {}
+    element_to_reached_stretch_distance = {}
+
+    BFS_stretch_partition_growing_status = [True for _ in range(partition_count)]
+    current_partition_radius = [0 for _ in range(partition_count)]
+
+    for p_i, seed in enumerate(BFS_stretch_seeds):
+        BFS_stretch_partition_to_elements[p_i] = set([seed])
+        BFS_stretch_partition_to_frontier[p_i] = set([seed])
+        element_to_reached_stretch_distance[seed] = 0
+        BFS_stretch_partition_labels[element_to_idx[seed]] = p_i
+
+    while any(BFS_stretch_partition_growing_status):
+        for p_i in range(partition_count):
+            if not BFS_stretch_partition_growing_status[p_i]:
+                continue
+            step_size = get_stretched_increment(BFS_stretch_partition_labels.count(p_i),len(BFS_stretch_partition_to_frontier[p_i]))
+            new_frontier_predicted = set()
+            for curr_frontier_elem in BFS_stretch_partition_to_frontier[p_i]:
+                for neigh in G.neighbors(curr_frontier_elem):
+                    if neigh not in BFS_stretch_partition_to_elements[p_i]:
+                        new_frontier_predicted.add((curr_frontier_elem, neigh))         # frontier - neighbor pairs
+            new_frontier = set()
+            for curr, pred in new_frontier_predicted:
+                if (pred not in element_to_reached_stretch_distance) or (element_to_reached_stretch_distance[curr]+step_size < element_to_reached_stretch_distance[pred]):
+                    if pred in element_to_reached_stretch_distance:     
+                        for p_j in range(partition_count):
+                            if p_i != p_j:
+                                BFS_stretch_partition_to_frontier[p_j].discard(pred)    # remove from others frontiers
+                                BFS_stretch_partition_to_elements[p_j].discard(pred)    # remove from other partitions
+                    element_to_reached_stretch_distance[pred] = element_to_reached_stretch_distance[curr]+step_size
+                    BFS_stretch_partition_labels[element_to_idx[pred]] = p_i
+                    new_frontier.add(pred)
+                    BFS_stretch_partition_to_elements[p_i].add(pred)
+            if len(new_frontier) == 0:      # cant grow any further
+                BFS_stretch_partition_growing_status[p_i] = False
+            else:
+                BFS_stretch_partition_to_frontier[p_i] = new_frontier
+                current_partition_radius[p_i] = current_partition_radius[p_i] + step_size
+
+    assert(None not in BFS_stretch_partition_labels)
+    print("BFS stretch partitioning done")  
+    print(current_partition_radius)
+
+    
+
+
     # %%
 
     # METIS
 
     (edgecuts, parts) = metis.part_graph(G, partition_count)
     METIS_partition_labels = [lbl for lbl in parts]
+
+    assert(None not in METIS_partition_labels)
 
     print("METIS done")
 
@@ -399,12 +483,14 @@ for fname in sorted_list_of_files:
 
     SFC_metrics = get_metrics(partition_count,morton_sfc_partition_labels,G,element_to_idx)
     grow_metrics = get_metrics(partition_count,BFS_partition_labels,G,element_to_idx)
+    grow_stretch_metrics = get_metrics(partition_count,BFS_stretch_partition_labels,G,element_to_idx)
     metis_metrics = get_metrics(partition_count,METIS_partition_labels,G,element_to_idx)
+
     result_row = pd.Series()
     result_row['mesh_idx'] = file_count
     result_row['mesh_file'] = fname
     result_row['np'] = partition_count
-    for metric, method_name in zip([SFC_metrics,grow_metrics,metis_metrics],['SFC','grow','metis']):
+    for metric, method_name in zip([SFC_metrics,grow_metrics,grow_stretch_metrics,metis_metrics],['SFC','grow','grow_stretch','metis']):
         for metric_key in metric:
             result_row[f"{method_name}_{metric_key}"] = metric[metric_key]
         pass
@@ -418,7 +504,7 @@ for fname in sorted_list_of_files:
 
 # print(result_row)
 print(all_results)
-out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S')
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc-seeds-log2-part-stretch-np9-70meshes')
 # out_file_name = 'new_results'
 all_results.to_csv(out_file_name+ '.csv',index=False)
 all_results.to_json(out_file_name+'.json',index=False)
@@ -432,7 +518,7 @@ exit(0)
 
 # %%
 def cluster_to_color(ci):
-    random.seed(ci*ci)
+    random.seed(ci)
     return (random.randint(0,255),random.randint(0,255),random.randint(0,255),125)
 
 
@@ -458,7 +544,7 @@ pts = mlab.points3d(
     xyz[:, 1],
     xyz[:, 2],
     scalars,
-    scale_factor=0.09,
+    scale_factor=0.015,
     scale_mode="none",
     colormap="Blues",
     resolution=20,
@@ -480,7 +566,7 @@ center_pts = mlab.points3d(
     xyz[:, 2][[i for i in center_element_indices]],
 
     scalars_centers,
-    scale_factor=0.6,
+    scale_factor=0.03,
     scale_mode="none",
     # colormap="Blues",
     color=(0,0,0),
