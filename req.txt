@@ -15,3 +15,4 @@ mayavi
 PyQt5
 ipyevents
 open3d
+vtk

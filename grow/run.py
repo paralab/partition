@@ -28,9 +28,14 @@ from datetime import datetime
 
 from BFS_Partition import get_BFS_partitions
 from grow_partition import get_grow_partitions
+from graph_walk import get_seeds_with_walk
+
+from vtk_utils import export_points_to_vtk
 
 # %matplotlib widget
-all_results_columns = ['mesh_file', 'np','metis_lambda', 'metis_rho_max','metis_rho_min','SFC_lambda','SFC_rho_max','SFC_rho_min','grow_lambda','grow_rho_max','grow_rho_min']
+method_names = ['SFC_morton','BFS','BFS_grow','METIS']
+
+# all_results_columns = ['mesh_file', 'np','metis_lambda', 'metis_rho_max','metis_rho_min','SFC_lambda','SFC_rho_max','SFC_rho_min','grow_lambda','grow_rho_max','grow_rho_min']
 all_results = pd.DataFrame()
 folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
 gmsh.initialize() #sys.argv)
@@ -38,6 +43,8 @@ gmsh.initialize() #sys.argv)
 stop_after = 70
 
 partition_count=9
+
+delete_vtk_files_after_viewing = True
 
 
 def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
@@ -156,29 +163,36 @@ def get_stretched_increment(partition_current_size, frontier_current_size):
 
 
 # %%
-
-# fname_ = '../../Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'    # smallest
 # fname = '../../Meshes/10k_tet/136935_sf_hexa.mesh_3592_12718.obj.mesh'
 # fname = '../../Meshes/10k_tet/919984_sf_hexa.mesh_3960_15443.obj.mesh'
 # fname = '../../Meshes/10k_tet/86233_sf_hexa.mesh_4136_15060.obj.mesh'
 # fname = '../../Meshes/10k_tet/40363_sf_hexa.mesh_4618_15439.obj.mesh'
 # fname_ = '../../Meshes/10k_tet/311329_sf_hexa.mesh_3800_14680.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/104512_sf_hexa.mesh_5408_18867.obj.mesh'     # disconnected
+
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/57181_sf_hexa.mesh_5006_17194.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/42836_sf_hexa.mesh_4992_16853.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/135214_sf_hexa.mesh_4224_14478.obj.mesh'
 # fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/168074_sf_hexa.mesh_5604_19453.obj.mesh'
 
-fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68509_sf_hexa.mesh_4744_20488.obj.mesh"
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68509_sf_hexa.mesh_4744_20488.obj.mesh"
 
-# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_5292_20631.obj.mesh"
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_5292_20631.obj.mesh"            # dumbell
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/42836_sf_hexa.mesh_4992_16853.obj.mesh"
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/coil.msh"       # coil mesh
 
+
+
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68645_sf_hexa.mesh_5906_20078.obj.mesh"
 
+fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/97942_sf_hexa.mesh_4696_18792.obj.mesh"
+
+fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/81109_sf_hexa.mesh_35542_125748.obj.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/40845_sf_hexa.mesh_4936_17372.obj.mesh"
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
 sorted_list_of_files = sorted( list_of_files, 
@@ -187,8 +201,8 @@ sorted_list_of_files = sorted( list_of_files,
 # for fname in glob.glob(folder):
 file_count = 0
 # for fname in glob.glob(folder):
-for fname in sorted_list_of_files:
-# for fname in [fname_]:
+# for fname in sorted_list_of_files[2000:]:
+for fname in [fname_]:
 
 
     if file_count >= stop_after:
@@ -398,6 +412,7 @@ for fname in sorted_list_of_files:
     assert(None not in BFS_partition_labels)
 
     # %%
+    # seeds_by_walk = get_seeds_with_walk(G,partition_count)
     element_to_BFS_grow_partition = get_grow_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
 
@@ -433,7 +448,7 @@ for fname in sorted_list_of_files:
     result_row['mesh_idx'] = file_count
     result_row['mesh_file'] = fname
     result_row['np'] = partition_count
-    for metric, method_name in zip([SFC_metrics,grow_metrics,grow_stretch_metrics,metis_metrics],['SFC','grow','grow_stretch','metis']):
+    for metric, method_name in zip([SFC_metrics,grow_metrics,grow_stretch_metrics,metis_metrics],method_names):
         for metric_key in metric:
             result_row[f"{method_name}_{metric_key}"] = metric[metric_key]
         pass
@@ -444,16 +459,14 @@ for fname in sorted_list_of_files:
     print(file_count, fname, "done")
 
 
+sys.stdout.flush()
 
-# print(result_row)
-print(all_results)
-out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc-seeds-slow_grow_inv_log2_front_and_cut-np9-70meshes')
-# out_file_name = 'new_results'
-all_results.to_csv(out_file_name+ '.csv',index=False)
-all_results.to_json(out_file_name+'.json',index=False)
+# out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc-seeds-inv-part-and-edge-np9-70_largemeshes')
+# all_results.to_csv(out_file_name+ '.csv',index=False)
+# all_results.to_json(out_file_name+'.json',index=False)
+# print(out_file_name)
 
-
-exit(0)
+# exit(0)
 
 
 ### viz part
@@ -468,56 +481,83 @@ def cluster_to_color(ci):
 
 # %%
 
-selected_partitioning_for_viz = BFS_grow_partition_labels
+vtk_file_names = []
 
-mlab.options.backend = 'envisage'
-# s = mlab.test_plot3d()
-# mlab.figure()
-xyz = np.array(elemCenterCoordsXYZ)
-# scalar colors
-scalars = np.array([i for i in range(len(elemCenterCoordsXYZ))])
-# scalars = np.array(list(G.nodes()))
-print(scalars[:5])
-clrs = [cluster_to_color(label) for label in selected_partitioning_for_viz]
-print(clrs[:20])
+for labeling, method_name in zip([morton_sfc_partition_labels,BFS_partition_labels,BFS_grow_partition_labels,METIS_partition_labels],method_names):
+    coloring = [cluster_to_color(label) for label in labeling]
+    vtk_file_name = f"{fname_.split('/')[-1]}___{method_name}.vtk"
+    export_points_to_vtk(elemCenterCoordsXYZ,coloring,vtk_file_name)
+    vtk_file_names.append(vtk_file_name)
 
 
-pts = mlab.points3d(
-    xyz[:, 0],
-    xyz[:, 1],
-    xyz[:, 2],
-    scalars,
-    scale_factor=0.07,
-    scale_mode="none",
-    colormap="Blues",
-    resolution=20,
-)
 
-
-pts.module_manager.scalar_lut_manager.lut.number_of_colors = partition_count+1
-pts.module_manager.scalar_lut_manager.lut.table = clrs
-
-# edges_adjusted_for_idx = [(element_to_idx[u],element_to_idx[v]) for u,v in G.edges()]
-# pts.mlab_source.dataset.lines = np.array(edges_adjusted_for_idx)
-# tube = mlab.pipeline.tube(pts, tube_radius=0.02)
-# mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
-scalars_centers = np.array([i for i in range(len(center_element_indices))])
-
-center_pts = mlab.points3d(
-    xyz[:, 0][[i for i in center_element_indices]],
-    xyz[:, 1][[i for i in center_element_indices]],
-    xyz[:, 2][[i for i in center_element_indices]],
-
-    scalars_centers,
-    scale_factor=0.15,
-    scale_mode="none",
-    # colormap="Blues",
-    color=(0,0,0),
-    resolution=20,
-)
-
-
-mlab.draw()
-mlab.orientation_axes()
-mlab.show()
 # %%
+
+import subprocess
+
+my_env = os.environ.copy()
+for i in range(len(method_names)):
+    my_env[method_names[i]] = vtk_file_names[i]
+subprocess.run(['/home/budvin/Downloads/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview','paraview_script.py'],env=my_env)
+
+if delete_vtk_files_after_viewing:
+    for vtk_file in vtk_file_names:
+        os.remove(vtk_file)
+
+exit(0)
+
+# # %%
+
+# selected_partitioning_for_viz = BFS_partition_labels
+
+# mlab.options.backend = 'envisage'
+# # s = mlab.test_plot3d()
+# # mlab.figure()
+# xyz = np.array(elemCenterCoordsXYZ)
+# # scalar colors
+# scalars = np.array([i for i in range(len(elemCenterCoordsXYZ))])
+# # scalars = np.array(list(G.nodes()))
+# print(scalars[:5])
+# clrs = [cluster_to_color(label) for label in selected_partitioning_for_viz]
+# print(clrs[:20])
+
+
+# pts = mlab.points3d(
+#     xyz[:, 0],
+#     xyz[:, 1],
+#     xyz[:, 2],
+#     scalars,
+#     scale_factor=0.09,
+#     scale_mode="none",
+#     colormap="Blues",
+#     resolution=20,
+# )
+
+
+# pts.module_manager.scalar_lut_manager.lut.number_of_colors = partition_count+1
+# pts.module_manager.scalar_lut_manager.lut.table = clrs
+
+# # edges_adjusted_for_idx = [(element_to_idx[u],element_to_idx[v]) for u,v in G.edges()]
+# # pts.mlab_source.dataset.lines = np.array(edges_adjusted_for_idx)
+# # tube = mlab.pipeline.tube(pts, tube_radius=0.02)
+# # mlab.pipeline.surface(tube, color=(0.8, 0.8, 0.8))
+# scalars_centers = np.array([i for i in range(len(center_element_indices))])
+
+# center_pts = mlab.points3d(
+#     xyz[:, 0][[i for i in center_element_indices]],
+#     xyz[:, 1][[i for i in center_element_indices]],
+#     xyz[:, 2][[i for i in center_element_indices]],
+
+#     scalars_centers,
+#     scale_factor=0.6,
+#     scale_mode="none",
+#     # colormap="Blues",
+#     color=(0,0,0),
+#     resolution=20,
+# )
+
+
+# mlab.draw()
+# mlab.orientation_axes()
+# mlab.show()
+# # %%

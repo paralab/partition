@@ -20,9 +20,26 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
     partition_to_frontier = {}
     partition_to_vertices = {}
     partition_growing_status = [True for _ in range(partition_count)]
-    partition_to_current_edge_cut = [0 for _ in range(partition_count)]
+    partition_to_current_edge_cut = [set() for _ in range(partition_count)]
 
-    random.seed(42)
+    # grow_steps_n = 16
+    # grow_step_size = (optimal_partition_size)*(2-0.5)/grow_steps_n
+    # grow_thresholds = [optimal_partition_size*0.5 + grow_step_size*i for i in range(grow_steps_n)]
+    # probabilities_upto_threshold = [1 - i*(1/grow_steps_n) for i in range(grow_steps_n)]
+
+
+    # optimal_cut_size = (2*G.number_of_edges()/(math.log2(G.number_of_nodes()))**2)/partition_count
+    # grow_steps_n = 16
+    # grow_step_size = (optimal_cut_size)*(8-0.125)/grow_steps_n
+    # grow_thresholds = [optimal_cut_size*0.125 + grow_step_size*i for i in range(grow_steps_n)]
+    # probabilities_upto_threshold = [1 - i*(1/grow_steps_n) for i in range(grow_steps_n)]
+
+    # print(grow_thresholds)
+    # print(probabilities_upto_threshold)
+
+
+
+    # random.seed(42)
 
     #initial seeds
     for p_i, s in enumerate(seeds):
@@ -36,12 +53,24 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
             if not partition_growing_status[p_i]:
                 continue
             partition_size = len(partition_to_vertices[p_i])
-            frontier_size = len(partition_to_frontier[p_i])
-            # if partition_size <= optimal_partition_size/2:
-            #     probability = 1
-            # else:
-            #     probability = (optimal_partition_size/2)/partition_size
-            probability = 1/(math.log2(frontier_size + partition_to_current_edge_cut[p_i])+1)
+            # frontier_size = len(partition_to_frontier[p_i])
+            if partition_size <= optimal_partition_size/2:
+                probability = 1
+            else:
+                # probability = (optimal_partition_size/2)/partition_size
+                probability = 1/(partition_size**0.3 + len(partition_to_current_edge_cut[p_i])**0.5)
+            # probability = 1/(len(partition_to_current_edge_cut[p_i])+1)
+
+
+
+            # probability = probabilities_upto_threshold[-1]  #default lowest probability
+            # for thres_i in range(grow_steps_n):
+            #     if (frontier_size + partition_to_current_edge_cut[p_i]) <= grow_thresholds[thres_i]:
+            #         probability = probabilities_upto_threshold[thres_i]
+            #         break
+
+
+            # print(p_i, probability)
 
             if not(random.random() <= probability):
                 continue
@@ -56,7 +85,7 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
                             new_frontier.add(neigh)
                         else:
                             if vertex_to_partition[neigh] != p_i:
-                                partition_to_current_edge_cut[p_i]+=1
+                                partition_to_current_edge_cut[p_i].add(neigh)
                     # else:
                     #     new_frontier.add(curr_frontier_vertex)      # if probability failed, keep it for the next frontier
             partition_to_frontier[p_i] = new_frontier
