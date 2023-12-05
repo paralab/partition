@@ -54,12 +54,12 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
                 continue
             partition_size = len(partition_to_vertices[p_i])
             # frontier_size = len(partition_to_frontier[p_i])
-            if partition_size <= optimal_partition_size/2:
-                probability = 1
-            else:
-                # probability = (optimal_partition_size/2)/partition_size
-                probability = 1/(partition_size**0.3 + len(partition_to_current_edge_cut[p_i])**0.5)
-            # probability = 1/(len(partition_to_current_edge_cut[p_i])+1)
+            # if partition_size <= optimal_partition_size/2:
+            #     probability = 1
+            # else:
+            #     # probability = (optimal_partition_size/2)/partition_size
+            # #     probability = 1/(partition_size**0.3 + len(partition_to_current_edge_cut[p_i])**0.5)
+            #     probability = 1/(len(partition_to_current_edge_cut[p_i])+1)
 
 
 
@@ -72,8 +72,8 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
 
             # print(p_i, probability)
 
-            if not(random.random() <= probability):
-                continue
+            # if not(random.random() <= probability):
+            #     continue
 
             new_frontier = set()
             for curr_frontier_vertex in partition_to_frontier[p_i]:
@@ -95,5 +95,4 @@ def get_grow_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> t
 
     assert len(vertex_to_partition) == G.number_of_nodes(), "error: some nodes have been left out of partitioning"
 
-    print("grow partitioning done")
     return vertex_to_partition

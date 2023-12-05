@@ -30,6 +30,8 @@ from BFS_Partition import get_BFS_partitions
 from grow_partition import get_grow_partitions
 from graph_walk import get_seeds_with_walk
 
+from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition
+
 from vtk_utils import export_points_to_vtk
 
 # %matplotlib widget
@@ -42,7 +44,7 @@ gmsh.initialize() #sys.argv)
 
 stop_after = 70
 
-partition_count=9
+partition_count=7
 
 delete_vtk_files_after_viewing = True
 
@@ -163,7 +165,7 @@ def get_stretched_increment(partition_current_size, frontier_current_size):
 
 
 # %%
-# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'    # smallest
+fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh'    # smallest
 # fname = '../../Meshes/10k_tet/136935_sf_hexa.mesh_3592_12718.obj.mesh'
 # fname = '../../Meshes/10k_tet/919984_sf_hexa.mesh_3960_15443.obj.mesh'
 # fname = '../../Meshes/10k_tet/86233_sf_hexa.mesh_4136_15060.obj.mesh'
@@ -188,11 +190,16 @@ def get_stretched_increment(partition_current_size, frontier_current_size):
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68645_sf_hexa.mesh_5906_20078.obj.mesh"
 
-fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/97942_sf_hexa.mesh_4696_18792.obj.mesh"
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/97942_sf_hexa.mesh_4696_18792.obj.mesh"
 
-fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/81109_sf_hexa.mesh_35542_125748.obj.mesh"
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/81109_sf_hexa.mesh_35542_125748.obj.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69987_sf_hexa.mesh_7272_25474.obj.mesh"     # presentation mesh 2
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/40845_sf_hexa.mesh_4936_17372.obj.mesh"
+
+
+
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
 sorted_list_of_files = sorted( list_of_files, 
@@ -201,7 +208,7 @@ sorted_list_of_files = sorted( list_of_files,
 # for fname in glob.glob(folder):
 file_count = 0
 # for fname in glob.glob(folder):
-# for fname in sorted_list_of_files[2000:]:
+# for fname in sorted_list_of_files:
 for fname in [fname_]:
 
 
@@ -413,13 +420,16 @@ for fname in [fname_]:
 
     # %%
     # seeds_by_walk = get_seeds_with_walk(G,partition_count)
-    element_to_BFS_grow_partition = get_grow_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    element_to_BFS_grow_partition = get_parititions_by_oversampling_remove_high_cut_partition(G, partition_count)
+    
+    # element_to_BFS_grow_partition = get_grow_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
 
     for elem in element_to_BFS_grow_partition:
         BFS_grow_partition_labels[element_to_idx[elem]] = element_to_BFS_grow_partition[elem]
 
     assert None not in BFS_grow_partition_labels
+    print("grow partitioning done")
 
     
 
@@ -458,10 +468,10 @@ for fname in [fname_]:
     file_count+=1
     print(file_count, fname, "done")
 
-
+# print(result_row)
 sys.stdout.flush()
 
-# out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc-seeds-inv-part-and-edge-np9-70_largemeshes')
+# out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-2x-seeds-remove-part-by-std-abs_size_and_cut-np29-70meshes')
 # all_results.to_csv(out_file_name+ '.csv',index=False)
 # all_results.to_json(out_file_name+'.json',index=False)
 # print(out_file_name)
