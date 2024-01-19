@@ -418,6 +418,213 @@ def get_parititions_by_oversampling_remove_high_cut_partition(G: nx.Graph , part
 
     return vertex_to_partition
 
+
+
+def get_parititions_by_oversampling_remove_extra_once(G: nx.Graph , partition_count: int) -> typing.Dict[int,int]:
+    # additional_sample_count = math.ceil(math.log2(partition_count))
+    sample_count = 5* partition_count
+
+    all_vertices = list(G.nodes)
+    BFS_roots= [all_vertices[random.randint(0,G.number_of_nodes())] for _ in range(sample_count)]       # sampling at uniform
+
+    vertex_to_distances = {}        # each vertex has a dict, storing distances to reached BFS s
+
+    for v in all_vertices:
+        vertex_to_distances[v] = {}
+
+    BFS_partition_growing_status = [True for _ in range(sample_count)]       # growing stops when reahced threshold
+
+    # grow_stop_threshold = 10* int(G.number_of_nodes()/partition_count)
+    grow_stop_threshold = int(G.number_of_nodes())
+
+
+    BFS_partition_to_visited = [set() for _ in range(sample_count)]
+    BFS_partition_to_frontier = [set() for _ in range(sample_count)]
+
+    BFS_partition_to_current_distance = [1 for _ in range(sample_count)]
+
+    #initial seeds
+    for BFS_i, seed in enumerate(BFS_roots):
+        vertex_to_distances[seed][BFS_i] = 0
+        BFS_partition_to_frontier[BFS_i].add(seed)
+        BFS_partition_to_visited[BFS_i].add(seed)
+
+
+    while any(BFS_partition_growing_status):
+        for BFS_i in range(sample_count):
+            if not BFS_partition_growing_status[BFS_i]:
+                continue
+            new_frontier = set()
+            for curr_frontier_elem in BFS_partition_to_frontier[BFS_i]:
+                    for neigh in G.neighbors(curr_frontier_elem):
+                        if neigh not in BFS_partition_to_visited[BFS_i]:       # if not visited by this BFS_i earlier
+                            BFS_partition_to_visited[BFS_i].add(neigh)       # then add to this BFS_i
+                            new_frontier.add(neigh)  
+                            vertex_to_distances[neigh][BFS_i] = BFS_partition_to_current_distance[BFS_i]
+            BFS_partition_to_current_distance[BFS_i]+=1
+            BFS_partition_to_frontier[BFS_i] = new_frontier
+            if len(BFS_partition_to_visited[BFS_i]) >= grow_stop_threshold or len(new_frontier) == 0:
+                BFS_partition_growing_status[BFS_i] = False
+
+
+
+    vertex_to_partition = {}        # current best allocation
+    partition_to_vertices = [set() for _ in range(sample_count)]
+
+    for v in all_vertices:
+        selected_partition = None
+        selected_partition_distance = float('inf')
+
+        for reached_partition in vertex_to_distances[v]:
+            if vertex_to_distances[v][reached_partition] < selected_partition_distance:
+                selected_partition = reached_partition
+                selected_partition_distance = vertex_to_distances[v][reached_partition]
+        assert selected_partition != None , f"no BFS reached vertex {v}"
+        vertex_to_partition[v] = selected_partition
+        partition_to_vertices[selected_partition].add(v)
+
+    current_partition_cuts = get_partition_cut_sizes(G,vertex_to_partition, sample_count)
+    current_partition_cuts_size_ratio_array = [[part_i,part_cuts/len(partition_to_vertices[part_i])] for part_i,part_cuts in current_partition_cuts.items()]
+    current_partition_cuts_size_ratio_array_sorted = sorted(current_partition_cuts_size_ratio_array,key=lambda x: x[1], reverse=True) # sort by ratio
+    print(current_partition_cuts_size_ratio_array_sorted)
+    partitions_to_delete = [part_i_ratio_pair[0] for part_i_ratio_pair in current_partition_cuts_size_ratio_array_sorted[:(sample_count - partition_count)]]
+
+    for part_i_to_delete in partitions_to_delete:
+        for v in partition_to_vertices[part_i_to_delete]:
+            new_partition = None
+            new_partition_distance = float('inf')
+
+            for reached_partition in vertex_to_distances[v]:
+                if reached_partition in partitions_to_delete:         # not reassiging to deleted partitions
+                    continue
+                if vertex_to_distances[v][reached_partition] < new_partition_distance:
+                    new_partition = reached_partition
+                    new_partition_distance = vertex_to_distances[v][reached_partition]
+            assert new_partition != None , f"failed to reassign vertex {v}"
+            vertex_to_partition[v] = new_partition
+            partition_to_vertices[new_partition].add(v)
+            
+        partition_to_vertices[part_i_to_delete] = set()   
+
+
+    remaining_partitions = list(set(range(sample_count)).difference(set(partitions_to_delete)))
+
+    assert len(remaining_partitions) == partition_count, "remaining parititons count not equal to expected partition count"
+
+    partition_new_labels = {}
+
+    for new_label, part_i in enumerate(remaining_partitions):       # we prefer partitions to be labeled 0,1,....,(partition_count-1)
+        partition_new_labels[part_i] = new_label
+
+    for v in all_vertices:
+        vertex_to_partition[v] = partition_new_labels[vertex_to_partition[v]]
+
+
+    assert len(vertex_to_partition) == G.number_of_nodes(), "some nodes are missed in partitioning"
+
+        
+
+    return vertex_to_partition
+
+
+def get_partition_pairs_highest_boundary_sorted(G: nx.graph,vertex_to_partition: typing.Dict[int,int]) -> typing.List[typing.List[int]]:
+    partition_pair_to_cut = {}
+    for u,v in G.edges:
+        part_u = vertex_to_partition[u]
+        part_v = vertex_to_partition[v]
+        if part_u != part_v:
+            sorted_pair = tuple(sorted((part_u,part_v)))
+            if sorted_pair not in partition_pair_to_cut:
+                partition_pair_to_cut[sorted_pair] = 0
+            partition_pair_to_cut[sorted_pair] +=1
+
+    partition_pair_to_cut_list = [[key,pair] for key, pair in partition_pair_to_cut.items()]
+    partition_pair_to_cut_list_sorted = sorted(partition_pair_to_cut_list, key=lambda x: x[1], reverse=True)    # pairs sorted in boundary highest to lowest
+    return partition_pair_to_cut_list_sorted
+
+def get_parititions_by_oversampling_merge_high_cut_pair(G: nx.Graph , partition_count: int) -> typing.Dict[int,int]:
+    optimal_partition_size = G.number_of_nodes()//partition_count
+    additional_sample_count = math.ceil(math.log2(partition_count))
+    sample_count = additional_sample_count + partition_count
+
+    all_vertices = list(G.nodes)
+    BFS_roots= [all_vertices[random.randint(0,G.number_of_nodes())] for _ in range(sample_count)]       # sampling at uniform
+
+    vertex_to_BFS_partition = {}
+    BFS_partition_to_frontier = {}
+    partition_to_vertices = {}
+    BFS_partition_growing_status = [True for _ in range(sample_count)]
+
+    #initial seeds
+    for p_i, s in enumerate(BFS_roots):
+        vertex_to_BFS_partition[s] = p_i
+        BFS_partition_to_frontier[p_i] = set([s])
+        partition_to_vertices[p_i] = set([s])
+
+    while any(BFS_partition_growing_status):
+        for p_i in range(sample_count):
+            if not BFS_partition_growing_status[p_i]:
+                continue
+            new_frontier = set()
+            for curr_frontier_elem in BFS_partition_to_frontier[p_i]:
+                    for neigh in G.neighbors(curr_frontier_elem):
+                        if neigh not in vertex_to_BFS_partition:       # if not assigned to any partition
+                            vertex_to_BFS_partition[neigh] = p_i       # then add to current growing partition
+                            partition_to_vertices[p_i].add(neigh)
+                            new_frontier.add(neigh)  
+            BFS_partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0:
+                BFS_partition_growing_status[p_i] = False
+
+    deleted_partitions = set()
+
+    while len(deleted_partitions) < sample_count - partition_count:
+        partition_pairs_with_boundary_size = get_partition_pairs_highest_boundary_sorted(G, vertex_to_BFS_partition)
+        pair_to_merge = None
+        for pair, boundary_size in partition_pairs_with_boundary_size:
+            pair_0_size = len(partition_to_vertices[pair[0]])
+            pair_1_size = len(partition_to_vertices[pair[1]])
+
+            if (pair_0_size + pair_1_size) >= (2 * optimal_partition_size):
+                continue
+            else:
+                pair_to_merge = pair        # pair with highest boundary
+                break
+        # pair_to_merge =  get_partition_pair_with_highest_boundary(G,vertex_to_BFS_partition)
+
+        # vertices in pair_to_merge[1] will be allocated into pair_to_merge[0]
+        assert pair_to_merge!=None, "no pair could be found to merge with given constraints"
+
+        # reassiging vertices
+
+        for v in partition_to_vertices[pair_to_merge[1]]:
+            vertex_to_BFS_partition[v] = pair_to_merge[0]
+            partition_to_vertices[pair_to_merge[0]].add(v)
+            
+        partition_to_vertices[pair_to_merge[1]] = set()   
+        deleted_partitions.add(pair_to_merge[1])
+
+
+    remaining_partitions = list(set(range(sample_count)).difference(deleted_partitions))
+
+    assert len(remaining_partitions) == partition_count, "remaining parititons count not equal to expected partition count"
+
+    partition_new_labels = {}
+
+    for new_label, part_i in enumerate(remaining_partitions):       # we prefer partitions to be labeled 0,1,....,(partition_count-1)
+        partition_new_labels[part_i] = new_label
+
+    for v in all_vertices:
+        vertex_to_BFS_partition[v] = partition_new_labels[vertex_to_BFS_partition[v]]
+
+
+    assert len(vertex_to_BFS_partition) == G.number_of_nodes(), "some nodes are missed in partitioning"
+
+        
+
+    return vertex_to_BFS_partition
+
+
 pass
 
 """

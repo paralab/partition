@@ -26,28 +26,33 @@ import functools
 import math
 from datetime import datetime
 
-from BFS_Partition import get_BFS_partitions
-from grow_partition import get_grow_partitions
-from graph_walk import get_seeds_with_walk
+from BFS_Partition import get_BFS_partitions, get_local_BFS_partitions
+from grow_partition import get_local_grow_partitions_size_proxy, get_local_grow_partitions_size_proxy_with_fennel
+# from graph_walk import get_seeds_with_walk
 
-from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition
+# from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition, get_parititions_by_oversampling_remove_extra_once, get_parititions_by_oversampling_merge_high_cut_pair
+from parititions_by_oversampling import get_parititions_by_oversampling_merge_high_cut_pair
 
 from vtk_utils import export_points_to_vtk
 
 # %matplotlib widget
 method_names = ['SFC_morton','BFS','BFS_grow','METIS']
 
-# all_results_columns = ['mesh_file', 'np','metis_lambda', 'metis_rho_max','metis_rho_min','SFC_lambda','SFC_rho_max','SFC_rho_min','grow_lambda','grow_rho_max','grow_rho_min']
-all_results = pd.DataFrame()
+
 folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
 gmsh.initialize() #sys.argv)
 
 stop_after = 70
 
-partition_count=7
+partition_count=800
 
 delete_vtk_files_after_viewing = True
 
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-SFC-seeds-distance-proxy-np9-800mesh')
+
+# out_file_name = "largest_mesh"
+
+is_viz_only = True         # set is_viz_only = True for vizualizing partitioning for 1 file
 
 def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
     partition_sizes = [0 for _ in range(p_count)]
@@ -198,7 +203,15 @@ fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/40845_sf_hexa.mesh_4936_17372.obj.mesh"
 
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/79183_sf_hexa.mesh_4168_15540.obj.mesh"
 
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/97596_sf_hexa.mesh_2696_9392.obj.mesh"      #mesh3
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh"    #mesh4
+
+
+fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_37260_195498.obj.mesh"       # a very large mesh with holes
 
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
@@ -208,6 +221,7 @@ sorted_list_of_files = sorted( list_of_files,
 # for fname in glob.glob(folder):
 file_count = 0
 # for fname in glob.glob(folder):
+# for fname in [sorted_list_of_files[-1]]:
 # for fname in sorted_list_of_files:
 for fname in [fname_]:
 
@@ -420,9 +434,10 @@ for fname in [fname_]:
 
     # %%
     # seeds_by_walk = get_seeds_with_walk(G,partition_count)
-    element_to_BFS_grow_partition = get_parititions_by_oversampling_remove_high_cut_partition(G, partition_count)
+    # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
+    # element_to_BFS_grow_partition = get_parititions_by_oversampling_merge_high_cut_pair(G, partition_count)
     
-    # element_to_BFS_grow_partition = get_grow_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    element_to_BFS_grow_partition = get_local_grow_partitions_size_proxy_with_fennel(G,[idx_to_element[c] for c in center_element_indices],partition_count)
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
 
     for elem in element_to_BFS_grow_partition:
@@ -462,21 +477,25 @@ for fname in [fname_]:
         for metric_key in metric:
             result_row[f"{method_name}_{metric_key}"] = metric[metric_key]
         pass
-
-    all_results = pd.concat([all_results,pd.DataFrame([result_row])],ignore_index=True)
-
+    
     file_count+=1
     print(file_count, fname, "done")
 
-# print(result_row)
+    # all_results = pd.concat([all_results,pd.DataFrame([result_row])],ignore_index=True)
+    if not is_viz_only:
+        pd.DataFrame([result_row]).to_json(out_file_name+'.json',index=False,mode='a',lines=True,orient='records')
+    else:
+        print(result_row)
+        break
+
+
+
 sys.stdout.flush()
 
-# out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-2x-seeds-remove-part-by-std-abs_size_and_cut-np29-70meshes')
-# all_results.to_csv(out_file_name+ '.csv',index=False)
-# all_results.to_json(out_file_name+'.json',index=False)
-# print(out_file_name)
 
-# exit(0)
+if not is_viz_only:
+    print(out_file_name)
+    exit(0)
 
 
 ### viz part

@@ -1,5 +1,6 @@
 import networkx as nx
 import typing
+import copy
 
 """
 assumes an undirected, connected graph
@@ -41,3 +42,34 @@ def get_BFS_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> ty
 
     print("BFS partitioning done")
     return vertex_to_BFS_partition
+
+
+def get_local_BFS_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        vertex_to_partition_distance_new_copy = copy.deepcopy(vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in vertex_to_partition_distance:
+                    continue
+                    
+                if (vertex not in vertex_to_partition_distance_new_copy) or  ((vertex_to_partition_distance[neigh][1] + 1) < vertex_to_partition_distance_new_copy[vertex][1]):
+                    vertex_to_partition_distance_new_copy[vertex] = (vertex_to_partition_distance[neigh][0], vertex_to_partition_distance[neigh][1]+1)
+                    is_stable = False
+        vertex_to_partition_distance = vertex_to_partition_distance_new_copy
+
+    vertex_to_partition_label = {}
+
+    for vertex in vertex_to_partition_distance:
+        vertex_to_partition_label[vertex] = vertex_to_partition_distance[vertex][0]
+
+    return vertex_to_partition_label
+
+# def get_local_BFS_partitions_size_proxy(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+#     assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
