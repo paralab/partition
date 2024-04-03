@@ -14,20 +14,24 @@ import metis
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from mayavi import mlab
+# from mayavi import mlab
 from operator import itemgetter
 import random
 import copy
 from collections import defaultdict 
 
 import pprint
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 import functools
 import math
 from datetime import datetime
+import time
 
-from BFS_Partition import get_BFS_partitions, get_local_BFS_partitions
-from grow_partition import get_local_grow_partitions_size_proxy, get_local_grow_partitions_size_proxy_with_fennel
+from hilbertcurve.hilbertcurve import HilbertCurve
+
+
+from BFS_Partition import get_BFS_partitions, get_local_BFS_partitions, get_BFS_partitions_rand_seeds
+from grow_partition import get_grow_partitions_ordered_BFS, get_grow_partitions_noised_BFS
 # from graph_walk import get_seeds_with_walk
 
 # from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition, get_parititions_by_oversampling_remove_extra_once, get_parititions_by_oversampling_merge_high_cut_pair
@@ -39,20 +43,20 @@ from vtk_utils import export_points_to_vtk
 method_names = ['SFC_morton','BFS','BFS_grow','METIS']
 
 
-folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
+folder = r'/home/budvin/research/Partitioning/Meshes/10k_hex/*.mesh'
 gmsh.initialize() #sys.argv)
 
 stop_after = 70
 
-partition_count=800
+partition_count=8
 
 delete_vtk_files_after_viewing = True
 
-out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-SFC-seeds-distance-proxy-np9-800mesh')
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc_seeds-ordered_BFS_with_distance-np8-70largehexmeshes')
 
 # out_file_name = "largest_mesh"
 
-is_viz_only = True         # set is_viz_only = True for vizualizing partitioning for 1 file
+is_viz_only = False         # set is_viz_only = True for vizualizing partitioning for 1 file
 
 def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
     partition_sizes = [0 for _ in range(p_count)]
@@ -122,7 +126,7 @@ def to_integer_coords(data_points):
     for dim_i in range(3):
         leaf_node_lengths[dim_i] = (bounding_box[i][1] - bounding_box[i][0])/(2**levels)
     
-        integer_data_points = []
+    integer_data_points = []
 
     for d in data_points:
         d_new = []
@@ -185,7 +189,7 @@ fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/68509_sf_hexa.mesh_4744_20488.obj.mesh"
 
-# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_5292_20631.obj.mesh"            # dumbell
+fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_5292_20631.obj.mesh"            # dumbell
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/42836_sf_hexa.mesh_4992_16853.obj.mesh"
 
@@ -213,6 +217,23 @@ fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh
 
 fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_37260_195498.obj.mesh"       # a very large mesh with holes
 
+# fname_ = "/home/budvin/research/Partitioning/mesh_generator/tetMesh3D_lvl0.msh"         # a regular tet mesh of a cube
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/1080516_sf_hexa.mesh"       # 17040 hex elements
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/55657_sf_hexa.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/97596_sf_hexa.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/395607_sf_hexa.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/40666_sf_hexa.mesh"
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh"     #largest hex mesh 258038 elements
+
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/60222_sf_hexa.mesh"
+
+fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/1356639_sf_hexa.mesh'
+
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
 sorted_list_of_files = sorted( list_of_files, 
@@ -222,8 +243,9 @@ sorted_list_of_files = sorted( list_of_files,
 file_count = 0
 # for fname in glob.glob(folder):
 # for fname in [sorted_list_of_files[-1]]:
+for fname in sorted_list_of_files[3100:]:
 # for fname in sorted_list_of_files:
-for fname in [fname_]:
+# for fname in [fname_]:
 
 
     if file_count >= stop_after:
@@ -264,8 +286,8 @@ for fname in [fname_]:
         faces    = gmsh.model.mesh.getElementFaceNodes(4, 3)
         _, nodeCoords, _ = gmsh.model.mesh.getNodesByElementType(4,returnParametricCoord=False)
     elif elemTypes[0] == 5:
-        print("ignoring hex mesh", fname)
-        continue        
+        print("hex mesh", fname)
+        # continue        
         # TODO: support hex mesh with correct volume calculation
         mesh_type = 'hex'
         fn = 4
@@ -341,7 +363,33 @@ for fname in [fname_]:
         elemCenterCoordsXYZ[elem_idx][1] = y_tot/vertices_n 
         elemCenterCoordsXYZ[elem_idx][2] = z_tot/vertices_n
         # print(coord_matrix_for_volume)
-        volume = np.linalg.det(np.array(coord_matrix_for_volume))/6             # volume calculation
+        if mesh_type=='tet':
+            volume = abs(np.linalg.det(np.array(coord_matrix_for_volume)))/6             # volume calculation
+        else: # assuming 'hex' mesh
+
+            # Hexahedron:   (taken from https://gmsh.info/doc/texinfo/gmsh.html#Node-ordering)          
+            # 
+            #        v
+            # 3----------2            
+            # |\     ^   |\         
+            # | \    |   | \         
+            # |  \   |   |  \        
+            # |   7------+---6       
+            # |   |  +-- |-- | -> u  
+            # 0---+---\--1   |       
+            #  \  |    \  \  |       
+            #   \ |     \  \ |       
+            #    \|      w  \|        
+            #     4----------5
+            #     
+            # splitting into 5 tetrahedra for volume calculation
+            split_tets_nodes = [[0,2,3,7], [0,4,5,7] ,[2,5,6,7], [0,1,2,5], [0,2,5,7]]
+            volume = 0
+            for split_tet in split_tets_nodes:
+                tet_matrix = np.array([coord_matrix_for_volume[split_tet[0]], coord_matrix_for_volume[split_tet[1]], coord_matrix_for_volume[split_tet[2]], coord_matrix_for_volume[split_tet[3]]])
+                tet_vol = abs(np.linalg.det(tet_matrix))/6
+                volume+=tet_vol
+
         elemVolumes[elem_idx] = volume
 
 
@@ -355,6 +403,13 @@ for fname in [fname_]:
 
     integer_elemCenterCoordsXYZ_morton_ordered_with_index = sorted(integer_elemCenterCoordsXYZ_with_index, key=functools.cmp_to_key(morton_compare))
     morton_order = [d[1] for d in integer_elemCenterCoordsXYZ_morton_ordered_with_index]
+
+
+    # %%
+    # # hilbert sort
+    # hilbert_curve = HilbertCurve(28, 3)
+    # integer_elemCenterCoordsXYZ_hilbert_ordered_with_index = sorted(integer_elemCenterCoordsXYZ_with_index, key=lambda p: hilbert_curve.distance_from_point(p[0]))
+    # hilbert_order = [d[1] for d in integer_elemCenterCoordsXYZ_hilbert_ordered_with_index]
 
 
     # %%
@@ -378,39 +433,48 @@ for fname in [fname_]:
             partition_to_elem_idx[partition_idx].append(morton_order[i])
     assert(None not in morton_sfc_partition_labels)
     print("SFC partitoning done")
-    # calculating center elements for each partition
-    # ignoring disconnectedness
+
     center_element_indices = [None for _ in range(partition_count)]
 
-    for p_i in range(partition_count):
-        tot_x = 0
-        tot_y = 0
-        tot_z = 0
-        tot_vol = 0
-        for elem_i in partition_to_elem_idx[p_i]:
-            tot_vol+=1
-            tot_x += (1*elemCenterCoordsXYZ[elem_i][0])
-            tot_y += (1*elemCenterCoordsXYZ[elem_i][1])
-            tot_z += (1*elemCenterCoordsXYZ[elem_i][2])
-        center_x = tot_x/tot_vol
-        center_y = tot_y/tot_vol
-        center_z = tot_z/tot_vol
+    # # calculating center elements for each partition
+    # # ignoring disconnectedness
+    # for p_i in range(partition_count):
+    #     tot_x = 0
+    #     tot_y = 0
+    #     tot_z = 0
+    #     tot_vol = 0
+    #     for elem_i in partition_to_elem_idx[p_i]:
+    #         # vol = elemVolumes[elem_i]         # considering the element volume
+    #         vol=1       # not considering the element volume
+    #         # vol = 1/elemVolumes[elem_i]
+    #         tot_vol+=vol
+    #         tot_x += (vol*elemCenterCoordsXYZ[elem_i][0])
+    #         tot_y += (vol*elemCenterCoordsXYZ[elem_i][1])
+    #         tot_z += (vol*elemCenterCoordsXYZ[elem_i][2])
+    #     center_x = tot_x/tot_vol
+    #     center_y = tot_y/tot_vol
+    #     center_z = tot_z/tot_vol
 
 
-        center_elem_idx = None
-        center_elem_diff_to_center = math.inf
+    #     center_elem_idx = None
+    #     center_elem_diff_to_center = math.inf
 
-        # getting the closest element to partition center
-        for elem_i in partition_to_elem_idx[p_i]:
-            dist_sqr = 0
-            dist_sqr += (elemCenterCoordsXYZ[elem_i][0] - center_x)**2
-            dist_sqr += (elemCenterCoordsXYZ[elem_i][1] - center_y)**2
-            dist_sqr += (elemCenterCoordsXYZ[elem_i][2] - center_z)**2
-            if dist_sqr < center_elem_diff_to_center:
-                center_elem_idx = elem_i
-                center_elem_diff_to_center = dist_sqr
+    #     # getting the closest element to partition center
+    #     for elem_i in partition_to_elem_idx[p_i]:
+    #         dist_sqr = 0
+    #         dist_sqr += (elemCenterCoordsXYZ[elem_i][0] - center_x)**2
+    #         dist_sqr += (elemCenterCoordsXYZ[elem_i][1] - center_y)**2
+    #         dist_sqr += (elemCenterCoordsXYZ[elem_i][2] - center_z)**2
+    #         if dist_sqr < center_elem_diff_to_center:
+    #             center_elem_idx = elem_i
+    #             center_elem_diff_to_center = dist_sqr
         
-        center_element_indices[p_i] = center_elem_idx
+    #     center_element_indices[p_i] = center_elem_idx
+
+    # median element in morton order as seed
+    for p_i in range(partition_count):
+        partition_size = len(partition_to_elem_idx[p_i])
+        center_element_indices[p_i] = partition_to_elem_idx[p_i][partition_size//2]
 
 
     # %%
@@ -420,8 +484,9 @@ for fname in [fname_]:
 
     # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
 
-
+    start_time = time.perf_counter()
     element_to_BFS_partition = get_BFS_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    end_time = time.perf_counter()
 
 
 
@@ -431,13 +496,18 @@ for fname in [fname_]:
         BFS_partition_labels[element_to_idx[elem]] = element_to_BFS_partition[elem]
 
     assert(None not in BFS_partition_labels)
+    print("BFS partitioning done")
+    print(f'BFS took\t: {(end_time-start_time):.6f} seconds')
 
     # %%
     # seeds_by_walk = get_seeds_with_walk(G,partition_count)
     # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
     # element_to_BFS_grow_partition = get_parititions_by_oversampling_merge_high_cut_pair(G, partition_count)
     
-    element_to_BFS_grow_partition = get_local_grow_partitions_size_proxy_with_fennel(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    element_to_BFS_grow_partition = get_grow_partitions_ordered_BFS(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    # element_to_BFS_grow_partition = get_BFS_partitions_rand_seeds(G,partition_count)
+    
+    
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
 
     for elem in element_to_BFS_grow_partition:
@@ -452,13 +522,15 @@ for fname in [fname_]:
     # %%
 
     # METIS
-
+    start_time = time.perf_counter()
     (edgecuts, parts) = metis.part_graph(G, partition_count)
+    end_time = time.perf_counter()
     METIS_partition_labels = [lbl for lbl in parts]
 
     assert(None not in METIS_partition_labels)
 
     print("METIS done")
+    print(f'METIS took\t: {(end_time-start_time):.6f} seconds')
 
     # %%
 
@@ -485,6 +557,8 @@ for fname in [fname_]:
     if not is_viz_only:
         pd.DataFrame([result_row]).to_json(out_file_name+'.json',index=False,mode='a',lines=True,orient='records')
     else:
+        pd.set_option('display.max_columns', None) 
+        # with pd.option_context('display.max_columns', 150):
         print(result_row)
         break
 
@@ -527,7 +601,7 @@ import subprocess
 my_env = os.environ.copy()
 for i in range(len(method_names)):
     my_env[method_names[i]] = vtk_file_names[i]
-subprocess.run(['/home/budvin/Downloads/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview','paraview_script.py'],env=my_env)
+subprocess.run(['/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview','paraview_script.py'],env=my_env)
 
 if delete_vtk_files_after_viewing:
     for vtk_file in vtk_file_names:

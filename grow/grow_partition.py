@@ -3,7 +3,8 @@ import typing
 import random
 import math
 import copy
-from collections import defaultdict 
+from collections import defaultdict
+from datetime import datetime 
 
 """
 assumes an undirected, connected graph
@@ -263,7 +264,7 @@ def adjust_distances_to_layers(vertex_to_partition_distances: typing.Dict[int,ty
             prev_total+= BFS_to_layer_to_size[BFS_i][layer]
         # print(BFS_i, BFS_layer_to_cumulative_size, "\n")
         BFS_to_layer_to_cumulative_sizes[BFS_i] = BFS_layer_to_cumulative_size
-    
+    print(BFS_to_layer_to_cumulative_sizes[0])
     vertex_to_partition_distance_size_estimate = {}
 
     for vertex in vertex_to_partition_distances:
@@ -387,19 +388,20 @@ def get_local_grow_partitions_size_proxy_with_fennel(G: nx.Graph ,seeds: list[in
 
         for BFS_i in vertex_to_partition_distances_adjusted_to_sizes[vertex]:
             layer_cumulative_size = vertex_to_partition_distances_adjusted_to_sizes[vertex][BFS_i]
-            if layer_cumulative_size > ideal_partition_size:
+            if layer_cumulative_size > (ideal_partition_size):
                 continue
             if layer_cumulative_size < best_partition_my_layer_cumulative_size:
                 best_partition = BFS_i
+                best_partition_my_layer_cumulative_size = layer_cumulative_size
         
         if best_partition!=None:
             vertex_to_partition_label[vertex] = best_partition
             partition_current_sizes[best_partition]+=1
 
-    print(f"initially {len(vertex_to_partition_label)} vertices assigned out of {G.number_of_nodes()} \t({100*len(vertex_to_partition_label)/G.number_of_nodes()}%)")
+    print(f"initially {len(vertex_to_partition_label)} vertices assigned out of {G.number_of_nodes()} \t({100*len(vertex_to_partition_label)/G.number_of_nodes()} %)")
     
     inside_edge_counts = get_inside_edge_counts(G,partition_count,vertex_to_partition_label)
-    gamma = 2.0
+    gamma = 1.75
     alpha = G.number_of_edges() * ((partition_count**(gamma - 1)) / (G.number_of_nodes()**(gamma)))
 
     
@@ -408,15 +410,22 @@ def get_local_grow_partitions_size_proxy_with_fennel(G: nx.Graph ,seeds: list[in
             if vertex in vertex_to_partition_label:
                 continue
             # else:
-            #     vertex_to_partition_label[vertex] = 0
+            #     vertex_to_partition_label[vertex] = -1
             #     continue
-            a_neighbor_is_assigned = False
+            # a_neighbor_is_assigned = False
+            # neighbor_count = 0
+            assigned_neighbor_count = 0
             for neigh in G.neighbors(vertex):
+                # neighbor_count+=1
                 if neigh in vertex_to_partition_label:
-                    a_neighbor_is_assigned = True
-                    break
-            if not a_neighbor_is_assigned:      # if there is no neighbor already assigned, we will process this vertex later
+                    assigned_neighbor_count+=1
+                    # a_neighbor_is_assigned = True
+                    # break
+            # if not a_neighbor_is_assigned:      # if there is no neighbor already assigned, we will process this vertex later
+            #     continue
+            if assigned_neighbor_count < 1:
                 continue
+            print(f"processing vertex {vertex}")
 
             best_partition=None
             best_partition_g_value=float("-inf")
@@ -432,7 +441,8 @@ def get_local_grow_partitions_size_proxy_with_fennel(G: nx.Graph ,seeds: list[in
                         for neigh in G.neighbors(vertex):
                             if (neigh in vertex_to_partition_label) and (vertex_to_partition_label[neigh] ==BFS_i):
                                 inside_edges+=1
-                    BFS_i_g_value += (inside_edges - alpha*(part_size**gamma)) 
+                    BFS_i_g_value += inside_edges
+                    # BFS_i_g_value += (inside_edges - alpha*(part_size**gamma)) 
                 if BFS_i_g_value > best_partition_g_value:
                     best_partition = BFS_i
                     best_partition_g_value = BFS_i_g_value
@@ -447,3 +457,454 @@ def get_local_grow_partitions_size_proxy_with_fennel(G: nx.Graph ,seeds: list[in
 
 
     return vertex_to_partition_label
+
+
+
+
+def get_local_BFS_rebalanced_partitions(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        vertex_to_partition_distance_new_copy = copy.deepcopy(vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in vertex_to_partition_distance:
+                    continue
+                    
+                if (vertex not in vertex_to_partition_distance_new_copy) or  ((vertex_to_partition_distance[neigh][1] + 1) < vertex_to_partition_distance_new_copy[vertex][1]):
+                    vertex_to_partition_distance_new_copy[vertex] = (vertex_to_partition_distance[neigh][0], vertex_to_partition_distance[neigh][1]+1)
+                    is_stable = False
+        vertex_to_partition_distance = vertex_to_partition_distance_new_copy
+
+    
+    vertex_to_partition_label = {}
+
+    for vertex in vertex_to_partition_distance:
+        partititon = vertex_to_partition_distance[vertex][0]
+        vertex_to_partition_label[vertex] = partititon
+
+
+    ideal_partition_size = int(G.number_of_nodes()/partition_count)
+    reassignments = 0
+    reassignment_rounds = 5
+    for r_i in range(reassignment_rounds):
+        partition_sizes = [0 for _ in range(partition_count)]
+        for vertex in vertex_to_partition_label:
+            partititon = vertex_to_partition_label[vertex]
+            partition_sizes[partititon]+=1
+
+        vertex_to_partition_label_old_copy = copy.deepcopy(vertex_to_partition_label)
+
+        for vertex in vertex_to_partition_label:
+            if partition_sizes[vertex_to_partition_label[vertex]] <= (ideal_partition_size*0.9):
+                continue
+
+            best_partition_to_reassign = None
+            best_partition_to_reassign_size = float('inf')
+            for neigh in G.neighbors(vertex):
+
+                partition = vertex_to_partition_label_old_copy[neigh]
+                partition_size = partition_sizes[partititon]
+
+                if vertex_to_partition_label[vertex] == partition:
+                    continue        # neighbor in same partition, skip
+
+                if partition_size > (ideal_partition_size*0.8):
+                    continue        # do not reassign to already large partition
+
+                if partition_size < best_partition_to_reassign_size:
+                    best_partition_to_reassign = partition
+                    best_partition_to_reassign_size = partition_size
+
+            if best_partition_to_reassign!=None:
+                vertex_to_partition_label[vertex] = best_partition_to_reassign
+                reassignments+=1
+      
+
+    print(f"reassigned {reassignments} vertices")
+    
+
+    return vertex_to_partition_label
+
+
+def get_grow_partitions_stop_when_ideal(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+
+    vertex_to_BFS_partition = {}
+    BFS_partition_to_frontier = {}
+    BFS_partition_growing_status = [True for _ in range(partition_count)]
+
+    #initial seeds
+    for p_i, s in enumerate(seeds):
+        vertex_to_BFS_partition[s] = p_i
+        BFS_partition_to_frontier[p_i] = set([s])
+
+    partition_sizes = [1 for _ in range(partition_count)]
+    ideal_partition_size = int(G.number_of_nodes()/partition_count)
+
+    while any(BFS_partition_growing_status):
+        for p_i in range(partition_count):
+            if not BFS_partition_growing_status[p_i]:
+                continue
+            new_frontier = set()
+            for curr_frontier_elem in BFS_partition_to_frontier[p_i]:
+                    for neigh in G.neighbors(curr_frontier_elem):
+                        if neigh not in vertex_to_BFS_partition:       # if not assigned to any partition
+                            vertex_to_BFS_partition[neigh] = p_i       # then add to current growing partition
+                            new_frontier.add(neigh)
+                            partition_sizes[p_i]+=1  
+            BFS_partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0 or partition_sizes[p_i]>=(ideal_partition_size*0.9):
+                BFS_partition_growing_status[p_i] = False
+    print(f"initial pass assigned {len(vertex_to_BFS_partition)} vertices out of {G.number_of_nodes()}\t{100*len(vertex_to_BFS_partition)/G.number_of_nodes()} %")
+    print(f"initial partition sizes: {partition_sizes}")
+    print(f"initial partition size ratios: {[round(x/ideal_partition_size,2) for x in partition_sizes]}")
+    # assigning any left out vertices
+    while(len(vertex_to_BFS_partition) < G.number_of_nodes()):
+        for vertex in list(G.nodes):
+            if vertex in vertex_to_BFS_partition:
+                continue        # already assigned
+            vertex_to_BFS_partition[vertex] = 0
+            for neigh in G.neighbors(vertex):
+                if neigh not in vertex_to_BFS_partition:
+                    continue
+                vertex_to_BFS_partition[vertex] = vertex_to_BFS_partition[neigh]
+                partition_sizes[vertex_to_BFS_partition[neigh]]+=1
+                break
+    print(f"final partition size ratios: {[round(x/ideal_partition_size,2) for x in partition_sizes]}")
+    return vertex_to_BFS_partition
+
+
+def get_grow_partitions_2_passes_rand_seeds(G: nx.Graph ,seeds_given: list[int],partition_count: int) -> typing.Dict[int,int]:
+    all_vertices = list(G.nodes)
+    random.seed(datetime.now().timestamp())
+    seeds= [all_vertices[random.randint(0,G.number_of_nodes())] for _ in range(partition_count)]
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    
+    first_pass_vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        first_pass_vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        first_pass_vertex_to_partition_distance_new_copy = copy.deepcopy(first_pass_vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in first_pass_vertex_to_partition_distance:
+                    continue
+                    
+                if (vertex not in first_pass_vertex_to_partition_distance_new_copy) or  ((first_pass_vertex_to_partition_distance[neigh][1] + 1) < first_pass_vertex_to_partition_distance_new_copy[vertex][1]):
+                    first_pass_vertex_to_partition_distance_new_copy[vertex] = (first_pass_vertex_to_partition_distance[neigh][0], first_pass_vertex_to_partition_distance[neigh][1]+1)
+                    is_stable = False
+        first_pass_vertex_to_partition_distance = first_pass_vertex_to_partition_distance_new_copy
+
+    first_pass_partition_sizes = [0 for _ in range(partition_count)]
+    first_pass_vertex_to_partition_label = {}
+    for vertex in first_pass_vertex_to_partition_distance:
+        first_pass_partition_sizes[first_pass_vertex_to_partition_distance[vertex][0]]+=1
+        first_pass_vertex_to_partition_label[vertex] = first_pass_vertex_to_partition_distance[vertex][0]
+    
+    ideal_partition_size = int(G.number_of_nodes()/partition_count)
+    second_pass_step_sizes = [(x/ideal_partition_size)**0.333 for x in first_pass_partition_sizes]
+    
+    # print(f"first pass sizes\t: {first_pass_partition_sizes}")
+    # print(f"second_pass_step_sizes\t: {[round(x,2) for x in second_pass_step_sizes]}")
+
+
+    # second pass, using new step sizes
+    second_pass_vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        second_pass_vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        second_pass_vertex_to_partition_distance_new_copy = copy.deepcopy(second_pass_vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in second_pass_vertex_to_partition_distance:
+                    continue
+
+                neighbor_partition = second_pass_vertex_to_partition_distance[neigh][0]
+                neighbor_partition_distance = second_pass_vertex_to_partition_distance[neigh][1]
+                neighbor_partition_step_size = second_pass_step_sizes[neighbor_partition]
+
+                    
+                if (vertex not in second_pass_vertex_to_partition_distance_new_copy) or  ((neighbor_partition_distance + neighbor_partition_step_size) < second_pass_vertex_to_partition_distance_new_copy[vertex][1]):
+                    second_pass_vertex_to_partition_distance_new_copy[vertex] = (neighbor_partition, neighbor_partition_distance + neighbor_partition_step_size)
+                    is_stable = False
+        second_pass_vertex_to_partition_distance = second_pass_vertex_to_partition_distance_new_copy
+
+    second_pass_vertex_to_partition_label = {}
+    second_pass_partition_sizes = [0 for _ in range(partition_count)]
+    for vertex in second_pass_vertex_to_partition_distance:
+        second_pass_partition_sizes[second_pass_vertex_to_partition_distance[vertex][0]]+=1
+        second_pass_vertex_to_partition_label[vertex] = second_pass_vertex_to_partition_distance[vertex][0]
+    # print(f"second pass sizes\t: {second_pass_partition_sizes}")
+    return second_pass_vertex_to_partition_label
+
+
+
+
+
+
+def get_grow_partitions_2_passes_for_size_ratio_rand_seeds(G: nx.Graph ,seeds_given: list[int],partition_count: int) -> typing.Dict[int,int]:
+    all_vertices = list(G.nodes)
+    random.seed(datetime.now().timestamp())
+    seed_indices = random.sample(range(G.number_of_nodes()), partition_count)
+    seeds= [all_vertices[s_i] for s_i in seed_indices]
+    
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    
+    first_pass_vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        first_pass_vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        first_pass_vertex_to_partition_distance_new_copy = copy.deepcopy(first_pass_vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in first_pass_vertex_to_partition_distance:
+                    continue
+                    
+                if (vertex not in first_pass_vertex_to_partition_distance_new_copy) or  ((first_pass_vertex_to_partition_distance[neigh][1] + 1) < first_pass_vertex_to_partition_distance_new_copy[vertex][1]):
+                    first_pass_vertex_to_partition_distance_new_copy[vertex] = (first_pass_vertex_to_partition_distance[neigh][0], first_pass_vertex_to_partition_distance[neigh][1]+1)
+                    is_stable = False
+        first_pass_vertex_to_partition_distance = first_pass_vertex_to_partition_distance_new_copy
+
+    first_pass_partition_sizes = [0 for _ in range(partition_count)]
+    first_pass_vertex_to_partition_label = {}
+    for vertex in first_pass_vertex_to_partition_distance:
+        first_pass_partition_sizes[first_pass_vertex_to_partition_distance[vertex][0]]+=1
+        first_pass_vertex_to_partition_label[vertex] = first_pass_vertex_to_partition_distance[vertex][0]
+    
+    # ideal_partition_size = int(G.number_of_nodes()/partition_count)
+    
+
+
+    first_pass_partition_cuts = [0 for _ in range(partition_count)]
+
+    for u,v in G.edges:
+
+        part_u = first_pass_vertex_to_partition_label[u]
+        part_v = first_pass_vertex_to_partition_label[v]
+        if part_u != part_v:
+            first_pass_partition_cuts[part_u]+=1
+            first_pass_partition_cuts[part_v]+=1
+
+    first_pass_partition_size_to_cut_ratios = [s/c for s,c in zip(first_pass_partition_sizes,first_pass_partition_cuts)]
+
+    second_pass_step_sizes = [(max(first_pass_partition_size_to_cut_ratios)/x)**0.33 for x in first_pass_partition_size_to_cut_ratios]
+    
+    print(f"first pass cuts\t: {first_pass_partition_cuts}")
+    print(f"second_pass_step_sizes\t: {[round(x,2) for x in second_pass_step_sizes]}")
+
+
+    # second pass, using new step sizes
+    second_pass_vertex_to_partition_distance = {}       # each vertex will be assigned a tuple (current partition, distance to current partition)
+    for BFS_i,root in enumerate(seeds):
+        second_pass_vertex_to_partition_distance[root] = (BFS_i, 0)
+
+    is_stable = False
+    while not is_stable:
+        is_stable = True
+        second_pass_vertex_to_partition_distance_new_copy = copy.deepcopy(second_pass_vertex_to_partition_distance)
+        for vertex in list(G.nodes):
+            for neigh in G.neighbors(vertex):
+                if neigh not in second_pass_vertex_to_partition_distance:
+                    continue
+
+                neighbor_partition = second_pass_vertex_to_partition_distance[neigh][0]
+                neighbor_partition_distance = second_pass_vertex_to_partition_distance[neigh][1]
+                neighbor_partition_step_size = second_pass_step_sizes[neighbor_partition]
+
+                    
+                if (vertex not in second_pass_vertex_to_partition_distance_new_copy) or  ((neighbor_partition_distance + neighbor_partition_step_size) < second_pass_vertex_to_partition_distance_new_copy[vertex][1]):
+                    second_pass_vertex_to_partition_distance_new_copy[vertex] = (neighbor_partition, neighbor_partition_distance + neighbor_partition_step_size)
+                    is_stable = False
+        second_pass_vertex_to_partition_distance = second_pass_vertex_to_partition_distance_new_copy
+
+    second_pass_vertex_to_partition_label = {}
+    second_pass_partition_sizes = [0 for _ in range(partition_count)]
+    for vertex in second_pass_vertex_to_partition_distance:
+        second_pass_partition_sizes[second_pass_vertex_to_partition_distance[vertex][0]]+=1
+        second_pass_vertex_to_partition_label[vertex] = second_pass_vertex_to_partition_distance[vertex][0]
+    # print(f"second pass sizes\t: {second_pass_partition_sizes}")
+    return second_pass_vertex_to_partition_label
+
+
+
+
+
+
+"""
+assumes an undirected, connected graph
+"""
+def get_grow_partitions_ordered_BFS(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+
+    # all_vertices = list(G.nodes)
+    # random.seed(datetime.now().timestamp())
+    # seed_indices = random.sample(range(G.number_of_nodes()), partition_count)
+    # seeds= [all_vertices[s_i] for s_i in seed_indices]
+
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    optimal_partition_size = G.number_of_nodes()//partition_count
+
+    vertex_to_partition = {}
+    vertex_to_partition_order = {}
+    vertex_to_partition_distance = {}
+    partition_to_frontier = {}
+    partition_to_vertices = {}
+    partition_growing_status = [True for _ in range(partition_count)]
+    partition_to_current_edge_cut = [set() for _ in range(partition_count)]
+
+
+
+    #initial seeds
+    for p_i, s in enumerate(seeds):
+        vertex_to_partition[s] = p_i
+        vertex_to_partition_order[s] = 1
+        vertex_to_partition_distance[s] = 0
+        partition_to_frontier[p_i] = set([s])
+        partition_to_vertices[p_i] = set([s])
+
+
+    while any(partition_growing_status):
+        for p_i in range(partition_count):
+            if not partition_growing_status[p_i]:
+                continue
+            partition_size = len(partition_to_vertices[p_i])
+
+
+            new_frontier = set()
+            ordering = float("-inf")
+            for frontier_vertex in partition_to_frontier[p_i]:
+                ordering = max(ordering, vertex_to_partition_order[frontier_vertex])
+            ordering+=1
+            for curr_frontier_vertex in partition_to_frontier[p_i]:
+                    for neigh in G.neighbors(curr_frontier_vertex):
+                        if neigh not in vertex_to_partition:       # if not assigned to any partition
+                            vertex_to_partition[neigh] = p_i       # then add to current growing partition
+                            vertex_to_partition_order[neigh] = ordering
+                            ordering+=1
+                            vertex_to_partition_distance[neigh] = vertex_to_partition_distance[curr_frontier_vertex] + 1
+                            partition_to_vertices[p_i].add(neigh)
+                            new_frontier.add(neigh)
+                        elif vertex_to_partition[neigh] == p_i: # already in current growing partition
+                            continue
+                        else:
+                            if (vertex_to_partition_order[neigh]/optimal_partition_size)*(vertex_to_partition_distance[neigh]) > (vertex_to_partition_order[curr_frontier_vertex]/optimal_partition_size)*(vertex_to_partition_distance[curr_frontier_vertex]) :
+                                vertex_to_partition[neigh] = p_i
+                                vertex_to_partition_order[neigh] = ordering
+                                vertex_to_partition_distance[neigh] = vertex_to_partition_distance[curr_frontier_vertex] + 1
+                                ordering+=1
+                                partition_to_vertices[p_i].add(neigh)
+                                new_frontier.add(neigh)
+
+                                for other_p_i in range(partition_count):
+                                    if other_p_i == p_i:
+                                        continue
+                                    partition_to_frontier[other_p_i].discard(neigh)
+                            
+
+            partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0:
+                partition_growing_status[p_i] = False
+
+
+    assert len(vertex_to_partition) == G.number_of_nodes(), "error: some nodes have been left out of partitioning"
+
+    return vertex_to_partition
+
+
+
+"""
+assumes an undirected, connected graph
+"""
+def get_grow_partitions_noised_BFS(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+
+    # all_vertices = list(G.nodes)
+    random.seed(datetime.now().timestamp())
+    # seed_indices = random.sample(range(G.number_of_nodes()), partition_count)
+    # seeds= [all_vertices[s_i] for s_i in seed_indices]
+
+    assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
+    optimal_partition_size = G.number_of_nodes()//partition_count
+
+    vertex_to_partition = {}
+    # vertex_to_partition_order = {}
+    vertex_to_partition_distance = {}
+    partition_to_frontier = {}
+    partition_to_vertices = {}
+    partition_growing_status = [True for _ in range(partition_count)]
+    partition_to_current_edge_cut = [set() for _ in range(partition_count)]
+
+
+
+    #initial seeds
+    for p_i, s in enumerate(seeds):
+        vertex_to_partition[s] = p_i
+        # vertex_to_partition_order[s] = 1
+        vertex_to_partition_distance[s] = 0
+        partition_to_frontier[p_i] = set([s])
+        partition_to_vertices[p_i] = set([s])
+
+
+    while any(partition_growing_status):
+        for p_i in range(partition_count):
+            if not partition_growing_status[p_i]:
+                continue
+            partition_size = len(partition_to_vertices[p_i])
+
+
+            new_frontier = set()
+            # ordering = float("-inf")
+            # for frontier_vertex in partition_to_frontier[p_i]:
+            #     ordering = max(ordering, vertex_to_partition_order[frontier_vertex])
+            # ordering+=1
+            for curr_frontier_vertex in partition_to_frontier[p_i]:
+                    increment = 1
+                    for neigh in G.neighbors(curr_frontier_vertex):
+                        if neigh not in vertex_to_partition:       # if not assigned to any partition
+                            vertex_to_partition[neigh] = p_i       # then add to current growing partition
+                            # vertex_to_partition_order[neigh] = ordering
+                            # ordering+=1
+                            vertex_to_partition_distance[neigh] = vertex_to_partition_distance[curr_frontier_vertex] + increment
+                            partition_to_vertices[p_i].add(neigh)
+                            new_frontier.add(neigh)
+                        elif vertex_to_partition[neigh] == p_i: # already in current growing partition
+                            continue
+                        else:
+                            # if (vertex_to_partition_order[neigh]/optimal_partition_size)*(vertex_to_partition_distance[neigh]) > (vertex_to_partition_order[curr_frontier_vertex]/optimal_partition_size)*(vertex_to_partition_distance[curr_frontier_vertex]) :
+                            if (vertex_to_partition_distance[neigh]) > (vertex_to_partition_distance[curr_frontier_vertex]) :
+                                vertex_to_partition[neigh] = p_i
+                                # vertex_to_partition_order[neigh] = ordering
+                                vertex_to_partition_distance[neigh] = vertex_to_partition_distance[curr_frontier_vertex] + increment/2
+                                # ordering+=1
+                                partition_to_vertices[p_i].add(neigh)
+                                new_frontier.add(neigh)
+
+                                for other_p_i in range(partition_count):
+                                    if other_p_i == p_i:
+                                        continue
+                                    partition_to_frontier[other_p_i].discard(neigh)
+                            
+
+            partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0:
+                partition_growing_status[p_i] = False
+
+
+    assert len(vertex_to_partition) == G.number_of_nodes(), "error: some nodes have been left out of partitioning"
+
+    return vertex_to_partition

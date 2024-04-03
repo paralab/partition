@@ -11,8 +11,8 @@ pandas
 scipy
 numpy
 ipympl
-mayavi
 PyQt5
 ipyevents
 open3d
 vtk
+hilbertcurve

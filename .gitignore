@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/
 lib64/
 parts/
 sdist/
@@ -104,6 +104,8 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-python
+.venv-pypy
 env/
 venv/
 ENV/
