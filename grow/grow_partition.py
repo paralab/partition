@@ -4,7 +4,9 @@ import random
 import math
 import copy
 from collections import defaultdict
-from datetime import datetime 
+from datetime import datetime
+
+from BFS_Partition import get_BFS_partitions 
 
 """
 assumes an undirected, connected graph
@@ -656,11 +658,11 @@ def get_grow_partitions_2_passes_rand_seeds(G: nx.Graph ,seeds_given: list[int],
 
 
 
-def get_grow_partitions_2_passes_for_size_ratio_rand_seeds(G: nx.Graph ,seeds_given: list[int],partition_count: int) -> typing.Dict[int,int]:
-    all_vertices = list(G.nodes)
-    random.seed(datetime.now().timestamp())
-    seed_indices = random.sample(range(G.number_of_nodes()), partition_count)
-    seeds= [all_vertices[s_i] for s_i in seed_indices]
+def get_grow_partitions_2_passes_for_size_ratio(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
+    # all_vertices = list(G.nodes)
+    # random.seed(datetime.now().timestamp())
+    # seed_indices = random.sample(range(G.number_of_nodes()), partition_count)
+    # seeds= [all_vertices[s_i] for s_i in seed_indices]
     
     assert len(seeds) == partition_count, "len(seeds) should be equal to partition_count"
     
@@ -704,7 +706,8 @@ def get_grow_partitions_2_passes_for_size_ratio_rand_seeds(G: nx.Graph ,seeds_gi
 
     first_pass_partition_size_to_cut_ratios = [s/c for s,c in zip(first_pass_partition_sizes,first_pass_partition_cuts)]
 
-    second_pass_step_sizes = [(max(first_pass_partition_size_to_cut_ratios)/x)**0.33 for x in first_pass_partition_size_to_cut_ratios]
+    # second_pass_step_sizes = [(max(first_pass_partition_size_to_cut_ratios)/x)**0.33 for x in first_pass_partition_size_to_cut_ratios]
+    second_pass_step_sizes = [(x/max(first_pass_partition_cuts))**0.5 for x in first_pass_partition_cuts]
     
     print(f"first pass cuts\t: {first_pass_partition_cuts}")
     print(f"second_pass_step_sizes\t: {[round(x,2) for x in second_pass_step_sizes]}")
@@ -908,3 +911,83 @@ def get_grow_partitions_noised_BFS(G: nx.Graph ,seeds: list[int],partition_count
     assert len(vertex_to_partition) == G.number_of_nodes(), "error: some nodes have been left out of partitioning"
 
     return vertex_to_partition
+
+
+
+def get_grow_partitions_2_passes_oversampled(G: nx.Graph ,seeds_oversampled: list[int],partition_count: int) -> typing.Dict[int,int]:
+    
+    oversampled_partition_count  = len(seeds_oversampled)
+    print(f"oversampled_partition_count: {oversampled_partition_count}")
+
+    vertex_to_BFS_partition = {}
+    BFS_partition_to_frontier = {}
+    BFS_partition_growing_status = [True for _ in range(oversampled_partition_count)]
+    vertex_to_BFS_seed_distance = {}
+
+    #initial seeds
+    for p_i, s in enumerate(seeds_oversampled):
+        vertex_to_BFS_partition[s] = p_i
+        vertex_to_BFS_seed_distance[s] = 0
+        BFS_partition_to_frontier[p_i] = set([s])
+
+    while any(BFS_partition_growing_status):
+        for p_i in range(oversampled_partition_count):
+            if not BFS_partition_growing_status[p_i]:
+                continue
+            new_frontier = set()
+            for curr_frontier_elem in BFS_partition_to_frontier[p_i]:
+                    for neigh in G.neighbors(curr_frontier_elem):
+                        if neigh not in vertex_to_BFS_partition:       # if not assigned to any partition
+                            vertex_to_BFS_partition[neigh] = p_i       # then add to current growing partition
+                            vertex_to_BFS_seed_distance[neigh] = vertex_to_BFS_seed_distance[curr_frontier_elem]+1
+                            new_frontier.add(neigh)  
+            BFS_partition_to_frontier[p_i] = new_frontier
+            if len(new_frontier) == 0:
+                BFS_partition_growing_status[p_i] = False
+
+    # print(vertex_to_BFS_seed_distance)
+    assert len(vertex_to_BFS_partition) == G.number_of_nodes(), "error: some nodes have been left out in initial partitioning"
+    
+    seeds_oversampled_pairwise_distances = {}
+    for u,v in G.edges:
+        if vertex_to_BFS_partition[u] != vertex_to_BFS_partition[v]:
+            seed1 = seeds_oversampled[vertex_to_BFS_partition[u]]
+            seed2 = seeds_oversampled[vertex_to_BFS_partition[v]]
+
+            pair = tuple(sorted([seed1,seed2]))
+            if pair not in seeds_oversampled_pairwise_distances:
+                seeds_oversampled_pairwise_distances[pair] = float('inf')
+            dist = vertex_to_BFS_seed_distance[u] + vertex_to_BFS_seed_distance[v]
+            # print(dist)
+            seeds_oversampled_pairwise_distances[pair] = min(seeds_oversampled_pairwise_distances[pair], dist)      # sometimes 2 partition may have different boundaries. we want to get the closest distance
+
+    # print(f"seeds_oversampled_pairwise_distances:\n{seeds_oversampled_pairwise_distances}")
+
+    seeds_oversampled_pairwise_distances_list = []
+
+    for key in seeds_oversampled_pairwise_distances:
+        seeds_oversampled_pairwise_distances_list.append([key, seeds_oversampled_pairwise_distances[key] ])
+
+    seeds_oversampled_pairwise_distances_sorted = sorted(seeds_oversampled_pairwise_distances_list, key=lambda item : item[1])      # sort pairs using distance
+    # print(f"seeds_oversampled_pairwise_distances_sorted:\n{seeds_oversampled_pairwise_distances_sorted}")
+
+    remaining_seeds = [i for i in seeds_oversampled]
+
+
+    # removing bad seeds
+    while len(remaining_seeds) > partition_count and len(seeds_oversampled_pairwise_distances_sorted) > 0:
+        # print(f"remaining_seeds: {remaining_seeds}")
+        # print(f"seeds_oversampled_pairwise_distances_sorted:\n{seeds_oversampled_pairwise_distances_sorted}")
+
+        closest_pair = seeds_oversampled_pairwise_distances_sorted[0][0]
+        # print(f"considering pair: {closest_pair}")
+        seed_to_remove = closest_pair[0]        # TODO: have a better way to choose one from the pair
+        remaining_seeds.remove(seed_to_remove)
+        seeds_oversampled_pairwise_distances_sorted = list(filter(lambda x: x[0][0]!= seed_to_remove and x[0][1]!= seed_to_remove, seeds_oversampled_pairwise_distances_sorted))
+    if len(remaining_seeds) > partition_count:
+        print("removing still remaning additional seeds, randomly")
+        random.seed(datetime.now().timestamp())
+        final_seeds = random.sample(remaining_seeds, partition_count)   # TODO: have a better to remove further remining seeds
+    else:
+        final_seeds = remaining_seeds
+    return get_BFS_partitions(G ,final_seeds,partition_count)

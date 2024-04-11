@@ -31,7 +31,7 @@ from hilbertcurve.hilbertcurve import HilbertCurve
 
 
 from BFS_Partition import get_BFS_partitions, get_local_BFS_partitions, get_BFS_partitions_rand_seeds
-from grow_partition import get_grow_partitions_ordered_BFS, get_grow_partitions_noised_BFS
+from grow_partition import get_grow_partitions_ordered_BFS, get_grow_partitions_noised_BFS, get_grow_partitions_2_passes_for_size_ratio, get_grow_partitions_2_passes_oversampled
 # from graph_walk import get_seeds_with_walk
 
 # from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition, get_parititions_by_oversampling_remove_extra_once, get_parititions_by_oversampling_merge_high_cut_pair
@@ -43,49 +43,50 @@ from vtk_utils import export_points_to_vtk
 method_names = ['SFC_morton','BFS','BFS_grow','METIS']
 
 
-folder = r'/home/budvin/research/Partitioning/Meshes/10k_hex/*.mesh'
+folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
 gmsh.initialize() #sys.argv)
 
 stop_after = 70
 
-partition_count=8
+partition_count=50
 
 delete_vtk_files_after_viewing = True
 
-out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc_seeds-ordered_BFS_with_distance-np8-70largehexmeshes')
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc_seed-2pass_2xoversample-np800-70largetetmeshes')
 
 # out_file_name = "largest_mesh"
 
-is_viz_only = False         # set is_viz_only = True for vizualizing partitioning for 1 file
+is_viz_only = True         # set is_viz_only = True for vizualizing partitioning for 1 file
 
 def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
     partition_sizes = [0 for _ in range(p_count)]
-    partition_cuts = [0 for _ in range(p_count)]
+    partition_boundaries = [0 for _ in range(p_count)]
     for cl in parition_labels:
         partition_sizes[cl]+=1
 
-    edge_cuts = 0
+    total_boundaries = 0
 
-    for u,v in graph.edges:
-        part_u = parition_labels[elem_to_idx_mapping[u]]
-        part_v = parition_labels[elem_to_idx_mapping[v]]
-        if part_u != part_v:
-            edge_cuts+=1
-            partition_cuts[part_u]+=1
-            partition_cuts[part_v]+=1
+    for vertex in graph.nodes:
+        partition = parition_labels[elem_to_idx_mapping[vertex]]
+        for neigh in G.neighbors(vertex):
+            neigh_partition =  parition_labels[elem_to_idx_mapping[neigh]]
+            if neigh_partition != partition:
+                partition_boundaries[partition]+=1
+                total_boundaries+=1
+                break
 
     rho_max = max(partition_sizes)/(graph.number_of_nodes()/p_count)
     rho_min = min(partition_sizes)/(graph.number_of_nodes()/p_count)
-    lmb = edge_cuts/graph.number_of_edges()
+    boundary_ratio = total_boundaries/graph.number_of_nodes()
     return {
-        'lambda': lmb,
-        'lambda_expr':f"{edge_cuts}/{graph.number_of_edges()}",
+        'boundary_ratio': boundary_ratio,
+        'boundary_ratio_expr':f"{total_boundaries}/{graph.number_of_nodes()}",
         'rho_max': rho_max,
         'rho_max_expr': f"{max(partition_sizes)}/{int(graph.number_of_nodes()/p_count)}",
         'rho_min': rho_min,
         'rho_min_expr': f"{min(partition_sizes)}/{int(graph.number_of_nodes()/p_count)}",
         'partition_sizes': partition_sizes,
-        'partitions_cuts': partition_cuts
+        'partition_boundaries': partition_boundaries
     }
 
 
@@ -171,6 +172,10 @@ def get_stretched_increment(partition_current_size, frontier_current_size):
     return math.log2(partition_current_size) + 1
     # return math.sqrt(partition_current_size)
 
+# %%
+def cluster_to_color(ci):
+    random.seed(ci**3)
+    return (random.randint(0,255),random.randint(0,255),random.randint(0,255),125)
 
 
 # %%
@@ -232,20 +237,35 @@ fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_3
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/60222_sf_hexa.mesh"
 
-fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/1356639_sf_hexa.mesh'
+fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/51140_sf_hexa.mesh'
+
+fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/472091_sf_hexa.mesh'
+
+# fname_ = "/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh"
 
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
 sorted_list_of_files = sorted( list_of_files, 
                         key =  lambda x: os.stat(x).st_size) 
 
+file_list = [
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh",
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/60222_sf_hexa.mesh",
+    '/home/budvin/research/Partitioning/Meshes/10k_hex/1356639_sf_hexa.mesh',
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/208721_sf_hexa.mesh",
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh",
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/98660_sf_hexa.mesh",
+    "/home/budvin/research/Partitioning/Meshes/10k_hex/66485_sf_hexa.mesh"
+]
+
 # for fname in glob.glob(folder):
 file_count = 0
 # for fname in glob.glob(folder):
 # for fname in [sorted_list_of_files[-1]]:
-for fname in sorted_list_of_files[3100:]:
+# for fname in sorted_list_of_files[2800:]:
+# for fname in [file_list[1]]:
 # for fname in sorted_list_of_files:
-# for fname in [fname_]:
+for fname in [fname_]:
 
 
     if file_count >= stop_after:
@@ -504,9 +524,16 @@ for fname in sorted_list_of_files[3100:]:
     # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
     # element_to_BFS_grow_partition = get_parititions_by_oversampling_merge_high_cut_pair(G, partition_count)
     
-    element_to_BFS_grow_partition = get_grow_partitions_ordered_BFS(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    # element_to_BFS_grow_partition = get_grow_partitions_2_passes_for_size_ratio(G,[idx_to_element[c] for c in center_element_indices],partition_count)
     # element_to_BFS_grow_partition = get_BFS_partitions_rand_seeds(G,partition_count)
     
+    oversampled_indices = []
+    oversample_rate = 2
+    for sample_i in range(oversample_rate * partition_count):
+        oversampled_indices.append(morton_order[sample_i* (len(elemCenterCoordsXYZ)//(oversample_rate * partition_count))])
+
+    element_to_BFS_grow_partition = get_grow_partitions_2_passes_oversampled(G,[idx_to_element[c] for c in oversampled_indices],partition_count)
+
     
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
 
@@ -550,8 +577,7 @@ for fname in sorted_list_of_files[3100:]:
             result_row[f"{method_name}_{metric_key}"] = metric[metric_key]
         pass
     
-    file_count+=1
-    print(file_count, fname, "done")
+
 
     # all_results = pd.concat([all_results,pd.DataFrame([result_row])],ignore_index=True)
     if not is_viz_only:
@@ -561,6 +587,21 @@ for fname in sorted_list_of_files[3100:]:
         # with pd.option_context('display.max_columns', 150):
         print(result_row)
         break
+
+    # out_dir_prefix="/home/budvin/research/Partitioning/paralab-partition/grow/vtk_files_3-4/"
+    # vtk_file_names = []
+    # for labeling, method_name in zip([morton_sfc_partition_labels,BFS_partition_labels,BFS_grow_partition_labels,METIS_partition_labels],method_names):
+    #     coloring = [cluster_to_color(label) for label in labeling]
+    #     vtk_file_name = f"{out_dir_prefix}{file_count}_{fname.split('/')[-1]}__np-{partition_count}___{method_name}.vtk"
+    #     export_points_to_vtk(elemCenterCoordsXYZ,coloring,vtk_file_name)
+    #     vtk_file_names.append(vtk_file_name)
+    
+    # with open(f"{out_dir_prefix}{file_count}_{fname.split('/')[-1]}__np-{partition_count}__vtkfiles.sh", 'w') as f:
+    #     for method_name, vtk_file_name in zip(method_names, vtk_file_names):
+    #         f.write(f'export {method_name}="{vtk_file_name}"\n')  
+
+    file_count+=1
+    print(file_count, fname, "done")
 
 
 
@@ -573,12 +614,6 @@ if not is_viz_only:
 
 
 ### viz part
-
-
-# %%
-def cluster_to_color(ci):
-    random.seed(ci**3)
-    return (random.randint(0,255),random.randint(0,255),random.randint(0,255),125)
 
 
 
