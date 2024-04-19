@@ -1,4 +1,8 @@
 #include "util.hpp"
+#include <gmsh.h>
+
+#include <stdexcept>
+#include <cassert>
 
 bool IsValidVertex(int x, int graph_size)
 {
@@ -192,4 +196,42 @@ void AddEdgesToGhostVertex(Graph& graph, vertex_t v, int my_rank, int num_tasks,
 //     return output.str();
 // }
 
+void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, std::vector<uint64_t> &labels_out, uint64_t count, uint64_t partition_count){
+    assert(labels_out.size() == count);
+    uint64_t partition_size = count/partition_count;
+    uint64_t large_partition_count = count%partition_count;
+
+    for (uint64_t p_i = 0; p_i < partition_count; p_i++)
+    {
+        uint64_t size;
+        uint64_t offset;
+        if (p_i < large_partition_count)
+        {
+            size = partition_size+1;
+            offset = p_i*(partition_size+1);
+        }else
+        {
+            size = partition_size;
+            offset = large_partition_count*(partition_size+1) + (p_i-large_partition_count)*partition_size;
+        }
+
+        for (uint64_t i = offset; i < (offset+size); i++)
+        {
+            labels_out[ordering[i]] = p_i;
+        }       
+        
+        
+    }
+    return;
+
+}
+
+void GetSamplesFromOrdered(std::vector<uint64_t> &ordered, std::vector<uint64_t> &samples_out, uint64_t sample_count){
+    assert(samples_out.size() == sample_count);
+    for (uint64_t sample_i = 0; sample_i < sample_count; sample_i++)
+    {
+        samples_out[sample_i] = ordered[sample_i*(ordered.size()/sample_count)];
+    }
+    
+}
 

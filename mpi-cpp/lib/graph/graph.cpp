@@ -1,6 +1,12 @@
 #include "graph.hpp"
+#include "util.hpp"
 #include <limits>
 #include <stdexcept>
+#include <cassert>
+
+#include <omp.h>
+
+#define NO_LABEL SIZE_MAX
 
 Graph::Graph(/* args */)
 {
@@ -24,7 +30,10 @@ void Graph::AddVertex(vertex_t v)
     this->vertex_to_index[v] = new_index;
     this->index_to_vetex.push_back(v);
     this->adj_list.push_back({});
-    this->bfs_status.push_back(infinity);
+    // this->bfs_status.push_back(infinity);
+    // this->multi_bfs_distances.push_back(infinity);
+    // this->multi_bfs_labels.push_back(NO_LABEL);
+
 }
 
 std::vector<vertex_t>& Graph::GetVertices(){
@@ -62,7 +71,26 @@ bool Graph::FindVertex(vertex_t v){
 
 void Graph::InitSingleBFS(vertex_t BFS_seed)
 {
+    this->bfs_status.resize(this->graph_size);
+    std::fill(this->bfs_status.begin(), this->bfs_status.end(), this->infinity);
     this->bfs_status[this->vertex_to_index[BFS_seed]] = 0;
+    return;
+}
+
+void Graph::InitMultiBFS(std::vector<vertex_t>& seeds, uint64_t count)
+{
+    assert(seeds.size() == count);
+    this->multi_bfs_distances.resize(this->graph_size);
+    std::fill(this->multi_bfs_distances.begin(), this->multi_bfs_distances.end(), this->infinity);
+
+    this->multi_bfs_labels.resize(this->graph_size);
+    std::fill(this->multi_bfs_labels.begin(), this->multi_bfs_labels.end(), NO_LABEL);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        this->multi_bfs_distances[this->vertex_to_index[seeds[i]]] = 0;
+        this->multi_bfs_labels[this->vertex_to_index[seeds[i]]] = i;
+    }    
     return;
 }
 
@@ -112,8 +140,64 @@ void Graph::RunBFSToStable()
     }
 }
 
+void Graph::RunMultiBFSToStable(){
+    bool is_not_stable = true;
+    std::vector<uint64_t> multi_bfs_distances_new_temp(this->graph_size);
+    std::vector<uint64_t> multi_bfs_labels_new_temp(this->graph_size);
+
+
+    while (is_not_stable)
+    {
+        // print_log(VectorToString(multi_bfs_distances));
+
+        is_not_stable = false;
+        #pragma omp parallel
+        {
+            // print_log("thread count ", omp_get_num_threads());
+            #pragma omp for
+            for (unsigned long v_i = 0; v_i < this->graph_size; v_i++)
+            {
+                // bfs_status_new_temp[v_i] = NULL;
+                auto best_distance = this->multi_bfs_distances[v_i];
+                auto best_label = this->multi_bfs_labels[v_i];
+                // print_log(best_distance, best_label);
+                for (auto neighbor_i : this->adj_list[v_i])
+                {
+                    if (this->multi_bfs_labels[neighbor_i] == NO_LABEL)
+                    {
+                        continue;
+                    }
+                    // print_log(multi_bfs_labels[neighbor_i]);
+
+                    if (best_distance > (this->multi_bfs_distances[neighbor_i] + 1))
+                    {
+                        best_distance = this->multi_bfs_distances[neighbor_i] + 1;
+                        best_label = this->multi_bfs_labels[neighbor_i];
+                        // #pragma omp critical
+                        is_not_stable = true;
+                    }
+                }
+                multi_bfs_distances_new_temp[v_i] = best_distance;
+                multi_bfs_labels_new_temp[v_i] = best_label;
+
+            }
+            #pragma omp for
+            for (unsigned long v_i = 0; v_i < this->graph_size; v_i++){
+                this->multi_bfs_distances[v_i]=multi_bfs_distances_new_temp[v_i];
+                this->multi_bfs_labels[v_i]=multi_bfs_labels_new_temp[v_i];
+            }
+
+
+        }
+    }
+}
+
 std::vector<unsigned long> & Graph::GetBFSState(){
     return this->bfs_status;
+}
+
+std::vector<uint64_t>& Graph::GetMultiBFSLabels(){
+    return this->multi_bfs_labels;
 }
 
 
