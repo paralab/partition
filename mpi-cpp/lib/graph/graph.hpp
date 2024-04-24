@@ -20,6 +20,10 @@ private:
     std::vector<unsigned long> bfs_status;
     std::vector<uint64_t> multi_bfs_distances;
     std::vector<uint64_t> multi_bfs_labels;
+    std::vector<double> multi_pagerank_weights;
+    std::vector<uint64_t> multi_pagerank_labels;
+
+
 
     unsigned long infinity;
 public:
@@ -40,6 +44,9 @@ public:
     unsigned long GetSize();
     void Print();
     void PrintSingleBFS();
+    std::vector<uint64_t> GetCSR_xadj();
+    std::vector<uint64_t> GetCSR_adjncy();
+
 
 };
 

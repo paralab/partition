@@ -242,3 +242,27 @@ void Graph::PrintSingleBFS()
     }
     std::cout << output.str();
 }
+
+
+std::vector<uint64_t> Graph::GetCSR_xadj(){
+    std::vector<uint64_t> xadj(this->graph_size + 1);
+    xadj[0]=0;
+    for (size_t i = 0; i < this->graph_size; i++)
+    {
+        xadj[i+1] = xadj[i] + this->adj_list[i].size();
+    }
+    return xadj;    
+}
+
+std::vector<uint64_t> Graph::GetCSR_adjncy(){
+    std::vector<uint64_t> adjncy = {};
+    for (size_t i = 0; i < this->graph_size; i++)
+    {
+        for (auto neighbor_i : this->adj_list[i]){
+            adjncy.push_back(neighbor_i);
+        }
+    }
+    return adjncy;
+
+
+}

@@ -28,6 +28,14 @@ find_package(VTK COMPONENTS
     IOLegacy)
 include(${VTK_USE_FILE})
 
+# Specify the directory where METIS is built
+set(METIS_INCLUDE_DIR "/home/budvin/bin/METIS-5.2.1/build/include")
+set(METIS_LIBRARY "/home/budvin/bin/METIS-5.2.1/build/lib/libmetis.so")
+
+set(GKLIB_INCLUDE_DIR "/home/budvin/bin/GKlib-master/build/include")
+set(GKLIB_LIBRARY "/home/budvin/bin/GKlib-master/build/lib/libGKlib.a")
+
+
 add_subdirectory(lib)
 # Add the executable
 # add_executable(main main.cpp)
@@ -41,7 +49,8 @@ add_executable(main-new main-new.cpp)
 # target_link_libraries(main PRIVATE graph)
 # target_link_libraries(main-dist PRIVATE graph)
 # target_link_libraries(main-dist PRIVATE util)
-target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc)
+target_include_directories(main-new PRIVATE ${METIS_INCLUDE_DIR} ${GKLIB_INCLUDE_DIR})
+target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util ${METIS_LIBRARY} ${GKLIB_LIBRARY})
 
 
 
