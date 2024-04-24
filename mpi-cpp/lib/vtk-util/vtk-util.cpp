@@ -11,6 +11,7 @@
 
 #include <string>
 #include <algorithm>
+#include <random>
 
 #include <vtk-util.hpp>
 #include <util.hpp>
@@ -19,14 +20,6 @@ void PointsWithPartitionsToVtk(std::vector<double>& point_coords, std::vector<ui
     assert(point_coords.size() == (count*3));
     assert(partitions.size() == count);
 
-    std::vector<std::vector<unsigned char>> point_colors(count);
-    for (size_t i = 0; i < count; i++)
-    {
-        std::srand(pow(partitions[i]+1,3));
-
-        point_colors[i] = {(unsigned char)(rand()%256),(unsigned char)(rand()%256),(unsigned char)(rand()%256)};
-    }
-    
 
 
     // Create vtkPoints object
@@ -50,13 +43,14 @@ void PointsWithPartitionsToVtk(std::vector<double>& point_coords, std::vector<ui
         double z = point_coords[i + 2];
         points->InsertNextPoint(x, y, z);
         auto partition = partitions[i/3];
-        std::srand(pow(partition+1,3));
-        vcolors->SetValue(i, (unsigned char)(rand()%256));
-        vcolors->SetValue(i+1, (unsigned char)(rand()%256));
-        vcolors->SetValue(i+2, (unsigned char)(rand()%256));
+        // std::srand(pow(partition+2,3));
+        std::mt19937 gen(pow(partition+2,3));
+        std::uniform_int_distribution<unsigned int> dis(0, 255);
+        vcolors->SetValue(i, static_cast<unsigned char>(dis(gen)));
+        vcolors->SetValue(i+1, static_cast<unsigned char>(dis(gen)));
+        vcolors->SetValue(i+2, static_cast<unsigned char>(dis(gen)));
 
 
-        // vcolors->SetTuple(i/3,i/3, point_colors.data());
         vtkIdType pointId = i / 3; // Calculate the point ID
         vertices->InsertNextCell(1, &pointId);
     }
