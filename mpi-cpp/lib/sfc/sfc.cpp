@@ -7,21 +7,22 @@
 #include "util.hpp"
 #include "sfc.hpp"
 
-void SortMorton(std::vector<double> &coords, uint64_t count, std::vector<uint64_t> &sorted_indices_out)
+std::vector<uint64_t> SortMorton(std::vector<double> &coords, uint64_t count)
 {
     assert(coords.size() == count * 3);
-    assert(sorted_indices_out.size() == count);
 
     std::vector<uint64_t> coords_integer(count * 3);
     ConvertToIntegerCoords(coords, count, coords_integer);
     // print_log(VectorToString(coords_integer));
-    std::iota(std::begin(sorted_indices_out), std::end(sorted_indices_out), 0); // Fill with 0, 1, ..., count-1.
-    stable_sort(sorted_indices_out.begin(), sorted_indices_out.end(),
+    std::vector<uint64_t> sorted_indices(count);
+    std::iota(std::begin(sorted_indices), std::end(sorted_indices), 0); // Fill with 0, 1, ..., count-1.
+    stable_sort(sorted_indices.begin(), sorted_indices.end(),
                 [&coords_integer](size_t i1, size_t i2){ 
                     return MortonCompare(coords_integer[i1*3], coords_integer[i1*3+1], coords_integer[i1*3+2],
                                             coords_integer[i2*3], coords_integer[i2*3+1], coords_integer[i2*3+2]);
                 });
-    return;
+    
+    return sorted_indices;
 }
 
 void ConvertToIntegerCoords(std::vector<double> &coords,uint64_t count, std::vector<uint64_t>& coords_integer_out){

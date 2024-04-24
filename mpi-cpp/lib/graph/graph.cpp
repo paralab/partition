@@ -144,6 +144,7 @@ void Graph::RunMultiBFSToStable(){
     bool is_not_stable = true;
     std::vector<uint64_t> multi_bfs_distances_new_temp(this->graph_size);
     std::vector<uint64_t> multi_bfs_labels_new_temp(this->graph_size);
+    std::vector<bool> vertex_is_not_stable(this->graph_size,false);
 
 
     while (is_not_stable)
@@ -151,6 +152,7 @@ void Graph::RunMultiBFSToStable(){
         // print_log(VectorToString(multi_bfs_distances));
 
         is_not_stable = false;
+        std::fill(vertex_is_not_stable.begin(), vertex_is_not_stable.end(), false);
         #pragma omp parallel
         {
             // print_log("thread count ", omp_get_num_threads());
@@ -174,7 +176,9 @@ void Graph::RunMultiBFSToStable(){
                         best_distance = this->multi_bfs_distances[neighbor_i] + 1;
                         best_label = this->multi_bfs_labels[neighbor_i];
                         // #pragma omp critical
-                        is_not_stable = true;
+                        // is_not_stable = true;
+                        vertex_is_not_stable[v_i] = true;
+
                     }
                 }
                 multi_bfs_distances_new_temp[v_i] = best_distance;
@@ -186,6 +190,12 @@ void Graph::RunMultiBFSToStable(){
                 this->multi_bfs_distances[v_i]=multi_bfs_distances_new_temp[v_i];
                 this->multi_bfs_labels[v_i]=multi_bfs_labels_new_temp[v_i];
             }
+            #pragma omp for reduction(||:is_not_stable)
+            for (unsigned long v_i = 0; v_i < this->graph_size; v_i++) {
+                is_not_stable = is_not_stable|| vertex_is_not_stable[v_i]; // Perform bitwise OR operation
+            }
+
+            // print_log(VectorToString(vertex_is_not_stable));
 
 
         }

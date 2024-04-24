@@ -11,7 +11,7 @@
 #define NO_ELEMENT SIZE_MAX
 
 
-Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out)
+Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags)
 {
     // Initialize Gmsh
     gmsh::initialize();
@@ -76,13 +76,13 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
     }
     }
 
-    std::vector<std::size_t> elementTags, elementNodeTags;
-    gmsh::model::mesh::getElementsByType(element_type, elementTags, elementNodeTags);
-    size_t element_count = elementTags.size();
+    std::vector<std::size_t> elementNodeTags;
+    gmsh::model::mesh::getElementsByType(element_type, elem_tags, elementNodeTags);
+    size_t element_count = elem_tags.size();
 
     std::cout << "element count = " << element_count << std::endl;
 
-    // std::cout << VectorToString(elementTags);
+    // std::cout << VectorToString(elem_tags);
 
 
 
@@ -127,68 +127,68 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
     gmsh::model::mesh::getElementFaceNodes(element_type, face_type, faceNodes);
     assert(faceNodes.size() == (nodes_per_face*faces_per_element*element_count));
     // std::cout << VectorToString(faceNodes);
+    gmsh::model::mesh::createFaces();
+    std::vector<std::size_t> faceTags;
+    std::vector<int> faceOrientations;
+    gmsh::model::mesh::getFaces(face_type, faceNodes, faceTags, faceOrientations);
+    assert(faceTags.size() == (faces_per_element*element_count));
 
-    std::unordered_map<std::string, std::pair<size_t, size_t>> face_to_element_pair;
 
-    for (size_t node_i = 0; node_i < nodes_per_face*faces_per_element*element_count; node_i+=nodes_per_face)
+    // std::unordered_map<std::string, std::pair<size_t, size_t>> face_to_element_pair;
+    std::vector<std::pair<size_t,size_t>> element_face_pairs;           // (elemTag, faceTag) pairs
+
+    for (size_t face_i = 0; face_i < faces_per_element*element_count; face_i+=faces_per_element)
     {
-        size_t element = node_i / (nodes_per_face*faces_per_element);
-        std::vector<size_t> nodes_in_face(nodes_per_face);
-        for (size_t face_node_i = 0; face_node_i < nodes_per_face; face_node_i++)
+        size_t element = elem_tags[face_i / (faces_per_element)];
+        // std::vector<size_t> nodes_in_face(nodes_per_face);
+        for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
         {
-            nodes_in_face[face_node_i] = faceNodes[node_i + face_node_i];
-
-        }
-        
-        std::sort(nodes_in_face.begin(),nodes_in_face.end());
-        std::string face="";
-        for (size_t face_node_i = 0; face_node_i < nodes_per_face; face_node_i++)
-        {
-            face+=std::to_string(nodes_in_face[face_node_i]) + " ";
-        }
-        
-        // std::cout << "face hacsh = " << face_hash << std::endl;
-        if (face_to_element_pair.find(face) == face_to_element_pair.end())
-        {
-            face_to_element_pair[face] = std::make_pair(element, NO_ELEMENT);
-        }else
-        {
-            if (face_to_element_pair[face].second == NO_ELEMENT)
-            {
-                face_to_element_pair[face].second = element;
-            }else
-            {
-                throw std::runtime_error("more than 2 elements found for same face");
-            }           
-        }      
+            element_face_pairs.push_back({element,faceTags[face_i+elem_face_i]});
+        } 
         
 
 
     }
+    stable_sort(element_face_pairs.begin(), element_face_pairs.end(),
+                [&](std::pair<size_t,size_t> pair_1, std::pair<size_t,size_t> pair_2){ 
+                    return pair_1.second < pair_2.second;
+                });
     Graph element_connectivity_graph;
 
     for (size_t elem_i = 0; elem_i < element_count; elem_i++)
     {
-        element_connectivity_graph.AddVertex(elem_i);
+        element_connectivity_graph.AddVertex(elem_tags[elem_i]);
     }
-    
-    for (auto face_mapping_i = face_to_element_pair.begin(); face_mapping_i != face_to_element_pair.end(); face_mapping_i++) {
-        // std::cout <<"iterating face " << face_mapping_i->first << " : " << face_mapping_i->second.first <<", " << face_mapping_i->second.second <<"\n";
-        if (face_mapping_i->second.second != NO_ELEMENT)
+    bool last_face_added = false;
+    for (size_t pair_i = 1; pair_i < faces_per_element*element_count; pair_i++)
+    {
+        if (element_face_pairs[pair_i-1].second == element_face_pairs[pair_i].second)
         {
-            // std::cout <<"adding edge\n";
-            element_connectivity_graph.AddEdge(face_mapping_i->second.first, face_mapping_i->second.second);
+            if (last_face_added)
+            {
+                throw std::runtime_error("more than 2 elements found for same face");
+                
+            }
+            element_connectivity_graph.AddEdge(element_face_pairs[pair_i-1].first, element_face_pairs[pair_i].first);
+            last_face_added=true;            
+        }else
+        {
+            last_face_added=false;
         }
         
+
+        
     }
+    
+    
 
     // element_connectivity_graph.Print();
     
     
 
-    // std::vector<size_t> elementTags, elementNodeTags;
+    // std::vector<size_t> elem_tags, elementNodeTags;
     // int elementType = gmsh::model::mesh::getElementType("tetrahedron", 1);
-    // gmsh::model::mesh::getElementsByType(elementType, elementTags, elementNodeTags);
+    // gmsh::model::mesh::getElementsByType(elementType, elem_tags, elementNodeTags);
 
     // Clean up Gmsh
     gmsh::finalize();

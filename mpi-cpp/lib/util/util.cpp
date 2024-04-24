@@ -196,7 +196,7 @@ void AddEdgesToGhostVertex(Graph& graph, vertex_t v, int my_rank, int num_tasks,
 //     return output.str();
 // }
 
-void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, std::vector<uint64_t> &labels_out, uint64_t count, uint64_t partition_count){
+void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, uint64_t count, uint64_t partition_count, std::vector<uint64_t> &labels_out){
     assert(labels_out.size() == count);
     uint64_t partition_size = count/partition_count;
     uint64_t large_partition_count = count%partition_count;
@@ -226,11 +226,12 @@ void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, std::vector<u
 
 }
 
-void GetSamplesFromOrdered(std::vector<uint64_t> &ordered, std::vector<uint64_t> &samples_out, uint64_t sample_count){
+void GetSamplesFromOrdered(std::vector<uint64_t> &order, std::vector<uint64_t> &input_arr, uint64_t sample_count, std::vector<uint64_t> &samples_out){
+    assert(input_arr.size() == order.size());
     assert(samples_out.size() == sample_count);
     for (uint64_t sample_i = 0; sample_i < sample_count; sample_i++)
     {
-        samples_out[sample_i] = ordered[sample_i*(ordered.size()/sample_count)];
+        samples_out[sample_i] = input_arr[order[sample_i*(input_arr.size()/sample_count)]];
     }
     
 }
