@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include <mpi.h>
+
 #define NO_ELEMENT SIZE_MAX
 
 
@@ -75,6 +77,7 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
         break;
     }
     }
+
 
     std::vector<std::size_t> elementNodeTags;
     gmsh::model::mesh::getElementsByType(element_type, elem_tags, elementNodeTags);
@@ -194,4 +197,95 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
     gmsh::finalize();
 
     return element_connectivity_graph;
+}
+
+ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
+    int  my_rank;
+    MPI_Comm_rank(comm, &my_rank);
+    // Initialize Gmsh
+    gmsh::initialize();
+    if (my_rank)
+    {
+        gmsh::option::setNumber("General.Verbosity", 0);
+    }
+    
+
+    // Load the mesh file
+    gmsh::open(mesh_file_path);
+
+    // Get the number of nodes and elements
+    std::vector<std::pair<int, int>> dimTags;
+    gmsh::model::getEntities(dimTags);
+
+
+
+    std::vector<int> elementTypes;
+    gmsh::model::mesh::getElementTypes(elementTypes, 3);
+
+    if (elementTypes.size() == 0)
+    {
+        throw std::invalid_argument("no 3D elements\t exiting...");
+    }
+
+    if (elementTypes.size() > 1)
+    {
+        throw std::invalid_argument("more than 1 element type\t exiting...");
+    }
+    int gmsh_element_type = elementTypes[0];
+    ElementType element_type_out;
+
+    switch (gmsh_element_type)
+    {
+    case 4: // linear tet
+    {
+        element_type_out = ElementType::TET;
+        std::cout << "linear tetrahedra mesh\n";
+        break;
+    }
+    case 5: // linear hexahedra
+    {
+        element_type_out = ElementType::HEX;
+        std::cout << "linear hexahedra mesh\n";
+        break;
+    }
+
+    default:
+    {
+        throw std::invalid_argument("unknown element type\t exiting...");
+        break;
+    }
+    }
+
+    gmsh::finalize();
+
+    return element_type_out;
+
+
+
+}
+
+// Overloading the << operator for TetElementWithFaces
+std::ostream& operator<<(std::ostream& os, const TetElementWithFaces& obj) {
+    os << "(" << obj.element_tag << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+    for (size_t i = 0; i < 4; i++)
+    {
+        os << (i?",": " ") << obj.face_tags[i] ;
+    
+    }
+    os << "])";
+    
+    return os;
+}
+
+// Overloading the << operator for HexElementWithFaces
+std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj) {
+    os << "(" << obj.element_tag << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+    for (size_t i = 0; i < 6; i++)
+    {
+        os << (i?",": " ") << obj.face_tags[i] ;
+    
+    }
+    os << "])";
+    
+    return os;
 }

@@ -13,7 +13,7 @@ include_directories(${MPI_INCLUDE_PATH})
 
 
 # Optionally, set compiler flags
-set(CMAKE_CXX_FLAGS "-O3 -fopenmp -pedantic -Wall -fdiagnostics-color=always")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fopenmp -pedantic -Wall -fpermissive -fdiagnostics-color=always")
 
 
 # Manually specify the paths to Gmsh headers and libraries
@@ -61,7 +61,7 @@ add_executable(main-new main-new.cpp)
 # target_link_libraries(main-dist PRIVATE graph)
 # target_link_libraries(main-dist PRIVATE util)
 # target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
-target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util ${MPI_CXX_LIBRARIES})
+target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util usort ${MPI_CXX_LIBRARIES})
 
 
 
