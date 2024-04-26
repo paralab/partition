@@ -1,5 +1,5 @@
 # CMakeLists.txt
-cmake_minimum_required(VERSION 3.12)  # Minimum CMake version required
+cmake_minimum_required(VERSION 3.20)  # Minimum CMake version required
 
 project(Partitioning)  # Project name
 
@@ -46,22 +46,23 @@ set(GKLIB_INCLUDE_DIR "/home/budvin/bin/GKlib-master/build/include")
 set(GKLIB_LIBRARY "/home/budvin/bin/GKlib-master/build/lib/libGKlib.a")
 include_directories(${GKLIB_INCLUDE_DIR})
 
+set(MAIN_TARGET_NAME "main-new")
 
+add_executable(${MAIN_TARGET_NAME} main-new.cpp )
 add_subdirectory(lib)
-# Add the executable
-# add_executable(main main.cpp)
 
-# add_executable(main-dist main-dist.cpp)
-add_executable(main-new main-new.cpp)
+include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util)
 
 
 
-# Link against libraries
-# target_link_libraries(main PRIVATE graph)
-# target_link_libraries(main-dist PRIVATE graph)
-# target_link_libraries(main-dist PRIVATE util)
-# target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
-target_link_libraries(main-new PRIVATE util mesh-util vtk-util graph sfc metis-util usort ${MPI_CXX_LIBRARIES})
+
+
+# get_target_property(sources ${MAIN_TARGET_NAME} SOURCES)
+# message(sources="${sources}")
+
+
+
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
 
 
 

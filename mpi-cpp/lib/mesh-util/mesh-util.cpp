@@ -1,7 +1,7 @@
 #include "mesh-util.hpp"
 #include "util.hpp"
 
-#include "graph.hpp"
+#include "../graph/graph.hpp"
 #include <gmsh.h>
 #include <stdexcept>
 #include <cassert>
@@ -286,6 +286,20 @@ std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj) {
     
     }
     os << "])";
+    
+    return os;
+}
+
+// Overloading the << operator for ElementWithFace
+std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj) {
+    os << "(" << obj.element_tag << "," << obj.face_tag << ")";
+    
+    return os;
+}
+
+// Overloading the << operator for ElementWithCoord
+std::ostream& operator<<(std::ostream& os, const ElementWithCoord& obj) {
+    os << "(" << obj.element_tag << "[" << obj.x <<", "<< obj.y << ", " << obj.z << "])";
     
     return os;
 }

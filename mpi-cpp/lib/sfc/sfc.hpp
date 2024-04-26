@@ -1,8 +1,8 @@
 #ifndef SFC_H
 #define SFC_H
 
-#include <mesh-util.hpp>
-#include <mpi.h>
+#include "../mesh-util/mesh-util.hpp"
+#include "mpi.h"
 
 std::vector<uint64_t> SortMorton(std::vector<double> &coords, uint64_t count);
 void ConvertToIntegerCoords(std::vector<double> &coords,uint64_t count, std::vector<uint64_t>& coords_integer_out);
@@ -49,8 +49,8 @@ void SetMortonEncoding(std::vector<T> &elements, ElementType element_type, MPI_C
     MPI_Allreduce(&bounding_box_local_max, &bounding_box_global_max, 1, MPI_DOUBLE, MPI_MAX, comm);
     uint64_t levels = 20;
     double spacing = (bounding_box_global_max - bounding_box_global_min)/((double)(1<<levels));
-    print_log("[", my_rank, "]:", "bounding_box_global_min = ", bounding_box_global_min);
-    print_log("[", my_rank, "]:", "bounding_box_global_max = ", bounding_box_global_max);
+    // print_log("[", my_rank, "]:", "bounding_box_global_min = ", bounding_box_global_min);
+    // print_log("[", my_rank, "]:", "bounding_box_global_max = ", bounding_box_global_max);
 
 
 

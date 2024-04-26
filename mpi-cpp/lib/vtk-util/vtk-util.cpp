@@ -13,8 +13,8 @@
 #include <algorithm>
 #include <random>
 
-#include <vtk-util.hpp>
-#include <util.hpp>
+#include "vtk-util.hpp"
+#include "../util/util.hpp"
 
 void PointsWithPartitionsToVtk(std::vector<double>& point_coords, std::vector<uint64_t>& partitions, uint64_t count, std::string out_file_name){
     assert(point_coords.size() == (count*3));

@@ -4,7 +4,7 @@
 #include <mpi.h>
 #include <complex>
 
-#include <mesh-util.hpp>
+#include "../mesh-util/mesh-util.hpp"
 
 /** 
   @file	dtypes.h

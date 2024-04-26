@@ -15,11 +15,13 @@
 #include <parUtils.h>
 #include <dtypes.h>
 
+#include "ompUtils.h"
+
 int main(int argc, char *argv[])
 {
     int numtasks, taskid, len;
     char hostname[MPI_MAX_PROCESSOR_NAME];
-    uint64_t partition_count=3;
+    // uint64_t partition_count=3;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
@@ -28,9 +30,9 @@ int main(int argc, char *argv[])
     // if (true || taskid == 0)
     // {
     // omp_set_num_threads(8);
-    // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
+    const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
-    const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-25x25x3.msh");
+    // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-25x25x3.msh");
 
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
@@ -46,6 +48,10 @@ int main(int argc, char *argv[])
     std::vector<uint64_t> global_element_partition_labels_morton;
 
     std::vector<uint64_t> proc_element_counts(numtasks);
+    std::vector<ElementWithCoord> local_elements;
+    std::vector<std::pair<uint64_t, uint64_t>> local_connected_element_pairs;
+    std::vector<ElementWithFace> local_unconnected_elements_faces;
+
 
 
     switch (elementType)
@@ -60,77 +66,119 @@ int main(int argc, char *argv[])
 
         par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
+        print_log("[", taskid, "]: ", "global SFC sort done");
+
         local_element_count = localElementsAllDataSorted.size();
+        local_elements.resize(local_element_count);
+        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
+        {
+            local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
+            local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
+            local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
+            local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
+
+
+        }
+
+
         MPI_Gather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,0,MPI_COMM_WORLD);
         MPI_Reduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,0,MPI_COMM_WORLD);
-        print_log("[",taskid,"] ", VectorToString(proc_element_counts));
-        print_log("[",taskid,"] ", global_element_count);
-        auto displacements = GetDisplacementsFromCounts(proc_element_counts);
-        std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
-        
-        std::vector<TetElementWithFaces> globalElementsAllData;
-        if (!taskid)
-        {
-            globalElementsAllData.resize(global_element_count);
-            global_element_coords.resize(global_element_count*3);
-        }
-        MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<TetElementWithFaces>::value(), 
-            globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<TetElementWithFaces>::value(), 0, MPI_COMM_WORLD);
-        
-        if (!taskid)
-        {
-            for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
-            {
-                global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
-                global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
-                global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
 
-            }
+        ResolveElementConnectivity<TetElementWithFaces>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
+
+        print_log("[", taskid, "]:", "local_connected_element_pairs = ", VectorToString(local_connected_element_pairs));
+        print_log("[", taskid, "]:", "local_unconnected_element_face = ", VectorToString(local_unconnected_elements_faces));
+
+
+        // auto displacements = GetDisplacementsFromCounts(proc_element_counts);
+        // std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
+        
+        // std::vector<TetElementWithFaces> globalElementsAllData;
+        // if (!taskid)
+        // {
+        //     globalElementsAllData.resize(global_element_count);
+        //     global_element_coords.resize(global_element_count*3);
+        // }
+        // MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<TetElementWithFaces>::value(), 
+        //     globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<TetElementWithFaces>::value(), 0, MPI_COMM_WORLD);
+        
+        // if (!taskid)
+        // {
+        //     for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
+        //     {
+        //         global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
+        //         global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
+        //         global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
+
+        //     }
             
-        }
+        // }
         break;
     }
     case ElementType::HEX:
     {
         std::vector<HexElementWithFaces> localElementsAllData;
         GetElementsWithFacesCentroids<HexElementWithFaces>(file_path, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
-        SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
+        SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
         std::vector<HexElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
         MPI_Barrier(MPI_COMM_WORLD);
 
         par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
+        print_log("[", taskid, "]: ", "global SFC sort done");
+
         local_element_count = localElementsAllDataSorted.size();
+        local_elements.resize(local_element_count);
+        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
+        {
+            local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
+            local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
+            local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
+            local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
+
+
+        }
+        
+    
         MPI_Gather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,0,MPI_COMM_WORLD);
 
         MPI_Reduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,0,MPI_COMM_WORLD);
-        print_log("[",taskid,"] ", VectorToString(proc_element_counts));
-        print_log("[",taskid,"] ", global_element_count);
-        auto displacements = GetDisplacementsFromCounts(proc_element_counts);
-        print_log("here...");
 
-        std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
-        std::vector<HexElementWithFaces> globalElementsAllData;;
-        if (!taskid)
-        {
-            globalElementsAllData.resize(global_element_count);
-            global_element_coords.resize(global_element_count*3);
-        }
+
+        ResolveElementConnectivity<HexElementWithFaces>(localElementsAllDataSorted,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
+        print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
+
+        print_log("[", taskid, "]:", "local_connected_element_pairs = ", VectorToString(local_connected_element_pairs));
+        print_log("[", taskid, "]:", "local_unconnected_element_face = ", VectorToString(local_unconnected_elements_faces));    
+        // std::vector<int> testvec = {456,34547,56,67,8967,956,85,6867,93,6,3452,3524};
+        // omp_par::merge_sort(&testvec[0],&testvec[testvec.size()]);
+        // print_log(VectorToString(testvec));
         
-        MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<HexElementWithFaces>::value(), 
-            globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<HexElementWithFaces>::value(), 0, MPI_COMM_WORLD);
+        
+        // auto displacements = GetDisplacementsFromCounts(proc_element_counts);
 
-        if (!taskid)
-        {
-            for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
-            {
-                global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
-                global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
-                global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
+        // std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
+        // std::vector<HexElementWithFaces> globalElementsAllData;;
+        // if (!taskid)
+        // {
+        //     globalElementsAllData.resize(global_element_count);
+        //     global_element_coords.resize(global_element_count*3);
+        // }
+        
+        // MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<HexElementWithFaces>::value(), 
+        //     globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<HexElementWithFaces>::value(), 0, MPI_COMM_WORLD);
 
-            }
+        // if (!taskid)
+        // {
+        //     for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
+        //     {
+        //         global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
+        //         global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
+        //         global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
+
+        //     }
             
-        }
+        // }
         
 
         break;
@@ -139,28 +187,28 @@ int main(int argc, char *argv[])
     default:
         break;
     }
-    if (!taskid)
-    {
-        global_element_partition_labels_morton.resize(global_element_count);
-        uint64_t sum=0;
-        for (size_t part_i = 0; part_i < numtasks; part_i++)
-        {
-            uint64_t start = sum;
-            uint64_t end = sum+proc_element_counts[part_i];
-            for (size_t element_i = start; element_i < end; element_i++)
-            {
-                global_element_partition_labels_morton[element_i] = part_i;
-            }
-            sum+=proc_element_counts[part_i];
+    // if (!taskid)
+    // {
+    //     global_element_partition_labels_morton.resize(global_element_count);
+    //     uint64_t sum=0;
+    //     for (size_t part_i = 0; part_i < numtasks; part_i++)
+    //     {
+    //         uint64_t start = sum;
+    //         uint64_t end = sum+proc_element_counts[part_i];
+    //         for (size_t element_i = start; element_i < end; element_i++)
+    //         {
+    //             global_element_partition_labels_morton[element_i] = part_i;
+    //         }
+    //         sum+=proc_element_counts[part_i];
             
-        }
-        // print_log(VectorToString(global_element_coords));
+    //     }
+    //     // print_log(VectorToString(global_element_coords));
 
-        // print_log(VectorToString(global_element_partition_labels_morton));
-        PointsWithPartitionsToVtk(global_element_coords,global_element_partition_labels_morton,global_element_count,"out-sfc.vtk");
+    //     // print_log(VectorToString(global_element_partition_labels_morton));
+    //     PointsWithPartitionsToVtk(global_element_coords,global_element_partition_labels_morton,global_element_count,"out-sfc.vtk");
 
         
-    }
+    // }
     
     // std::vector<TetElementWithFaces> localElementsAllData(8);
     // print_log(VectorToString(localElementsAllData));

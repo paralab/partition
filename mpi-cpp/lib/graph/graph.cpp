@@ -1,5 +1,5 @@
 #include "graph.hpp"
-#include "util.hpp"
+#include "../util/util.hpp"
 #include <limits>
 #include <stdexcept>
 #include <cassert>

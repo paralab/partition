@@ -3,9 +3,9 @@
 
 #include <vector>
 #include <string>
-#include <graph.hpp>
-#include <mpi.h>
-#include <mesh-util.hpp>
+#include "../graph/graph.hpp"
+#include "mpi.h"
+#include "mesh-util.hpp"
 
 struct TetElementWithFaces {
     uint64_t element_tag;
@@ -54,6 +54,38 @@ struct HexElementWithFaces {
 // Overloading the << operator for HexElementWithFaces
 std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj);
 
+
+
+struct ElementWithFace
+{
+    uint64_t element_tag;
+    uint64_t face_tag;
+    bool operator<(const ElementWithFace& other) const {
+        return face_tag < other.face_tag;
+    }
+    bool operator<=(const ElementWithFace& other) const {
+        return face_tag <= other.face_tag;
+    }
+    bool operator>=(const ElementWithFace& other) const {
+        return face_tag >= other.face_tag;
+    }
+    bool operator>(const ElementWithFace& other) const {
+        return face_tag > other.face_tag;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj);
+
+struct ElementWithCoord
+{
+    uint64_t element_tag;
+    double x;
+    double y;
+    double z;
+};
+std::ostream& operator<<(std::ostream& os, const ElementWithCoord& obj);
+
+
 enum ElementType { TET=4, HEX=5 };
 
 
@@ -65,6 +97,11 @@ template <class T>
 void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
                           ElementType element_type, MPI_Comm comm);
 
+
+template <class T>
+void ResolveElementConnectivity(const std::vector<T> &elements, ElementType element_type,
+                                std::vector<std::pair<uint64_t, uint64_t>> &connected_pairs_out,
+                                const std::vector<T> &unpaired_elements_out);
 #include "mesh-util.tcc"
 
 #endif

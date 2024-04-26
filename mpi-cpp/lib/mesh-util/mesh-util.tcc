@@ -1,12 +1,15 @@
 #include <string>
 #include <vector>
-#include <mpi.h>
-#include <gmsh.h>
+#include "mpi.h"
+#include "gmsh.h"
 #include <cassert>
 
 #include <unordered_map> 
 
-#include <util.hpp>
+#include "../util/util.hpp"
+
+#include "../usort/ompUtils.h"
+#include <stdexcept>
 
 template <class T>
 void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
@@ -174,4 +177,89 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
     gmsh::finalize();
 
     
+}
+
+template <class T>
+void ResolveElementConnectivity(const std::vector<T> &elements, ElementType element_type,
+                                std::vector<std::pair<uint64_t, uint64_t>> &connected_element_pairs_out,
+                                std::vector<ElementWithFace> &unconnected_elements_faces)
+{
+    uint64_t faces_per_element;
+    switch (element_type)
+    {
+    case ElementType::TET:
+    {
+        faces_per_element = 4;
+        break;
+    }
+    case ElementType::HEX:
+    {
+        faces_per_element = 6;
+        break;
+    }
+    default:
+    {
+        throw std::invalid_argument("unknown element type");
+        break;
+    }
+    }
+    std::vector<ElementWithFace> elements_with_faces;
+    for (size_t element_i = 0; element_i < elements.size(); element_i++)
+    {
+        for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
+        {
+            elements_with_faces.push_back(
+                {elements[element_i].element_tag, elements[element_i].face_tags[elem_face_i]});
+        }
+        
+    }
+        // std::vector<int> testvec = {456,34547,56,67,8967,956,85,6867,93,6,3452,3524};
+        // omp_par::merge_sort(&testvec[0],&testvec[testvec.size()]);
+        // print_log(VectorToString(testvec));
+
+
+    omp_par::merge_sort(&elements_with_faces[0],&elements_with_faces[elements_with_faces.size()]);
+    // print_log(VectorToString(elements_with_faces));
+
+    connected_element_pairs_out.clear();
+    unconnected_elements_faces.clear();
+
+    {
+        bool last_face_added = false;
+        for (size_t elem_face_i = 1; elem_face_i < elements_with_faces.size(); elem_face_i++)
+        {
+            if (elements_with_faces[elem_face_i-1].face_tag == elements_with_faces[elem_face_i].face_tag)
+            {
+                if (last_face_added)
+                {
+                    throw std::runtime_error("more than two elements found for a face");
+                }else
+                {
+                    connected_element_pairs_out.push_back(
+                        {elements_with_faces[elem_face_i-1].element_tag, elements_with_faces[elem_face_i].element_tag});
+                    last_face_added=true;
+                }     
+            }else
+            {
+                if (! last_face_added)
+                {
+                    unconnected_elements_faces.push_back(elements_with_faces[elem_face_i-1]);
+                }
+                
+                last_face_added=false;
+            }          
+        }
+        if (elements_with_faces[elements_with_faces.size()-2].face_tag != elements_with_faces[elements_with_faces.size()-1].face_tag)
+        {
+            unconnected_elements_faces.push_back(elements_with_faces[elements_with_faces.size()-1]);
+        }
+        
+        
+    }
+
+    return;
+    
+    
+    // const std::vector<T> elements_cpy(elements);
+    // const std::vector<T> elements_sorted(elements);
 }

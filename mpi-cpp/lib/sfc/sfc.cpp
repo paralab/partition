@@ -4,7 +4,7 @@
 #include <numeric>
 #include <algorithm>
 
-#include "util.hpp"
+#include "../util/util.hpp"
 #include "sfc.hpp"
 
 std::vector<uint64_t> SortMorton(std::vector<double> &coords, uint64_t count)

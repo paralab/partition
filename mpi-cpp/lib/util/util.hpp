@@ -1,13 +1,13 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include "graph.hpp"
+#include "../graph/graph.hpp"
 
 #include <iostream>
 #include <sstream>
 #include <utility>
 
-#include <mesh-util.hpp>
+#include "../mesh-util/mesh-util.hpp"
 
 
 bool IsValidVertex(int x, int graph_size);
@@ -34,6 +34,12 @@ void print_log(const T& first, const Args&... args) {
     ((oss << ' ' << args), ...);
     // Output the concatenated string
     std::cout << oss.str() <<std::endl;
+}
+
+template<typename T, typename U>
+std::ostream& operator<<(std::ostream& os, const std::pair<T, U>& p) {
+    os << "(" << p.first << ", " << p.second << ")";
+    return os;
 }
 
 template <typename T> std::string VectorToString(std::vector<T> vec){

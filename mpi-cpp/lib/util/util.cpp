@@ -1,5 +1,5 @@
 #include "util.hpp"
-#include <gmsh.h>
+#include "gmsh.h"
 
 #include <stdexcept>
 #include <cassert>
