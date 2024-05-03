@@ -175,14 +175,15 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
 
 
     gmsh::finalize();
+    // print_log("[",my_rank,"] elements_out: ", VectorToString(elements_out));
 
     
 }
 
 template <class T>
-void ResolveElementConnectivity(const std::vector<T> &elements, ElementType element_type,
-                                std::vector<std::pair<uint64_t, uint64_t>> &connected_element_pairs_out,
-                                std::vector<ElementWithFace> &unconnected_elements_faces)
+void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType element_type,
+                                std::vector<std::pair<ElementWithTag, ElementWithTag>> &connected_element_pairs_out,
+                                std::vector<ElementWithFace> &unconnected_elements_faces_out)
 {
     uint64_t faces_per_element;
     switch (element_type)
@@ -204,14 +205,15 @@ void ResolveElementConnectivity(const std::vector<T> &elements, ElementType elem
     }
     }
     std::vector<ElementWithFace> elements_with_faces;
-    for (size_t element_i = 0; element_i < elements.size(); element_i++)
-    {
-        for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
-        {
+    for (size_t element_i = 0; element_i < elements.size(); element_i++) {
+        for (size_t elem_face_i = 0; elem_face_i < faces_per_element;
+             elem_face_i++) {
             elements_with_faces.push_back(
-                {elements[element_i].element_tag, elements[element_i].face_tags[elem_face_i]});
+                // ElementWithFace(elements[element_i].element_tag)
+                {.element_tag = elements[element_i].element_tag,
+                 .global_idx = elements[element_i].global_idx,
+                 .face_tag = elements[element_i].face_tags[elem_face_i]});
         }
-        
     }
         // std::vector<int> testvec = {456,34547,56,67,8967,956,85,6867,93,6,3452,3524};
         // omp_par::merge_sort(&testvec[0],&testvec[testvec.size()]);
@@ -222,7 +224,7 @@ void ResolveElementConnectivity(const std::vector<T> &elements, ElementType elem
     // print_log(VectorToString(elements_with_faces));
 
     connected_element_pairs_out.clear();
-    unconnected_elements_faces.clear();
+    unconnected_elements_faces_out.clear();
 
     {
         bool last_face_added = false;
@@ -236,14 +238,25 @@ void ResolveElementConnectivity(const std::vector<T> &elements, ElementType elem
                 }else
                 {
                     connected_element_pairs_out.push_back(
-                        {elements_with_faces[elem_face_i-1].element_tag, elements_with_faces[elem_face_i].element_tag});
+                        {
+                            {
+                                .element_tag = elements_with_faces[elem_face_i-1].element_tag,
+                                .global_idx = elements_with_faces[elem_face_i-1].global_idx
+                            },
+                            {
+                                .element_tag = elements_with_faces[elem_face_i].element_tag,
+                                .global_idx = elements_with_faces[elem_face_i].global_idx
+
+                            }   
+                        }                     
+                    );
                     last_face_added=true;
                 }     
             }else
             {
                 if (! last_face_added)
                 {
-                    unconnected_elements_faces.push_back(elements_with_faces[elem_face_i-1]);
+                    unconnected_elements_faces_out.push_back(elements_with_faces[elem_face_i-1]);
                 }
                 
                 last_face_added=false;
@@ -251,7 +264,7 @@ void ResolveElementConnectivity(const std::vector<T> &elements, ElementType elem
         }
         if (elements_with_faces[elements_with_faces.size()-2].face_tag != elements_with_faces[elements_with_faces.size()-1].face_tag)
         {
-            unconnected_elements_faces.push_back(elements_with_faces[elements_with_faces.size()-1]);
+            unconnected_elements_faces_out.push_back(elements_with_faces[elements_with_faces.size()-1]);
         }
         
         

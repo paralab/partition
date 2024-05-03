@@ -2,6 +2,11 @@
 #include "util.hpp"
 
 #include "../graph/graph.hpp"
+#include "../usort/parUtils.h"
+#include "../usort/ompUtils.h"
+#include "../usort/dtypes.h"
+
+
 #include <gmsh.h>
 #include <stdexcept>
 #include <cassert>
@@ -266,7 +271,7 @@ ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
 
 // Overloading the << operator for TetElementWithFaces
 std::ostream& operator<<(std::ostream& os, const TetElementWithFaces& obj) {
-    os << "(" << obj.element_tag << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
     for (size_t i = 0; i < 4; i++)
     {
         os << (i?",": " ") << obj.face_tags[i] ;
@@ -279,7 +284,7 @@ std::ostream& operator<<(std::ostream& os, const TetElementWithFaces& obj) {
 
 // Overloading the << operator for HexElementWithFaces
 std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj) {
-    os << "(" << obj.element_tag << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
     for (size_t i = 0; i < 6; i++)
     {
         os << (i?",": " ") << obj.face_tags[i] ;
@@ -292,14 +297,152 @@ std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj) {
 
 // Overloading the << operator for ElementWithFace
 std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj) {
-    os << "(" << obj.element_tag << "," << obj.face_tag << ")";
+    os << "(" << obj.element_tag << "," << obj.global_idx << "," << obj.face_tag << ")";
     
     return os;
 }
 
 // Overloading the << operator for ElementWithCoord
 std::ostream& operator<<(std::ostream& os, const ElementWithCoord& obj) {
-    os << "(" << obj.element_tag << "[" << obj.x <<", "<< obj.y << ", " << obj.z << "])";
+    os << "(" << obj.element_tag << "," << obj.global_idx  << ",[" << obj.x <<", "<< obj.y << ", " << obj.z << "])";
     
     return os;
+}
+
+// Overloading the << operator for ElementWithTag
+std::ostream& operator<<(std::ostream& os, const ElementWithTag& obj) {
+    os << "(" << obj.element_tag << "," << obj.global_idx  << ")";
+    
+    return os;
+}
+
+void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_element_faces,
+                                        std::vector<uint64_t> &proc_element_counts,
+                                        std::vector<std::pair<ElementWithTag, ElementWithTag>> &boundary_connected_element_pairs_out,
+                                        MPI_Comm comm)
+{
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+    uint64_t local_element_count = proc_element_counts[my_rank];
+    std::vector<ElementWithFace> unpaired_element_faces_sorted(unpaired_element_faces.size());
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    par::sampleSort<ElementWithFace>(unpaired_element_faces,unpaired_element_faces_sorted,comm);
+    MPI_Barrier(MPI_COMM_WORLD);
+    // print_log("[", my_rank, "]: unpaired_element_faces_sorted", VectorToString(unpaired_element_faces_sorted));
+
+    std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_boundary_element_pairs;
+
+    {
+        bool last_face_added = false;
+        for (size_t elem_face_i = 1; elem_face_i < unpaired_element_faces_sorted.size(); elem_face_i++)
+        {
+            if (unpaired_element_faces_sorted[elem_face_i-1].face_tag == unpaired_element_faces_sorted[elem_face_i].face_tag)
+            {
+                if (last_face_added)
+                {
+                    throw std::runtime_error("more than two elements found for a face");
+                }else
+                {
+                    connected_boundary_element_pairs.push_back(
+                        {
+                            {
+                                .element_tag = unpaired_element_faces_sorted[elem_face_i-1].element_tag,
+                                .global_idx = unpaired_element_faces_sorted[elem_face_i-1].global_idx
+                            },
+                            {
+                                .element_tag = unpaired_element_faces_sorted[elem_face_i].element_tag,
+                                .global_idx = unpaired_element_faces_sorted[elem_face_i].global_idx                            
+                            }       
+                        }                 
+                    );
+                    last_face_added=true;
+                }     
+            }else
+            {
+                
+                last_face_added=false;
+            }          
+        }        
+        
+    }
+    // print_log("[", my_rank, "]: connected_boundary_element_pairs", VectorToString(connected_boundary_element_pairs));
+
+    //we need 2 copies of each pair, because we have to send boundary connectivity of a pair to 2 processors
+    //it is guranteed that a the 2 elements in a pair belong to 2 different processors
+
+    std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_boundary_element_pairs_cpy(connected_boundary_element_pairs);
+    for (size_t pair_i = 0; pair_i < connected_boundary_element_pairs_cpy.size(); pair_i++)
+    {
+        std::swap(connected_boundary_element_pairs_cpy[pair_i].first, connected_boundary_element_pairs_cpy[pair_i].second);
+    }
+
+    std::vector<std::pair<ElementWithTag, ElementWithTag>>  connected_boundary_element_pairs_duplicated(connected_boundary_element_pairs);
+    connected_boundary_element_pairs_duplicated.insert(
+        connected_boundary_element_pairs_duplicated.end(), connected_boundary_element_pairs_cpy.begin(), connected_boundary_element_pairs_cpy.end());
+
+    omp_par::merge_sort(&connected_boundary_element_pairs_duplicated[0],
+                        &connected_boundary_element_pairs_duplicated[connected_boundary_element_pairs_duplicated.size()]
+                        );
+
+    // print_log("[", my_rank, "]: connected_boundary_element_pairs_duplicated", VectorToString(connected_boundary_element_pairs_duplicated));
+
+    std::vector<uint64_t> proc_element_counts_scanned(procs_n);
+    omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],procs_n);
+
+    std::vector<int> send_counts(procs_n);
+    {
+        uint64_t current_proc = 0;
+        for (size_t pair_i = 0; pair_i < connected_boundary_element_pairs_duplicated.size(); pair_i++)
+        {
+            if (connected_boundary_element_pairs_duplicated[pair_i].first.global_idx >= proc_element_counts_scanned[current_proc] &&
+                connected_boundary_element_pairs_duplicated[pair_i].first.global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+            {
+                send_counts[current_proc]++;
+            } else
+            {
+                while (1)
+                {
+                    current_proc++;
+                    if (connected_boundary_element_pairs_duplicated[pair_i].first.global_idx >= proc_element_counts_scanned[current_proc] &&
+                        connected_boundary_element_pairs_duplicated[pair_i].first.global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+                    {
+                        send_counts[current_proc]++;
+                        break;
+                    }                    
+                }
+                
+            }   
+        }       
+
+    }
+    // print_log("[", my_rank, "]: send_counts", VectorToString(send_counts));
+
+    std::vector<int> recev_counts(procs_n);
+
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT, recev_counts.data(), 1, MPI_INT, comm);
+
+    // print_log("[", my_rank, "]: recev_counts", VectorToString(recev_counts));
+
+    std::vector<int> send_displs(procs_n);
+    omp_par::scan(&send_counts[0],&send_displs[0],procs_n);
+    // print_log("[", my_rank, "]: send_displs", VectorToString(send_displs));
+
+
+
+    std::vector<int> recv_displs(procs_n);
+    omp_par::scan(&recev_counts[0],&recv_displs[0],procs_n);
+    // print_log("[", my_rank, "]: recv_displs", VectorToString(recv_displs));
+
+    int total_receive_count = recev_counts[procs_n-1]+recv_displs[procs_n-1];
+    
+    boundary_connected_element_pairs_out.resize(total_receive_count);
+    MPI_Alltoallv(connected_boundary_element_pairs_duplicated.data(),
+                  send_counts.data(), send_displs.data(), par::Mpi_pairtype<ElementWithTag,ElementWithTag>::value(), 
+                  boundary_connected_element_pairs_out.data(), recev_counts.data(), recv_displs.data(),
+                  par::Mpi_pairtype<ElementWithTag,ElementWithTag>::value(), comm);
+
+    // print_log("[", my_rank, "]: received bdry connectivities", VectorToString(boundary_connected_element_pairs_out));
+
 }

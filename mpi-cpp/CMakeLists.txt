@@ -5,6 +5,9 @@ project(Partitioning)  # Project name
 
 set(CMAKE_COLOR_MAKEFILE ON)
 
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20) 
+
 
 # Find MPI package
 find_package(MPI REQUIRED)
