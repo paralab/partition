@@ -4,6 +4,7 @@
 #include "graph.hpp"
 #include "sfc.hpp"
 #include "metis-util.hpp"
+#include "dist-graph.hpp"
 #include <string>
 #include <stdexcept>
 
@@ -207,60 +208,68 @@ int main(int argc, char *argv[])
         break;
     }
 
-
-    std::vector<ElementWithTag> ghost_elements_dups(boundary_connected_element_pairs.size());
-
-    //TODO: can be parallelized
-    for (size_t boudary_connect_i = 0; boudary_connect_i < boundary_connected_element_pairs.size(); boudary_connect_i++)
-    {
-        ghost_elements_dups[boudary_connect_i].element_tag = boundary_connected_element_pairs[boudary_connect_i].second.element_tag;
-        ghost_elements_dups[boudary_connect_i].global_idx = boundary_connected_element_pairs[boudary_connect_i].second.global_idx;
-
-    }
-
-    omp_par::merge_sort(&ghost_elements_dups[0], &ghost_elements_dups[ghost_elements_dups.size()]);
-
-    // print_log("[", taskid, "]:", "ghost_elements_dups sorted = ", VectorToString(ghost_elements_dups));    
-    
     std::vector<ElementWithTag> ghost_elements;
-    ghost_elements.push_back(ghost_elements_dups[0]);
-    for (size_t ghost_element_dup_i = 1; ghost_element_dup_i < ghost_elements_dups.size(); ghost_element_dup_i++)
-    {
-        if (ghost_elements_dups[ghost_element_dup_i].global_idx != ghost_elements_dups[ghost_element_dup_i-1].global_idx)
-        {
-            ghost_elements.push_back(ghost_elements_dups[ghost_element_dup_i]);
-        }
-        
-    }
-
-    print_log("[", taskid, "]:", "ghost_elements = ", VectorToString(ghost_elements));    
     std::vector<int> ghost_element_counts(numtasks);
-    {
-        uint64_t current_proc = 0;
-        for (size_t ghost_element_i = 0; ghost_element_i < ghost_elements.size(); ghost_element_i++)
-        {
-            if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
-                ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
-            {
-                ghost_element_counts[current_proc]++;
-            } else
-            {
-                while (1)
-                {
-                    current_proc++;
-                    if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
-                        ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
-                    {
-                        ghost_element_counts[current_proc]++;
-                        break;
-                    }                    
-                }
-                
-            }   
-        }       
+    ExtractGhostElements(boundary_connected_element_pairs,proc_element_counts,proc_element_counts_scanned,ghost_elements,ghost_element_counts,MPI_COMM_WORLD);
 
-    }
-    print_log("[", taskid, "]:", "ghost_element_counts = ", VectorToString(ghost_element_counts));    
+    DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
+                            proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
+
+    print_log("[", taskid, "]:\n", dist_graph.GraphToString());
+
+    // std::vector<ElementWithTag> ghost_elements_dups(boundary_connected_element_pairs.size());
+
+    // //TODO: can be parallelized
+    // for (size_t boudary_connect_i = 0; boudary_connect_i < boundary_connected_element_pairs.size(); boudary_connect_i++)
+    // {
+    //     ghost_elements_dups[boudary_connect_i].element_tag = boundary_connected_element_pairs[boudary_connect_i].second.element_tag;
+    //     ghost_elements_dups[boudary_connect_i].global_idx = boundary_connected_element_pairs[boudary_connect_i].second.global_idx;
+
+    // }
+
+    // omp_par::merge_sort(&ghost_elements_dups[0], &ghost_elements_dups[ghost_elements_dups.size()]);
+
+    // // print_log("[", taskid, "]:", "ghost_elements_dups sorted = ", VectorToString(ghost_elements_dups));    
+    
+    // std::vector<ElementWithTag> ghost_elements;
+    // ghost_elements.push_back(ghost_elements_dups[0]);
+    // for (size_t ghost_element_dup_i = 1; ghost_element_dup_i < ghost_elements_dups.size(); ghost_element_dup_i++)
+    // {
+    //     if (ghost_elements_dups[ghost_element_dup_i].global_idx != ghost_elements_dups[ghost_element_dup_i-1].global_idx)
+    //     {
+    //         ghost_elements.push_back(ghost_elements_dups[ghost_element_dup_i]);
+    //     }
+        
+    // }
+
+    // print_log("[", taskid, "]:", "ghost_elements = ", VectorToString(ghost_elements));    
+    // std::vector<int> ghost_element_counts(numtasks);
+    // {
+    //     uint64_t current_proc = 0;
+    //     for (size_t ghost_element_i = 0; ghost_element_i < ghost_elements.size(); ghost_element_i++)
+    //     {
+    //         if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
+    //             ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+    //         {
+    //             ghost_element_counts[current_proc]++;
+    //         } else
+    //         {
+    //             while (1)
+    //             {
+    //                 current_proc++;
+    //                 if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
+    //                     ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+    //                 {
+    //                     ghost_element_counts[current_proc]++;
+    //                     break;
+    //                 }                    
+    //             }
+                
+    //         }   
+    //     }       
+
+    // }
+    // print_log("[", taskid, "]:", "ghost_element_counts = ", VectorToString(ghost_element_counts));    
 
 
 

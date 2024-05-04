@@ -369,24 +369,38 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
     }
     // print_log("[", my_rank, "]: connected_boundary_element_pairs", VectorToString(connected_boundary_element_pairs));
 
-    //we need 2 copies of each pair, because we have to send boundary connectivity of a pair to 2 processors
-    //it is guranteed that a the 2 elements in a pair belong to 2 different processors
 
+    /**
+     * we need 2 copies of each pair, because we have to send boundary connectivity of a pair to 2 processors
+     * it is guranteed that a the 2 elements in a pair belong to 2 different processors
+     * if 2 elements a,b are connected the two pairs will be (a,b) and (b,a). 
+    */
     std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_boundary_element_pairs_cpy(connected_boundary_element_pairs);
     for (size_t pair_i = 0; pair_i < connected_boundary_element_pairs_cpy.size(); pair_i++)
     {
         std::swap(connected_boundary_element_pairs_cpy[pair_i].first, connected_boundary_element_pairs_cpy[pair_i].second);
     }
 
+    /**
+     * Then we sort the array with duplicate pairs according to the first element in the pair. 
+     * Then we split it and send this to processors.
+     * In this way if a,b are connected (a,b) will be send to owning process of 'a' and (b,a) will be sent to owning process of 'b'
+     * 
+    */
+
     std::vector<std::pair<ElementWithTag, ElementWithTag>>  connected_boundary_element_pairs_duplicated(connected_boundary_element_pairs);
     connected_boundary_element_pairs_duplicated.insert(
         connected_boundary_element_pairs_duplicated.end(), connected_boundary_element_pairs_cpy.begin(), connected_boundary_element_pairs_cpy.end());
 
-    omp_par::merge_sort(&connected_boundary_element_pairs_duplicated[0],
-                        &connected_boundary_element_pairs_duplicated[connected_boundary_element_pairs_duplicated.size()]
-                        );
 
-    // print_log("[", my_rank, "]: connected_boundary_element_pairs_duplicated", VectorToString(connected_boundary_element_pairs_duplicated));
+    omp_par::merge_sort(&connected_boundary_element_pairs_duplicated[0],
+                        &connected_boundary_element_pairs_duplicated[connected_boundary_element_pairs_duplicated.size()],
+                        [](const auto& a, const auto& b) { 
+                            return a.first.global_idx < b.first.global_idx; 
+                                
+                        });
+
+    // print_log("[", my_rank, "]: connected_boundary_element_pairs_duplicated sorted", VectorToString(connected_boundary_element_pairs_duplicated));
 
     std::vector<uint64_t> proc_element_counts_scanned(procs_n);
     omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],procs_n);
@@ -445,4 +459,71 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
 
     // print_log("[", my_rank, "]: received bdry connectivities", VectorToString(boundary_connected_element_pairs_out));
 
+}
+
+/**
+ * Get ghost elements from the boundary edges
+ * ghost_element_counts_out is populated with ghost elements, sorted by global_idx
+ * ghost_element_counts_out is populated with ghost element count for each process
+*/
+void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>& boundary_connected_element_pairs,
+                          std::vector<uint64_t>& proc_element_counts,
+                          std::vector<uint64_t>& proc_element_counts_scanned,
+                          std::vector<ElementWithTag>& ghost_elements_out, std::vector<int>& ghost_element_counts_out,
+                          MPI_Comm comm) {
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+    std::vector<ElementWithTag> ghost_elements_dups(boundary_connected_element_pairs.size());
+
+    // TODO: can be parallelized
+    for (size_t boudary_connect_i = 0; boudary_connect_i < boundary_connected_element_pairs.size();
+         boudary_connect_i++) {
+        ghost_elements_dups[boudary_connect_i].element_tag =
+            boundary_connected_element_pairs[boudary_connect_i].second.element_tag;
+        ghost_elements_dups[boudary_connect_i].global_idx =
+            boundary_connected_element_pairs[boudary_connect_i].second.global_idx;
+    }
+
+    omp_par::merge_sort(&ghost_elements_dups[0], &ghost_elements_dups[ghost_elements_dups.size()]);
+
+    // print_log("[", taskid, "]:", "ghost_elements_dups sorted = ", VectorToString(ghost_elements_dups));
+
+    ghost_elements_out.clear();
+
+    /**
+     * removing duplicates
+    */
+    ghost_elements_out.push_back(ghost_elements_dups[0]);
+    for (size_t ghost_element_dup_i = 1; ghost_element_dup_i < ghost_elements_dups.size(); ghost_element_dup_i++) {
+        if (ghost_elements_dups[ghost_element_dup_i].global_idx !=
+            ghost_elements_dups[ghost_element_dup_i - 1].global_idx) {
+            ghost_elements_out.push_back(ghost_elements_dups[ghost_element_dup_i]);
+        }
+    }
+
+    // print_log("[", my_rank, "]:", "ghost_elements = ", VectorToString(ghost_elements_out));
+    ghost_element_counts_out.resize(procs_n);
+    std::fill(ghost_element_counts_out.begin(), ghost_element_counts_out.end(), 0);
+    {
+        uint64_t current_proc = 0;
+        for (size_t ghost_element_i = 0; ghost_element_i < ghost_elements_out.size(); ghost_element_i++) {
+            if (ghost_elements_out[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
+                ghost_elements_out[ghost_element_i].global_idx <
+                    (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc])) {
+                ghost_element_counts_out[current_proc]++;
+            } else {
+                while (1) {
+                    current_proc++;
+                    if (ghost_elements_out[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
+                        ghost_elements_out[ghost_element_i].global_idx <
+                            (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc])) {
+                        ghost_element_counts_out[current_proc]++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // print_log("[", my_rank, "]:", "ghost_element_counts = ", VectorToString(ghost_element_counts_out));
 }

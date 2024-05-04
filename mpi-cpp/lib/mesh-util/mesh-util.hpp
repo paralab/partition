@@ -5,7 +5,8 @@
 #include <string>
 #include "../graph/graph.hpp"
 #include "mpi.h"
-#include "mesh-util.hpp"
+// #include "mesh-util.hpp"
+#include "../util/util.hpp"
 
 struct TetElementWithFaces {
     uint64_t element_tag;
@@ -144,6 +145,13 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
                                         std::vector<uint64_t> &proc_element_counts,
                                         std::vector<std::pair<ElementWithTag, ElementWithTag>> &boundary_connected_element_pairs_out,
                                         MPI_Comm comm);
+
+
+void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>& boundary_connected_element_pairs,
+                          std::vector<uint64_t>& proc_element_counts,
+                          std::vector<uint64_t>& proc_element_counts_scanned,
+                          std::vector<ElementWithTag>& ghost_elements_out, std::vector<int>& ghost_element_counts_out,
+                          MPI_Comm comm);
 #include "mesh-util.tcc"
 
 #endif

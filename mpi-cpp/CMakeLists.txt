@@ -54,7 +54,7 @@ set(MAIN_TARGET_NAME "main-new")
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
 add_subdirectory(lib)
 
-include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util)
+include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util lib/dist-graph)
 
 
 

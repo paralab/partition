@@ -6,6 +6,7 @@ add_subdirectory(vtk-util)
 add_subdirectory(sfc)
 add_subdirectory(metis-util)
 add_subdirectory(usort SYSTEM)
+add_subdirectory(dist-graph)
 
 
 
