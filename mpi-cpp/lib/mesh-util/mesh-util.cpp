@@ -312,6 +312,7 @@ std::ostream& operator<<(std::ostream& os, const ElementWithCoord& obj) {
 // Overloading the << operator for ElementWithTag
 std::ostream& operator<<(std::ostream& os, const ElementWithTag& obj) {
     os << "(" << obj.element_tag << "," << obj.global_idx  << ")";
+    // os << obj.global_idx;
     
     return os;
 }
@@ -474,6 +475,16 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
+    ghost_elements_out.clear();
+    ghost_element_counts_out.resize(procs_n);
+    std::fill(ghost_element_counts_out.begin(), ghost_element_counts_out.end(), 0);
+
+    if (boundary_connected_element_pairs.size() == 0)
+    {
+        return;
+    }
+    
+
     std::vector<ElementWithTag> ghost_elements_dups(boundary_connected_element_pairs.size());
 
     // TODO: can be parallelized
@@ -489,7 +500,7 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
 
     // print_log("[", taskid, "]:", "ghost_elements_dups sorted = ", VectorToString(ghost_elements_dups));
 
-    ghost_elements_out.clear();
+
 
     /**
      * removing duplicates
@@ -503,8 +514,7 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
     }
 
     // print_log("[", my_rank, "]:", "ghost_elements = ", VectorToString(ghost_elements_out));
-    ghost_element_counts_out.resize(procs_n);
-    std::fill(ghost_element_counts_out.begin(), ghost_element_counts_out.end(), 0);
+
     {
         uint64_t current_proc = 0;
         for (size_t ghost_element_i = 0; ghost_element_i < ghost_elements_out.size(); ghost_element_i++) {

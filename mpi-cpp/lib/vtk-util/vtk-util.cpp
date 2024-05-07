@@ -16,6 +16,7 @@
 #include "vtk-util.hpp"
 #include "../util/util.hpp"
 
+
 void PointsWithPartitionsToVtk(std::vector<double>& point_coords, std::vector<uint64_t>& partitions, uint64_t count, std::string out_file_name){
     assert(point_coords.size() == (count*3));
     assert(partitions.size() == count);
@@ -71,6 +72,25 @@ void PointsWithPartitionsToVtk(std::vector<double>& point_coords, std::vector<ui
     writer->SetInputData(polydata);
     writer->Write();
 }
+
+void ElementsWithPartitionsToVtk(std::vector<ElementWithCoord>& elements, std::vector<uint16_t>& partitions, uint64_t count, std::string out_file_name){
+    std::vector<double> coords(count*3);
+
+    //TODO: can be parallelized
+    for (size_t elem_i = 0; elem_i < count; elem_i++)
+    {
+        coords[3*elem_i] = elements[elem_i].x;
+        coords[3*elem_i + 1] = elements[elem_i].y;
+        coords[3*elem_i + 2] = elements[elem_i].z;
+        
+    }
+
+    std::vector<uint64_t> partitions_(partitions.begin(), partitions.end());
+    PointsWithPartitionsToVtk(coords,partitions_,count,out_file_name);
+    
+}
+
+
 
 void PointsToVtk(std::vector<double>& point_coords, uint64_t count, std::string out_file_name){
     std::vector<uint64_t> dummy_scalars(count);

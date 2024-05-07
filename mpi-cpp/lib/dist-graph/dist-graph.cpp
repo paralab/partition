@@ -4,6 +4,15 @@
 #include "../usort/ompUtils.h"
 #include "mpi.h"
 
+
+// Overloading the << operator for BFSValue
+std::ostream& operator<<(std::ostream& os, const BFSValue& obj) {
+    os << "(" << obj.distance << "," << obj.label  << ")";
+    // os << obj.global_idx;
+    
+    return os;
+}
+
 /**
  * Assumes the global_idx of elements should be in a contiguous range
  * For rank i, global_idx of its elements should should be in interval
@@ -89,7 +98,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     // print_log("[", my_rank, "]: local_degrees ", VectorToString(this->local_degrees));
 
     omp_par::scan(&this->local_degrees[0], &this->local_xdj[0], own_elements.size() + ghost_elements.size());
-    //scan operation does not populate the last extra entry for CSR encoding
+    //scan operation does not populate the last extra entry for CSR encoding, hence we have to manually populate the last element
     this->local_xdj[own_elements.size() + ghost_elements.size()] = 
             this->local_xdj[own_elements.size() + ghost_elements.size() -1 ] + this->local_degrees[own_elements.size() + ghost_elements.size()-1];
     // print_log("[", my_rank, "]: local_xdj ", VectorToString(local_xdj));
@@ -133,8 +142,97 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             auto local_index_2 = current_ghost_element_local_index;
             this->local_adjncy[next_index[local_index_1]++] = local_index_2;
             this->local_adjncy[next_index[local_index_2]++] = local_index_1;
-        }        
+        }
+
+
+
+
+
     }
+    /**
+     * building the scatter map
+     * */     
+    this->sending_scatter_map.clear();  
+    this->send_counts.resize(procs_n);
+    std::fill(this->send_counts.begin(), this->send_counts.end(),0);
+    this->send_counts_scanned.resize(procs_n);
+    std::fill(this->send_counts_scanned.begin(), this->send_counts_scanned.end(),0);
+    if(!boundary_connectivity_cpy.empty()){
+        uint64_t current_other_proc = 0;
+
+        std::vector<ElementWithTag> send_elements_with_dups;
+        std::vector<uint64_t> send_elements_with_dups_counts(procs_n, 0);
+        std::vector<uint64_t> send_elements_with_dups_counts_scanned(procs_n, 0);
+
+
+        for (auto& edge : boundary_connectivity_cpy){
+            if (edge.second.global_idx >= proc_element_counts_scanned[current_other_proc] &&
+                edge.second.global_idx < proc_element_counts_scanned[current_other_proc] + proc_element_counts[current_other_proc])
+            {
+                send_elements_with_dups.push_back(edge.first);
+                send_elements_with_dups_counts[current_other_proc]++;
+            }else
+            {
+                while (1)
+                {
+                    current_other_proc++;
+                    if (edge.second.global_idx >= proc_element_counts_scanned[current_other_proc] &&
+                        edge.second.global_idx < proc_element_counts_scanned[current_other_proc] + proc_element_counts[current_other_proc])
+                    {
+                        send_elements_with_dups.push_back(edge.first);
+                        send_elements_with_dups_counts[current_other_proc]++;
+                        break;
+                    }
+                }
+                
+            }          
+            
+        }
+        omp_par::scan(&send_elements_with_dups_counts[0], &send_elements_with_dups_counts_scanned[0], procs_n);
+
+        std::vector<ElementWithTag> send_elements;
+
+        //sort each send elements per each process
+        for (size_t proc_i = 0; proc_i < procs_n; proc_i++)
+        {
+            if (send_elements_with_dups_counts[proc_i])
+            {
+                omp_par::merge_sort(&send_elements_with_dups[send_elements_with_dups_counts_scanned[proc_i]], 
+                                    &send_elements_with_dups[send_elements_with_dups_counts_scanned[proc_i]+send_elements_with_dups_counts[proc_i]]);
+            
+                send_elements.push_back(send_elements_with_dups[send_elements_with_dups_counts_scanned[proc_i]]);
+                send_counts[proc_i]++;
+                for (size_t elem_i = send_elements_with_dups_counts_scanned[proc_i]+1; elem_i < (send_elements_with_dups_counts_scanned[proc_i] + send_elements_with_dups_counts[proc_i]); elem_i++)
+                {
+                    if (send_elements_with_dups[elem_i].global_idx != send_elements_with_dups[elem_i-1].global_idx)
+                    {
+                        send_elements.push_back(send_elements_with_dups[elem_i]);
+                        send_counts[proc_i]++;
+                    }
+                    
+                }
+                
+            }    
+
+
+        }
+        
+
+        // print_log("[", my_rank, "]: send_elements ", VectorToString(send_elements));
+        omp_par::scan(&this->send_counts[0], &this->send_counts_scanned[0], procs_n);
+        this->send_count = this->send_counts_scanned[procs_n-1]+ this->send_counts[procs_n-1];
+        this->sending_scatter_map.resize(this->send_count);
+
+        // TODO: can be parallelized
+        for (size_t send_elem_i = 0; send_elem_i < send_elements.size(); send_elem_i++)
+        {
+            this->sending_scatter_map[send_elem_i] = send_elements[send_elem_i].global_idx - proc_element_counts_scanned[my_rank];
+        }
+        
+
+    }
+
+
     
 
 }
@@ -164,34 +262,79 @@ std::string DistGraph::GraphToString(){
 }
 
 
-void DistGraph::PartitionBFS(std::vector<uint16_t> partition_labels_out){
+void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
     std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1, {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY});
+    std::vector<BFSValue> ghost_send_buffer(this->send_count);
+    std::vector<BFSValue> ghost_recv_buffer(this->ghost_count);
+
 
     /**
      * using sfc seeds
      * elements are already ordered to morton SFC
      * get the 'middle' local element as seed
+     * TODO: oversampling can be implemented here
     */
 
     bfs_vector[this->local_count/2].distance = 0;
     bfs_vector[this->local_count/2].label = my_rank;
-    bool is_not_stable = true;
-    while (is_not_stable)
+    bool is_not_stable_global = true;      // global BFS stability
+    while (is_not_stable_global)
     {
-        is_not_stable = this->RunLocalBFSToStable(bfs_vector);
-        //TODO : update ghost (we will need scatter map for this)
+        is_not_stable_global = false;
+        bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector);
+        // print_log("[", my_rank, "]: BFS iteration done");
+
+        //TODO : can be parallelized
+        for (size_t send_i = 0; send_i < this->send_count; send_i++)
+        {
+            ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
+        }
+
+        //ghost exchange
+        MPI_Alltoallv(ghost_send_buffer.data(),
+                    this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
+                    ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
+                    par::Mpi_datatype<BFSValue>::value(), comm);
+
+        //ghost update for received values
+        // TODO: can be parallellized with a reduction for ghost stability
+        for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
+        {
+            auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
+            if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+            {
+                bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
+                bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
+                is_not_stable_local = true;
+            }
+            
+        }
+
+        MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
+        // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+
+        
+    } 
+
+    print_log("[", my_rank, "]: BFS done");
+    // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+
+    partition_labels_out.resize(this->local_count);
+
+    // TODO: can be parallelized
+    for (size_t local_i = 0; local_i < this->local_count; local_i++)
+    {
+        partition_labels_out[local_i] = bfs_vector[local_i].label;
     }
-    
-    
-
-
-
 }
 
-bool DistGraph::RunLocalBFSToStable(std::vector<BFSValue>& bfs_vector){
+bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
     bool changed = false;       // to detect if the BFS incremented
 
     bool is_not_stable = true; // to detect if the BFS incremented in each increment
@@ -211,19 +354,22 @@ bool DistGraph::RunLocalBFSToStable(std::vector<BFSValue>& bfs_vector){
                 // bfs_status_new_temp[v_i] = NULL;
                 auto best_distance = bfs_vector[v_i].distance;
                 auto best_label = bfs_vector[v_i].label;
+                vector_diff[v_i] = false;
                 // print_log(best_distance, best_label);
-                for (size_t neighbor_i = this->local_adjncy[v_i]; neighbor_i < this->local_adjncy[v_i+1];neighbor_i++)
+                for (size_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                 {
-                    if (bfs_vector[neighbor_i].distance == DIST_GRAPH_BFS_NO_LABEL)
+                    auto neighbor = local_adjncy[neighbor_i];
+                    if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
                     {
                         continue;
                     }
                     // print_log(multi_bfs_labels[neighbor_i]);
 
-                    if (best_distance > (bfs_vector[neighbor_i].distance + 1))
+                    if (best_distance > (bfs_vector[neighbor].distance + 1))
                     {
-                        best_distance = bfs_vector[neighbor_i].distance + 1;
-                        best_label = bfs_vector[neighbor_i].label;
+                        best_distance = bfs_vector[neighbor].distance + 1;
+                        best_label = bfs_vector[neighbor].label;
+                        vector_diff[v_i] = true;
 
 
                     }
@@ -234,7 +380,6 @@ bool DistGraph::RunLocalBFSToStable(std::vector<BFSValue>& bfs_vector){
             }
             #pragma omp for
             for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++){
-                vector_diff[v_i] = (bfs_vector[v_i].label != bfs_vector_tmp[v_i].label);
                 bfs_vector[v_i].distance = bfs_vector_tmp[v_i].distance;
                 bfs_vector[v_i].label = bfs_vector_tmp[v_i].label;
             }

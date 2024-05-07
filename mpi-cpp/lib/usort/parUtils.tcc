@@ -1863,7 +1863,7 @@ namespace par {
 
 template<typename T>
 int sampleSort(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm){ 
-  std::cout <<"using sample sort\n";
+  // std::cout <<"using sample sort\n";
   #ifdef __PROFILE_WITH_BARRIER__
     MPI_Barrier(comm);
   #endif

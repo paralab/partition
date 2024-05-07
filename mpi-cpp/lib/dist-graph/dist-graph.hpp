@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include "../mesh-util/mesh-util.hpp"
+#include "../usort/dtypes.h"
 #include <stdint.h>
 
 
@@ -20,12 +21,46 @@ struct BFSValue
     uint32_t distance;
 };
 
+
+template <>
+class par::Mpi_datatype<BFSValue> {
+
+    /** 
+         @return the MPI_Datatype for the C++ datatype "BFSValue"
+        **/
+    public:
+    static MPI_Datatype value() {
+        static bool         first = true;
+        static MPI_Datatype custom_mpi_type;
+
+        if (first)
+        {
+            first = false;
+            int block_lengths[2] = {1, 1};
+            MPI_Datatype types[2] = {MPI_UINT16_T, MPI_UINT32_T};
+            MPI_Aint offsets[2];
+            offsets[0] = offsetof(BFSValue, label);
+            offsets[1] = offsetof(BFSValue, distance);
+
+
+            MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+            MPI_Type_commit(&custom_mpi_type);
+        }       
+
+        return custom_mpi_type;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const BFSValue& obj);
+
 class DistGraph 
 {
 private:
     MPI_Comm comm;
     uint64_t local_count;
     uint64_t ghost_count;
+    uint64_t send_count;
+
 
     /**
      * Local numbering (i.e. local index) of nodes will be in range [0, size(own_elements)+ size(ghost_elements)]
@@ -43,7 +78,11 @@ private:
     std::vector<int> ghost_counts;
     std::vector<int> ghost_counts_scanned;
 
-    bool RunLocalBFSToStable(std::vector<BFSValue>& bfs_vector);
+    std::vector<uint64_t> sending_scatter_map;
+    std::vector<int> send_counts;
+    std::vector<int> send_counts_scanned;
+
+    bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector);
 
 
 public:
@@ -56,7 +95,7 @@ public:
                      MPI_Comm comm) ;
     std::string GraphToString();
     void Erase();
-    void PartitionBFS(std::vector<uint16_t> partition_labels_out);
+    void PartitionBFS(std::vector<uint16_t>& partition_labels_out);
     // ~DistGraph();
 
 

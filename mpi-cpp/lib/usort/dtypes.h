@@ -246,8 +246,6 @@ to this user-defined datatype.
 
             if (first)
             {
-                std::cout << "here hex def\n";
-
                 first = false;
                 int block_lengths[7] = {1, 1, 1, 1, 1, 1, 6};
                 MPI_Datatype types[7] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T};
@@ -326,6 +324,42 @@ to this user-defined datatype.
 
 
                 MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<ElementWithCoord> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "ElementWithCoord"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[5] = {1, 1, 1, 1, 1};
+                MPI_Datatype types[5] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE};
+                MPI_Aint offsets[5];
+                offsets[0] = offsetof(ElementWithCoord, element_tag);
+                offsets[1] = offsetof(ElementWithCoord, global_idx);
+                offsets[2] = offsetof(ElementWithCoord, x);
+                offsets[3] = offsetof(ElementWithCoord, y);
+                offsets[4] = offsetof(ElementWithCoord, z);
+
+
+
+
+                MPI_Type_create_struct(5, block_lengths, offsets, types, &custom_mpi_type);
                 MPI_Type_commit(&custom_mpi_type);
             }       
 

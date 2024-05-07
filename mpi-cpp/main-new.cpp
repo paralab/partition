@@ -31,11 +31,11 @@ int main(int argc, char *argv[])
     // if (true || taskid == 0)
     // {
     // omp_set_num_threads(8);
-    const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
+    // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
     // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-3x3x3.msh");
 
-    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
+    const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.mshet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
@@ -62,64 +62,46 @@ int main(int argc, char *argv[])
     {
     case ElementType::TET:
     {
-        // std::vector<TetElementWithFaces> localElementsAllData;
-        // GetElementsWithFacesCentroids<TetElementWithFaces>(file_path, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
-        // SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
-        // std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
-        // MPI_Barrier(MPI_COMM_WORLD);
+        std::vector<TetElementWithFaces> localElementsAllData;
+        GetElementsWithFacesCentroids<TetElementWithFaces>(file_path, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
+        SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
+        std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
+        MPI_Barrier(MPI_COMM_WORLD);
 
-        // par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
-        // MPI_Barrier(MPI_COMM_WORLD);
-        // print_log("[", taskid, "]: ", "global SFC sort done");
-
-        // local_element_count = localElementsAllDataSorted.size();
-        // local_elements.resize(local_element_count);
-        // for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
-        // {
-        //     local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
-        //     local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
-        //     local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
-        //     local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
+        par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        print_log("[", taskid, "]: ", "global SFC sort done");
 
 
-        // }
+        local_element_count = localElementsAllDataSorted.size();
+        local_elements.resize(local_element_count);
+        MPI_Allgather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,MPI_COMM_WORLD);
 
+        MPI_Allreduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,MPI_COMM_WORLD);
 
-        // MPI_Gather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,0,MPI_COMM_WORLD);
-        // MPI_Reduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,0,MPI_COMM_WORLD);
+        omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],numtasks);
+        uint64_t global_idx_start = proc_element_counts_scanned[taskid];
+        // print_log("[", taskid, "]: proc_element_counts_scanned ", VectorToString(proc_element_counts_scanned));
+        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
+        {
+            localElementsAllDataSorted[local_elem_i].global_idx = global_idx_start + local_elem_i;
+            local_elements[local_elem_i].global_idx = global_idx_start + local_elem_i;
 
-        // ResolveLocalElementConnectivity<TetElementWithFaces>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
+            local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
+            local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
+            local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
+            local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
 
-        // print_log("[", taskid, "]:", "local_connected_element_pairs = ", VectorToString(local_connected_element_pairs));
-        // print_log("[", taskid, "]:", "local_unconnected_element_face = ", VectorToString(local_unconnected_elements_faces));
-
-
-
-
-
-        // auto displacements = GetDisplacementsFromCounts(proc_element_counts);
-        // std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
+        }
+        // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
         
-        // std::vector<TetElementWithFaces> globalElementsAllData;
-        // if (!taskid)
-        // {
-        //     globalElementsAllData.resize(global_element_count);
-        //     global_element_coords.resize(global_element_count*3);
-        // }
-        // MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<TetElementWithFaces>::value(), 
-        //     globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<TetElementWithFaces>::value(), 0, MPI_COMM_WORLD);
-        
-        // if (!taskid)
-        // {
-        //     for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
-        //     {
-        //         global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
-        //         global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
-        //         global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
+    
+        ResolveLocalElementConnectivity<TetElementWithFaces>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
+        // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
 
-        //     }
-            
-        // }
+
+        ResolveBoundaryElementConnectivity(local_unconnected_elements_faces,proc_element_counts, boundary_connected_element_pairs,MPI_COMM_WORLD);
+
         break;
     }
     case ElementType::HEX:
@@ -158,54 +140,19 @@ int main(int argc, char *argv[])
         // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
         
     
-
-
-
         ResolveLocalElementConnectivity<HexElementWithFaces>(localElementsAllDataSorted,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
-        print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
-
-        // print_log("[", taskid, "]:", "local_connected_element_pairs = ", VectorToString(local_connected_element_pairs));
-        // print_log("[", taskid, "]:", "local_unconnected_element_face = ", VectorToString(local_unconnected_elements_faces));    
-
+        // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
 
 
         ResolveBoundaryElementConnectivity(local_unconnected_elements_faces,proc_element_counts, boundary_connected_element_pairs,MPI_COMM_WORLD);
-        // std::vector<int> testvec = {456,34547,56,67,8967,956,85,6867,93,6,3452,3524};
-        // omp_par::merge_sort(&testvec[0],&testvec[testvec.size()]);
-        // print_log(VectorToString(testvec));
-        
-        
-        // auto displacements = GetDisplacementsFromCounts(proc_element_counts);
-
-        // std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
-        // std::vector<HexElementWithFaces> globalElementsAllData;;
-        // if (!taskid)
-        // {
-        //     globalElementsAllData.resize(global_element_count);
-        //     global_element_coords.resize(global_element_count*3);
-        // }
-        
-        // MPI_Gatherv(localElementsAllDataSorted.data(), local_element_count, par::Mpi_datatype<HexElementWithFaces>::value(), 
-        //     globalElementsAllData.data(), proc_element_counts_.data(), displacements.data(), par::Mpi_datatype<HexElementWithFaces>::value(), 0, MPI_COMM_WORLD);
-
-        // if (!taskid)
-        // {
-        //     for (size_t global_element_i = 0; global_element_i < global_element_count; global_element_i++)
-        //     {
-        //         global_element_coords[3*global_element_i] = globalElementsAllData[global_element_i].x;
-        //         global_element_coords[3*global_element_i+1] = globalElementsAllData[global_element_i].y;
-        //         global_element_coords[3*global_element_i+2] = globalElementsAllData[global_element_i].z;
-
-        //     }
-            
-        // }
-        
 
         break;
     }
 
-    default:
+    default: {
+        throw std::runtime_error("Unknown element type");
         break;
+    }
     }
 
     std::vector<ElementWithTag> ghost_elements;
@@ -215,64 +162,61 @@ int main(int argc, char *argv[])
     DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
                             proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
 
-    print_log("[", taskid, "]:\n", dist_graph.GraphToString());
+    // print_log("[", taskid, "]:\n", dist_graph.GraphToString());
 
-    // std::vector<ElementWithTag> ghost_elements_dups(boundary_connected_element_pairs.size());
+    std::vector<uint16_t> local_bfs_partition_labels(local_element_count);
 
-    // //TODO: can be parallelized
-    // for (size_t boudary_connect_i = 0; boudary_connect_i < boundary_connected_element_pairs.size(); boudary_connect_i++)
-    // {
-    //     ghost_elements_dups[boudary_connect_i].element_tag = boundary_connected_element_pairs[boudary_connect_i].second.element_tag;
-    //     ghost_elements_dups[boudary_connect_i].global_idx = boundary_connected_element_pairs[boudary_connect_i].second.global_idx;
+    dist_graph.PartitionBFS(local_bfs_partition_labels);
+    MPI_Barrier(MPI_COMM_WORLD);
+    // print_log("[", taskid, "]:", "local_bfs_partition_labels = ", VectorToString(local_bfs_partition_labels));
 
-    // }
 
-    // omp_par::merge_sort(&ghost_elements_dups[0], &ghost_elements_dups[ghost_elements_dups.size()]);
+    std::vector<ElementWithCoord> global_all_elements(0);
+    std::vector<uint16_t> global_all_elements_bfs_partition_labels(0);
 
-    // // print_log("[", taskid, "]:", "ghost_elements_dups sorted = ", VectorToString(ghost_elements_dups));    
+    if (! taskid)
+    {
+        global_all_elements.resize(global_element_count);
+        global_all_elements_bfs_partition_labels.resize(global_element_count);
+
+    }
     
-    // std::vector<ElementWithTag> ghost_elements;
-    // ghost_elements.push_back(ghost_elements_dups[0]);
-    // for (size_t ghost_element_dup_i = 1; ghost_element_dup_i < ghost_elements_dups.size(); ghost_element_dup_i++)
-    // {
-    //     if (ghost_elements_dups[ghost_element_dup_i].global_idx != ghost_elements_dups[ghost_element_dup_i-1].global_idx)
-    //     {
-    //         ghost_elements.push_back(ghost_elements_dups[ghost_element_dup_i]);
-    //     }
-        
-    // }
+    
 
-    // print_log("[", taskid, "]:", "ghost_elements = ", VectorToString(ghost_elements));    
-    // std::vector<int> ghost_element_counts(numtasks);
-    // {
-    //     uint64_t current_proc = 0;
-    //     for (size_t ghost_element_i = 0; ghost_element_i < ghost_elements.size(); ghost_element_i++)
-    //     {
-    //         if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
-    //             ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
-    //         {
-    //             ghost_element_counts[current_proc]++;
-    //         } else
-    //         {
-    //             while (1)
-    //             {
-    //                 current_proc++;
-    //                 if (ghost_elements[ghost_element_i].global_idx >= proc_element_counts_scanned[current_proc] &&
-    //                     ghost_elements[ghost_element_i].global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
-    //                 {
-    //                     ghost_element_counts[current_proc]++;
-    //                     break;
-    //                 }                    
-    //             }
-                
-    //         }   
-    //     }       
-
-    // }
-    // print_log("[", taskid, "]:", "ghost_element_counts = ", VectorToString(ghost_element_counts));    
+    std::vector<int> proc_element_counts_(proc_element_counts.begin(), proc_element_counts.end());
+    std::vector<int> proc_element_counts_scanned_(proc_element_counts_scanned.begin(), proc_element_counts_scanned.end());
 
 
+    MPI_Gatherv(local_elements.data(),local_element_count,par::Mpi_datatype<ElementWithCoord>::value(),global_all_elements.data(),
+                proc_element_counts_.data(),proc_element_counts_scanned_.data(),par::Mpi_datatype<ElementWithCoord>::value(), 0, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    
+    MPI_Gatherv(local_bfs_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_bfs_partition_labels.data(),
+                proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
 
+    
+
+    std::vector<uint16_t> local_sfc_partition_labels(local_element_count,taskid);
+
+    std::vector<uint16_t> global_all_elements_sfc_partition_labels(0);
+
+    if (! taskid)
+    {
+        global_all_elements_sfc_partition_labels.resize(global_element_count);
+
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gatherv(local_sfc_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_sfc_partition_labels.data(),
+                proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
+
+    if (! taskid)
+    {
+        // print_log("bfs labels", VectorToString(global_all_elements_bfs_partition_labels));
+        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
+        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
+
+    }
+    
     
 
     // if (!taskid)
