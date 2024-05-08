@@ -8,10 +8,10 @@ cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 ninja -C ./build
 
-mpirun -np 4 --bind-to none --oversubscribe  ./build/main-new
+mpirun -np 3 --bind-to none --oversubscribe  ./build/main-new
 
 export SFC_morton="$PWD/out-sfc.vtk"
-export METIS="$PWD/out-bfs.vtk"
+export METIS="$PWD/out-parmetis.vtk"
 export BFS="$PWD/out-bfs.vtk"
 export BFS_grow="$PWD/out-bfs.vtk"
 

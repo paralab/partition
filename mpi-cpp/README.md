@@ -3,6 +3,7 @@ Cmake dependencies
 - Gmsh SDK https://gmsh.info/#Download
 - VTK https://vtk.org/download/
 - METIS https://github.com/KarypisLab/METIS/tags
+- ParMETIS (depends on METIS) https://github.com/KarypisLab/ParMETIS
 - GKLIB (required for METIS) https://github.com/KarypisLab/GKlib
 
 

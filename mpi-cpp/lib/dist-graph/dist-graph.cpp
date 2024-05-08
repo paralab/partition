@@ -3,6 +3,9 @@
 #include "../mesh-util/mesh-util.hpp"
 #include "../usort/ompUtils.h"
 #include "mpi.h"
+#include "../metis-util/metis-util.hpp"
+
+#include <chrono>
 
 
 // Overloading the << operator for BFSValue
@@ -38,6 +41,14 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     this->local_count = own_elements.size();
     this->ghost_count = ghost_elements.size();
 
+    this->vtx_dist.assign(proc_element_counts_scanned.begin(), proc_element_counts_scanned.end());
+
+    this->vtx_dist.push_back(proc_element_counts_scanned[procs_n-1] + proc_element_counts[procs_n-1]);
+
+    // print_log("[", my_rank, "]: vtx_dist ", VectorToString(vtx_dist));
+
+
+
 
     this->local_degrees.resize(own_elements.size() + ghost_elements.size());
     std::fill(this->local_degrees.begin(), this->local_degrees.end(),0);
@@ -45,6 +56,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     std::fill(this->local_xdj.begin(), this->local_xdj.end(),0);
 
     this->local_adjncy.resize(2 * (local_connectivity.size() + boundary_connectivity.size()));
+    this->dist_adjncy.resize(2*local_connectivity.size()  + boundary_connectivity.size());
     this->ghost_counts.assign(ghost_element_counts.begin(), ghost_element_counts.end());
 
     this->ghost_counts_scanned.resize(procs_n);
@@ -113,8 +125,15 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         auto local_index_1 = edge.first.global_idx - proc_element_counts_scanned[my_rank];
         auto local_index_2 = edge.second.global_idx - proc_element_counts_scanned[my_rank];
 
-        this->local_adjncy[next_index[local_index_1]++] = local_index_2;
-        this->local_adjncy[next_index[local_index_2]++] = local_index_1;
+        this->local_adjncy[next_index[local_index_1]] = local_index_2;
+        this->local_adjncy[next_index[local_index_2]] = local_index_1;
+
+        this->dist_adjncy[next_index[local_index_1]] = edge.second.global_idx;
+        this->dist_adjncy[next_index[local_index_2]] = edge.first.global_idx;
+
+
+        next_index[local_index_1]++;
+        next_index[local_index_2]++;
     }
     // print_log("[", my_rank, "]: local_xdj done for local elements");
 
@@ -125,8 +144,13 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         {
             auto local_index_1 = boundary_connectivity_cpy[0].first.global_idx - proc_element_counts_scanned[my_rank];
             auto local_index_2 = current_ghost_element_local_index;
-            this->local_adjncy[next_index[local_index_1]++] = local_index_2;
-            this->local_adjncy[next_index[local_index_2]++] = local_index_1;
+            this->local_adjncy[next_index[local_index_1]] = local_index_2;
+            this->local_adjncy[next_index[local_index_2]] = local_index_1;
+
+            this->dist_adjncy[next_index[local_index_1]] = boundary_connectivity_cpy[0].second.global_idx;
+
+            next_index[local_index_1]++;
+            next_index[local_index_2]++;
         }
 
         for (int boundary_edge_i =1; boundary_edge_i <boundary_connectivity_cpy.size(); boundary_edge_i++)
@@ -140,8 +164,15 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             //assumes first element belongs ro this process and second element belongs to another process
             auto local_index_1 = boundary_connectivity_cpy[boundary_edge_i].first.global_idx - proc_element_counts_scanned[my_rank];
             auto local_index_2 = current_ghost_element_local_index;
-            this->local_adjncy[next_index[local_index_1]++] = local_index_2;
-            this->local_adjncy[next_index[local_index_2]++] = local_index_1;
+            this->local_adjncy[next_index[local_index_1]] = local_index_2;
+            this->local_adjncy[next_index[local_index_2]] = local_index_1;
+
+            this->dist_adjncy[next_index[local_index_1]] = boundary_connectivity_cpy[boundary_edge_i].second.global_idx;
+
+
+
+            next_index[local_index_1]++;
+            next_index[local_index_2]++;
         }
 
 
@@ -223,7 +254,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         this->send_count = this->send_counts_scanned[procs_n-1]+ this->send_counts[procs_n-1];
         this->sending_scatter_map.resize(this->send_count);
 
-        // TODO: can be parallelized
+        #pragma omp parallel for
         for (size_t send_elem_i = 0; send_elem_i < send_elements.size(); send_elem_i++)
         {
             this->sending_scatter_map[send_elem_i] = send_elements[send_elem_i].global_idx - proc_element_counts_scanned[my_rank];
@@ -244,7 +275,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
 // }
 
 
-std::string DistGraph::GraphToString(){
+std::string DistGraph::PrintLocal(){
     std::ostringstream output;
     for (size_t vertex_i = 0; vertex_i < this->local_xdj.size()-1; vertex_i++)
     {
@@ -252,6 +283,23 @@ std::string DistGraph::GraphToString(){
         for (size_t neigh_i = this->local_xdj[vertex_i]; neigh_i < this->local_xdj[vertex_i+1]; neigh_i++)
         {
             output << this->local_adjncy[neigh_i] << ",";
+        }
+        output << "\n";
+        
+    }
+
+    return output.str();
+    
+}
+
+std::string DistGraph::PrintDist(){
+    std::ostringstream output;
+    for (size_t vertex_i = 0; vertex_i < this->local_count; vertex_i++)
+    {
+        output << vertex_i << "\t->";
+        for (size_t neigh_i = this->local_xdj[vertex_i]; neigh_i < this->local_xdj[vertex_i+1]; neigh_i++)
+        {
+            output << this->dist_adjncy[neigh_i] << ",";
         }
         output << "\n";
         
@@ -270,6 +318,8 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     std::vector<BFSValue> ghost_send_buffer(this->send_count);
     std::vector<BFSValue> ghost_recv_buffer(this->ghost_count);
 
+    std::vector<bool> ghost_is_not_stable(this->ghost_count);
+
 
     /**
      * using sfc seeds
@@ -281,13 +331,21 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     bfs_vector[this->local_count/2].distance = 0;
     bfs_vector[this->local_count/2].label = my_rank;
     bool is_not_stable_global = true;      // global BFS stability
+    int round_counter = 0;
+    MPI_Barrier(this->comm);
+    auto start = std::chrono::high_resolution_clock::now();
     while (is_not_stable_global)
     {
+        if (!my_rank)
+        {
+            print_log("BFS round: ", ++round_counter);
+        }
+        
         is_not_stable_global = false;
         bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector);
         // print_log("[", my_rank, "]: BFS iteration done");
 
-        //TODO : can be parallelized
+        #pragma omp parallel for
         for (size_t send_i = 0; send_i < this->send_count; send_i++)
         {
             ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
@@ -300,18 +358,29 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
                     par::Mpi_datatype<BFSValue>::value(), comm);
 
         //ghost update for received values
-        // TODO: can be parallellized with a reduction for ghost stability
+        #pragma omp parallel for
         for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
         {
+            ghost_is_not_stable[recv_i] = false;
             auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
             if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
             {
                 bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
                 bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
-                is_not_stable_local = true;
+                // is_not_stable_local = true;
+                ghost_is_not_stable[recv_i] = true;
             }
             
         }
+
+        bool ghost_any_is_not_stable = false;
+        #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
+        for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
+            ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
+        }
+
+        is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
+
 
         MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
         // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
@@ -319,16 +388,26 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
         
     } 
 
-    print_log("[", my_rank, "]: BFS done");
+    // print_log("[", my_rank, "]: BFS done");
     // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+
+    MPI_Barrier(this->comm);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    if (!my_rank)
+    {
+        print_log("BFS time:\t", duration.count(), " ms");
+    }
 
     partition_labels_out.resize(this->local_count);
 
-    // TODO: can be parallelized
+
+    #pragma omp parallel for
     for (size_t local_i = 0; local_i < this->local_count; local_i++)
     {
         partition_labels_out[local_i] = bfs_vector[local_i].label;
     }
+
 }
 
 bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
@@ -396,4 +475,11 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
     }
 
     return changed;
+}
+
+void DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_labels_out){
+    int procs_n;
+    MPI_Comm_size(this->comm, &procs_n);
+    std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.end()+ this->local_count + 1);
+    GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
 }

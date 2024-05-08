@@ -85,8 +85,8 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
     std::vector<uint64_t> local_elem_tags(elem_tags.begin()+(local_start), elem_tags.begin()+(local_end));
     assert(local_elem_tags.size() == local_element_count);
 
-    print_log("[", my_rank, "]:", "global_element_count = ", global_element_count);
-    print_log("[", my_rank, "]:", "local_element_count = ", local_element_count);
+    // print_log("[", my_rank, "]:", "global_element_count = ", global_element_count);
+    // print_log("[", my_rank, "]:", "local_element_count = ", local_element_count);
 
 
     // print_log("[", my_rank, "]:", VectorToString(local_elem_tags));

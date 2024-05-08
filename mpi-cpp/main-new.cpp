@@ -37,11 +37,11 @@ int main(int argc, char *argv[])
 
     const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
-    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.mshet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
+    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
     ElementType elementType = GetElementType(file_path, MPI_COMM_WORLD);
-    print_log("element type: ", elementType);
+    // print_log("element type: ", elementType);
     uint64_t local_element_count;
     uint64_t global_element_count;
 
@@ -70,7 +70,11 @@ int main(int argc, char *argv[])
 
         par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
-        print_log("[", taskid, "]: ", "global SFC sort done");
+        if (! taskid)
+        {
+            print_log("global sfc sort done");
+        }
+        // print_log("[", taskid, "]: ", "global SFC sort done");
 
 
         local_element_count = localElementsAllDataSorted.size();
@@ -114,7 +118,12 @@ int main(int argc, char *argv[])
 
         par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
-        print_log("[", taskid, "]: ", "global SFC sort done");
+        if (! taskid)
+        {
+            print_log("global sfc sort done");
+        }
+        
+        // print_log("[", taskid, "]: ", "global SFC sort done");
 
 
         local_element_count = localElementsAllDataSorted.size();
@@ -163,11 +172,15 @@ int main(int argc, char *argv[])
                             proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
 
     // print_log("[", taskid, "]:\n", dist_graph.GraphToString());
+    // print_log("[", taskid, "]:\n", dist_graph.PrintDist());
+
 
     std::vector<uint16_t> local_bfs_partition_labels(local_element_count);
 
     dist_graph.PartitionBFS(local_bfs_partition_labels);
-    MPI_Barrier(MPI_COMM_WORLD);
+
+
+
     // print_log("[", taskid, "]:", "local_bfs_partition_labels = ", VectorToString(local_bfs_partition_labels));
 
 
@@ -209,11 +222,27 @@ int main(int argc, char *argv[])
     MPI_Gatherv(local_sfc_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_sfc_partition_labels.data(),
                 proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
 
+    std::vector<uint16_t> local_parmetis_partition_labels(local_element_count);
+    dist_graph.PartitionParmetis(local_parmetis_partition_labels);
+   
+
+    std::vector<uint16_t> global_all_elements_parmetis_partition_labels;
+
+    if (! taskid)
+    {
+        global_all_elements_parmetis_partition_labels.resize(global_element_count);
+
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gatherv(local_parmetis_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_parmetis_partition_labels.data(),
+                proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
     if (! taskid)
     {
         // print_log("bfs labels", VectorToString(global_all_elements_bfs_partition_labels));
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
+        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
 
     }
     

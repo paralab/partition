@@ -49,6 +49,11 @@ set(GKLIB_INCLUDE_DIR "/home/budvin/bin/GKlib-master/build/include")
 set(GKLIB_LIBRARY "/home/budvin/bin/GKlib-master/build/lib/libGKlib.a")
 include_directories(${GKLIB_INCLUDE_DIR})
 
+set(PARMETIS_INCLUDE_DIR "/home/budvin/bin/ParMETIS/build/Linux-x86_64/build/include")
+set(PARMETIS_LIBRARY "/home/budvin/bin/ParMETIS/build/Linux-x86_64/build/lib/libparmetis.so")
+
+include_directories(${PARMETIS_INCLUDE_DIR})
+
 set(MAIN_TARGET_NAME "main-new")
 
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
@@ -65,7 +70,7 @@ include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis
 
 
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
 
 
 

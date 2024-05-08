@@ -74,6 +74,10 @@ private:
 
     //CSR column offsets
     std::vector<uint64_t> local_adjncy;
+    std::vector<uint64_t> dist_adjncy;
+
+    std::vector<uint64_t> vtx_dist;
+
 
     std::vector<int> ghost_counts;
     std::vector<int> ghost_counts_scanned;
@@ -93,9 +97,12 @@ public:
                      const std::vector<uint64_t>& proc_element_counts_scanned, 
                      const std::vector<int>& ghost_element_counts,
                      MPI_Comm comm) ;
-    std::string GraphToString();
+    std::string PrintLocal();
+    std::string PrintDist();
+
     void Erase();
     void PartitionBFS(std::vector<uint16_t>& partition_labels_out);
+    void PartitionParmetis(std::vector<uint16_t>& partition_labels_out);
     // ~DistGraph();
 
 

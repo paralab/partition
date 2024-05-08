@@ -244,13 +244,13 @@ ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
     case 4: // linear tet
     {
         element_type_out = ElementType::TET;
-        std::cout << "linear tetrahedra mesh\n";
+        // std::cout << "linear tetrahedra mesh\n";
         break;
     }
     case 5: // linear hexahedra
     {
         element_type_out = ElementType::HEX;
-        std::cout << "linear hexahedra mesh\n";
+        // std::cout << "linear hexahedra mesh\n";
         break;
     }
 
