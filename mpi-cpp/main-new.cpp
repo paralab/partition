@@ -32,10 +32,10 @@ int main(int argc, char *argv[])
     // {
     // omp_set_num_threads(8);
     // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
-    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
+    const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
     // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-3x3x3.msh");
 
-    const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
+    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
