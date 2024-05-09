@@ -33,13 +33,16 @@ set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib/libgmsh.so")
 # Include Gmsh headers
 include_directories(${GMSH_INCLUDE_DIRS})
 
+if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
+    set(VTK_DIR ${VTK_ROOT})
+else()
+    if(NOT VTK_INSTALL_DIR_PATH)
+        message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
+    endif()
+    set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
 
-if(NOT VTK_INSTALL_DIR_PATH)
-    message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
 endif()
 
-# Set the path to the VTK build directory
-set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
 
 # Find VTK package
 find_package(VTK COMPONENTS
