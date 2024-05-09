@@ -32,13 +32,16 @@ int main(int argc, char *argv[])
     // {
     // omp_set_num_threads(8);
     // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh");
-    const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
+    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh");
     // const std::string file_path("/home/budvin/research/Partitioning/mesh_generator/hex-box-3x3x3.msh");
 
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
+
+
+    const std::string file_path = argv[1];
 
     ElementType elementType = GetElementType(file_path, MPI_COMM_WORLD);
     // print_log("element type: ", elementType);
@@ -67,12 +70,15 @@ int main(int argc, char *argv[])
         SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
         std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
         MPI_Barrier(MPI_COMM_WORLD);
-
+        auto start = std::chrono::high_resolution_clock::now();
         par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         if (! taskid)
         {
             print_log("global sfc sort done");
+            print_log("SFC sort time:\t", duration.count(), " ms");
         }
         // print_log("[", taskid, "]: ", "global SFC sort done");
 
@@ -115,12 +121,15 @@ int main(int argc, char *argv[])
         SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
         std::vector<HexElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
         MPI_Barrier(MPI_COMM_WORLD);
-
+        auto start = std::chrono::high_resolution_clock::now();
         par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         if (! taskid)
         {
             print_log("global sfc sort done");
+            print_log("SFC sort time:\t", duration.count(), " ms");
         }
         
         // print_log("[", taskid, "]: ", "global SFC sort done");
