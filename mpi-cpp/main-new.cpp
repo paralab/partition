@@ -37,11 +37,12 @@ int main(int argc, char *argv[])
 
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh");   //octopus
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh");     //large tet
-    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_t/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
+    // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
 
     const std::string file_path = argv[1];
+    if(!taskid) print_log("running on", numtasks, "MPI processs");
 
     ElementType elementType = GetElementType(file_path, MPI_COMM_WORLD);
     // print_log("element type: ", elementType);
@@ -69,6 +70,10 @@ int main(int argc, char *argv[])
         GetElementsWithFacesCentroids<TetElementWithFaces>(file_path, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
         std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
+        if (! taskid)
+        {
+            print_log("starting sfc sort");
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         auto start = std::chrono::high_resolution_clock::now();
         par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
@@ -120,6 +125,10 @@ int main(int argc, char *argv[])
         GetElementsWithFacesCentroids<HexElementWithFaces>(file_path, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
         std::vector<HexElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
+        if (! taskid)
+        {
+            print_log("starting sfc sort");
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         auto start = std::chrono::high_resolution_clock::now();
         par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);

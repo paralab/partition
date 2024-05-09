@@ -262,11 +262,11 @@ namespace par {
       MPI_Barrier(comm);
 #endif
     
-#ifndef ALLTOALLV_FIX
-    return Mpi_Alltoallv
-        (sendbuf, sendcnts, sdispls, 
-         recvbuf, recvcnts, rdispls, comm);
-#else
+// #ifndef ALLTOALLV_FIX
+//     return Mpi_Alltoallv
+//         (sendbuf, sendcnts, sdispls, 
+//          recvbuf, recvcnts, rdispls, comm);
+// #else
 
       int npes, rank;
       MPI_Comm_size(comm, &npes);
@@ -352,7 +352,7 @@ namespace par {
       delete [] statuses;
 
       return MPI_SUCCESS;
-#endif
+// #endif
     }
 
 //*
@@ -1914,7 +1914,8 @@ int sampleSort(std::vector<T>& arr, std::vector<T> & SortedElem, MPI_Comm comm){
   DendroIntL npesLong = npes;
   const DendroIntL FIVE = 5;
 
-  if(totSize < (FIVE*npesLong*npesLong)) {
+  if(false) {
+  // if(totSize < (FIVE*npesLong*npesLong)) {
     if(!myrank) {
       std::cout <<" Using bitonic sort since totSize < (5*(npes^2)). totSize: " << totSize << " npes: "<<npes <<std::endl;
     }

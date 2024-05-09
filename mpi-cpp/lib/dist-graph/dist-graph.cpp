@@ -2,6 +2,8 @@
 #include "dist-graph.hpp"
 #include "../mesh-util/mesh-util.hpp"
 #include "../usort/ompUtils.h"
+#include "../usort/parUtils.h"
+
 #include "mpi.h"
 #include "../metis-util/metis-util.hpp"
 
@@ -333,6 +335,9 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     bool is_not_stable_global = true;      // global BFS stability
     int round_counter = 0;
     MPI_Barrier(this->comm);
+    auto com_duration = std::chrono::milliseconds(0);
+    auto reduce_duration = std::chrono::milliseconds(0);
+
     auto start = std::chrono::high_resolution_clock::now();
     while (is_not_stable_global)
     {
@@ -350,12 +355,23 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
         {
             ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
         }
-
+        auto com_start = std::chrono::high_resolution_clock::now();
         //ghost exchange
-        MPI_Alltoallv(ghost_send_buffer.data(),
-                    this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
-                    ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
-                    par::Mpi_datatype<BFSValue>::value(), comm);
+
+
+        // MPI_Alltoallv(ghost_send_buffer.data(),
+        //             this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
+        //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
+        //             par::Mpi_datatype<BFSValue>::value(), comm);
+
+        MPI_Barrier(this->comm);
+        par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+
+        MPI_Barrier(this->comm);
+
+        auto com_end = std::chrono::high_resolution_clock::now();
+        com_duration += std::chrono::duration_cast<std::chrono::milliseconds>(com_end - com_start);
 
         //ghost update for received values
         #pragma omp parallel for
@@ -381,8 +397,11 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
 
         is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
 
+        auto reduce_com_start = std::chrono::high_resolution_clock::now();
 
         MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
+        auto reduce_com_end = std::chrono::high_resolution_clock::now();
+        reduce_duration += std::chrono::duration_cast<std::chrono::milliseconds>(reduce_com_end - reduce_com_start);
         // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
 
         
@@ -396,6 +415,9 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (!my_rank)
     {
+        print_log("BFS comm time:\t", com_duration.count(), " ms");
+        print_log("BFS comm (reduce) time:\t", reduce_duration.count(), " ms");
+
         print_log("BFS time:\t", duration.count(), " ms");
     }
 
