@@ -196,6 +196,18 @@ void AddEdgesToGhostVertex(Graph& graph, vertex_t v, int my_rank, int num_tasks,
 //     return output.str();
 // }
 
+template <> 
+std::string VectorToString(std::vector<uint8_t> vec){
+    std::ostringstream output;
+    output << "[ ";
+    for (auto element : vec)
+    {
+        output << +element << ", ";
+    }
+    output << "]\n";
+    return output.str();
+}
+
 void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, uint64_t count, uint64_t partition_count, std::vector<uint64_t> &labels_out){
     assert(labels_out.size() == count);
     uint64_t partition_size = count/partition_count;

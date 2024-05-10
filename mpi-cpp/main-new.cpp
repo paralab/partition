@@ -255,12 +255,29 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(local_parmetis_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_parmetis_partition_labels.data(),
                 proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
+
+    std::vector<uint16_t> local_pagerank_partition_labels(local_element_count);
+    dist_graph.PartitionPageRank(local_pagerank_partition_labels);
+   
+
+    std::vector<uint16_t> global_all_elements_pagerank_partition_labels;
+
+    if (! taskid)
+    {
+        global_all_elements_pagerank_partition_labels.resize(global_element_count);
+
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Gatherv(local_pagerank_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_pagerank_partition_labels.data(),
+                proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
     if (! taskid)
     {
         // print_log("bfs labels", VectorToString(global_all_elements_bfs_partition_labels));
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
+        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_pagerank_partition_labels, global_element_count, "out-grow.vtk");
 
     }
     

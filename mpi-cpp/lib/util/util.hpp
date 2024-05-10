@@ -52,6 +52,7 @@ template <typename T> std::string VectorToString(std::vector<T> vec){
     output << "]\n";
     return output.str();
 }
+template <> std::string VectorToString(std::vector<uint8_t> vec);
 
 template <typename T> std::vector<int> GetDisplacementsFromCounts(std::vector<T>& counts){
     std::vector<int> displacements(counts.size());
@@ -61,6 +62,16 @@ template <typename T> std::vector<int> GetDisplacementsFromCounts(std::vector<T>
         displacements[i] = (int)(displacements[i-1] + counts[i-1]);
     }
     return displacements;
+}
+
+// https://stackoverflow.com/a/34937216
+// templated function to get the max element from a std::unordered_map
+template<typename KeyType, typename ValueType> 
+inline std::pair<KeyType,ValueType> get_max( const std::unordered_map<KeyType,ValueType>& x ) {
+  using pairtype=std::pair<KeyType,ValueType>; 
+  return *std::max_element(x.begin(), x.end(), [] (const pairtype & p1, const pairtype & p2) {
+        return p1.second < p2.second;
+  }); 
 }
 
 #endif

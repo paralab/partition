@@ -53,6 +53,44 @@ class par::Mpi_datatype<BFSValue> {
 
 std::ostream& operator<<(std::ostream& os, const BFSValue& obj);
 
+
+struct PageRankValue
+{
+    uint16_t label;
+    float value;
+};
+
+template <>
+class par::Mpi_datatype<PageRankValue> {
+
+    /** 
+         @return the MPI_Datatype for the C++ datatype "PageRankValue"
+        **/
+    public:
+    static MPI_Datatype value() {
+        static bool         first = true;
+        static MPI_Datatype custom_mpi_type;
+
+        if (first)
+        {
+            first = false;
+            int block_lengths[2] = {1, 1};
+            MPI_Datatype types[2] = {MPI_UINT16_T, MPI_FLOAT};
+            MPI_Aint offsets[2];
+            offsets[0] = offsetof(PageRankValue, label);
+            offsets[1] = offsetof(PageRankValue, value);
+
+
+            MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+            MPI_Type_commit(&custom_mpi_type);
+        }       
+
+        return custom_mpi_type;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const PageRankValue& obj);
+
 class DistGraph 
 {
 private:
@@ -87,6 +125,10 @@ private:
     std::vector<int> send_counts_scanned;
 
     bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector);
+    bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
+                std::vector<uint8_t> vertex_degrees, const float min_relative_change);
+
+    void GetVertexDegrees(std::vector<uint8_t>& degrees_out);
 
 
 public:
@@ -102,6 +144,7 @@ public:
 
     void Erase();
     void PartitionBFS(std::vector<uint16_t>& partition_labels_out);
+    void PartitionPageRank(std::vector<uint16_t>& partition_labels_out);
     void PartitionParmetis(std::vector<uint16_t>& partition_labels_out);
     // ~DistGraph();
 
