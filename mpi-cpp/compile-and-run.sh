@@ -22,17 +22,31 @@ export PYTHONPATH=$PYTHONPATH:$dir
 
 metrics_file_path="$PWD/results/$(date +%Y-%m-%d__%H-%M-%S).json"
 
-echo $metrics_file_path
+echo "exporting metrics to file $metrics_file_path"
+
+# File containing list of mesh files
+file_list_file="/home/budvin/research/Partitioning/paralab-partition/mpi-cpp/mesh_files_list.txt"
+
+# Read the file list into an array, skipping empty lines
+mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 # mpirun -np 40 --oversubscribe ./build/main-new
 
 # mpirun -np 10 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh  # octopus
 # mpirun -np 8 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh
-mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh 0 $metrics_file_path  # smallest tet
+# mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh 0 $metrics_file_path  # smallest tet
 # mpirun -np 8 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh #large tet
 
 
-mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
+# mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
+
+for file_idx in "${!mesh_file_list[@]}"; do 
+    for np in 10 20 40
+    do
+        mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $metrics_file_path
+    done
+done
+
 
 export SFC_morton="$PWD/out-sfc.vtk"
 export METIS="$PWD/out-parmetis.vtk"

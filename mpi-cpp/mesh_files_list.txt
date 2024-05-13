@@ -1,0 +1,5 @@
+10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh
+10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh
+10k_tet/188501_sf_hexa.mesh_2808_10352.obj.mesh
+10k_tet/67924_sf_hexa.mesh_4590_18334.obj.mesh
+10k_tet/168074_sf_hexa.mesh_5604_19453.obj.mesh

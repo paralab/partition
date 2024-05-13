@@ -257,6 +257,8 @@ void CopyToPythonList(std::vector<uint32_t>& in_vector, PyObject* out_list, size
     }
 }
 
+
+// TODO: export execution times as well
 void ExportMetricsToPandasJson(
     std::string mesh_file, int file_idx, int partition_count, uint64_t global_vertex_count,
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
@@ -315,7 +317,6 @@ void ExportMetricsToPandasJson(
     CopyToPythonList(parmetis_partition_boundaries, py_parmetis_partition_boundaries,
                      parmetis_partition_boundaries.size());
     PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
-    print_log("exporting to fl", metrics_out_file_path);
 
     PyObject* all_args = PyTuple_Pack(
         13, py_mesh_file, py_file_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
