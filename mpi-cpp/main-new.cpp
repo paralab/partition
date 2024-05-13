@@ -189,26 +189,34 @@ int main(int argc, char *argv[])
     DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
                             proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
 
+    if(!taskid) print_log("graph formation done");
+
     // print_log("[", taskid, "]:\n", dist_graph.GraphToString());
     // print_log("[", taskid, "]:\n", dist_graph.PrintDist());
 
 
     std::vector<uint16_t> local_bfs_partition_labels(local_element_count);
-
     dist_graph.PartitionBFS(local_bfs_partition_labels);
 
+    std::vector<uint16_t> local_parmetis_partition_labels(local_element_count);
+    dist_graph.PartitionParmetis(local_parmetis_partition_labels);
 
 
-    // print_log("[", taskid, "]:", "local_bfs_partition_labels = ", VectorToString(local_bfs_partition_labels));
+    std::vector<uint16_t> local_sfc_partition_labels(local_element_count,taskid);
 
 
-    std::vector<ElementWithCoord> global_all_elements(0);
-    std::vector<uint16_t> global_all_elements_bfs_partition_labels(0);
+    // collecting to root process for visualization
+    std::vector<ElementWithCoord> global_all_elements;
+    std::vector<uint16_t> global_all_elements_bfs_partition_labels;
+    std::vector<uint16_t> global_all_elements_sfc_partition_labels;
+    std::vector<uint16_t> global_all_elements_parmetis_partition_labels;
 
     if (! taskid)
     {
         global_all_elements.resize(global_element_count);
         global_all_elements_bfs_partition_labels.resize(global_element_count);
+        global_all_elements_sfc_partition_labels.resize(global_element_count);
+        global_all_elements_parmetis_partition_labels.resize(global_element_count);
 
     }
     
@@ -226,58 +234,66 @@ int main(int argc, char *argv[])
                 proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
 
     
-
-    std::vector<uint16_t> local_sfc_partition_labels(local_element_count,taskid);
-
-    std::vector<uint16_t> global_all_elements_sfc_partition_labels(0);
-
-    if (! taskid)
-    {
-        global_all_elements_sfc_partition_labels.resize(global_element_count);
-
-    }
+    
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(local_sfc_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_sfc_partition_labels.data(),
                 proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
 
-    std::vector<uint16_t> local_parmetis_partition_labels(local_element_count);
-    dist_graph.PartitionParmetis(local_parmetis_partition_labels);
-   
-
-    std::vector<uint16_t> global_all_elements_parmetis_partition_labels;
-
-    if (! taskid)
-    {
-        global_all_elements_parmetis_partition_labels.resize(global_element_count);
-
-    }
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gatherv(local_parmetis_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_parmetis_partition_labels.data(),
                 proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
 
-    std::vector<uint16_t> local_pagerank_partition_labels(local_element_count);
-    dist_graph.PartitionPageRank(local_pagerank_partition_labels);
+
+    // collecting partitioning metrics
+
+    std::vector<uint32_t> global_bfs_partition_sizes;
+    std::vector<uint32_t> global_bfs_partition_boundaries;
+    dist_graph.GetPartitionMetrics(local_bfs_partition_labels,global_bfs_partition_sizes, global_bfs_partition_boundaries);
+
+
+    std::vector<uint32_t> global_sfc_partition_sizes;
+    std::vector<uint32_t> global_sfc_partition_boundaries;
+    dist_graph.GetPartitionMetrics(local_sfc_partition_labels,global_sfc_partition_sizes, global_sfc_partition_boundaries);
+
+    std::vector<uint32_t> global_parmetis_partition_sizes;
+    std::vector<uint32_t> global_parmetis_partition_boundaries;
+    dist_graph.GetPartitionMetrics(local_parmetis_partition_labels,global_parmetis_partition_sizes, global_parmetis_partition_boundaries);
+
+
+
+    // std::vector<uint16_t> local_grow_partition_labels(local_element_count);
+    // dist_graph.Partitiongrow(local_grow_partition_labels);
    
 
-    std::vector<uint16_t> global_all_elements_pagerank_partition_labels;
+    // std::vector<uint16_t> global_all_elements_grow_partition_labels;
+
+    // if (! taskid)
+    // {
+    //     global_all_elements_grow_partition_labels.resize(global_element_count);
+
+    // }
+
+    // MPI_Barrier(MPI_COMM_WORLD);
+    // MPI_Gatherv(local_grow_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_grow_partition_labels.data(),
+    //             proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
+    // dist_graph.GetPartitionMetrics(nullptr,NULL,NULL,NULL);
+
 
     if (! taskid)
-    {
-        global_all_elements_pagerank_partition_labels.resize(global_element_count);
+    {   
 
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Gatherv(local_pagerank_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_pagerank_partition_labels.data(),
-                proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
-    if (! taskid)
-    {
         // print_log("bfs labels", VectorToString(global_all_elements_bfs_partition_labels));
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
-        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_pagerank_partition_labels, global_element_count, "out-grow.vtk");
+        ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-grow.vtk");
+
+        ExportMetricsToPandasJson(file_path, 0, numtasks, global_element_count,
+                                global_sfc_partition_sizes, global_sfc_partition_boundaries,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries);
 
     }
     

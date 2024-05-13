@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <cassert>
 
+#include <Python.h>
+
 bool IsValidVertex(int x, int graph_size)
 {
     return 1 <= x && x <= graph_size;
@@ -246,6 +248,80 @@ void GetSamplesFromOrdered(std::vector<uint64_t> &order, std::vector<uint64_t> &
         samples_out[sample_i] = input_arr[order[sample_i*(input_arr.size()/sample_count)]];
     }
     
+}
+
+// TODO: template if needed
+void CopyToPythonList(std::vector<uint32_t>& in_vector, PyObject* out_list, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        PyList_SetItem(out_list, i, PyLong_FromUnsignedLong(in_vector[i]));
+    }
+}
+
+void ExportMetricsToPandasJson(
+    std::string mesh_file, int file_idx, int partition_count, uint64_t global_vertex_count,
+    std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
+    std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries,
+    std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries,
+    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries) {
+
+    // const std::string pythonpath = "/home/budvin/research/Partitioning/paralab-partition/.venv";
+    // setenv("PYTHONHOME", pythonpath.c_str(), 1);
+    
+    Py_Initialize();
+
+    // const char *script_path = "/home/budvin/research/Partitioning/paralab-partition/mpi-cpp";
+
+    // // Append the module directory to Python's sys.path
+    // PyObject *sysPath = PySys_GetObject("path");
+    // PyList_Append(sysPath, PyUnicode_FromString(script_path));
+    
+    PyObject* p_module = PyImport_ImportModule("metric_export");
+    assert(p_module!=NULL);
+
+
+    PyObject* p_func = PyObject_GetAttrString(p_module, "export_metrics");
+
+    
+
+    PyObject* py_mesh_file = PyUnicode_FromString(mesh_file.c_str());
+    PyObject* py_file_idx = PyLong_FromLong(file_idx);
+    PyObject* py_partition_count = PyLong_FromLong(partition_count);
+    PyObject* py_global_vertex_count = PyLong_FromUnsignedLong(global_vertex_count);
+    
+
+    PyObject* py_sfc_partition_sizes = PyList_New(sfc_partition_sizes.size());
+    CopyToPythonList(sfc_partition_sizes, py_sfc_partition_sizes, sfc_partition_sizes.size());
+
+    PyObject* py_sfc_partition_boundaries = PyList_New(sfc_partition_boundaries.size());
+    CopyToPythonList(sfc_partition_boundaries, py_sfc_partition_boundaries, sfc_partition_boundaries.size());
+
+    PyObject* py_bfs_partition_sizes = PyList_New(bfs_partition_sizes.size());
+    CopyToPythonList(bfs_partition_sizes, py_bfs_partition_sizes, bfs_partition_sizes.size());
+
+    PyObject* py_bfs_partition_boundaries = PyList_New(bfs_partition_boundaries.size());
+    CopyToPythonList(bfs_partition_boundaries, py_bfs_partition_boundaries, bfs_partition_boundaries.size());
+
+    PyObject* py_grow_partition_sizes = PyList_New(grow_partition_sizes.size());
+    CopyToPythonList(grow_partition_sizes, py_grow_partition_sizes, grow_partition_sizes.size());
+
+    PyObject* py_grow_partition_boundaries = PyList_New(grow_partition_boundaries.size());
+    CopyToPythonList(grow_partition_boundaries, py_grow_partition_boundaries, grow_partition_boundaries.size());
+
+    PyObject* py_parmetis_partition_sizes = PyList_New(parmetis_partition_sizes.size());
+    CopyToPythonList(parmetis_partition_sizes, py_parmetis_partition_sizes, parmetis_partition_sizes.size());
+
+    PyObject* py_parmetis_partition_boundaries = PyList_New(parmetis_partition_boundaries.size());
+    CopyToPythonList(parmetis_partition_boundaries, py_parmetis_partition_boundaries,
+                     parmetis_partition_boundaries.size());
+
+
+    PyObject* all_args = PyTuple_Pack(
+        12, py_mesh_file, py_file_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
+        py_sfc_partition_boundaries, py_bfs_partition_sizes, py_bfs_partition_boundaries, py_grow_partition_sizes,
+        py_grow_partition_boundaries, py_parmetis_partition_sizes, py_parmetis_partition_boundaries);
+
+    PyObject_CallObject(p_func, all_args);
+    Py_Finalize();
 }
 
 

@@ -55,6 +55,8 @@ to this user-defined datatype.
     HS_MPIDATATYPE(long long,    MPI_LONG_LONG_INT)
     HS_MPIDATATYPE(char,    MPI_CHAR)
     HS_MPIDATATYPE(unsigned char,    MPI_UNSIGNED_CHAR)
+    // HS_MPIDATATYPE(uint16_t,    MPI_UINT16_T)
+
 
     //PetscScalar is simply a typedef for double. Hence no need to explicitly
     //define an mpi_datatype for it.

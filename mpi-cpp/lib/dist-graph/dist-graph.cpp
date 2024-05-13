@@ -776,3 +776,69 @@ void DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_labels_out){
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.end()+ this->local_count + 1);
     GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
 }
+
+/**
+ * given a partition labelling, get global partition sizes and boundary sizes
+ * result will be present in partition_sizes_out and partition_boundaries_out, only in MPI rank 0 process.
+*/
+void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_labels,
+                                    std::vector<uint32_t>& partition_sizes_out,
+                                    std::vector<uint32_t>& partition_boundaries_out) {
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+    assert(local_partition_labels.size() == this->local_count);
+
+    std::vector<uint32_t> local_partition_sizes(procs_n, 0);
+    for (size_t local_i = 0; local_i < this->local_count; local_i++) {
+        local_partition_sizes[local_partition_labels[local_i]]++;
+    }
+
+    /**
+     * exchanging partition labels of ghost vertices to calculate partition boundary counts
+     */
+    std::vector<uint16_t> local_and_ghost_partition_labels(this->local_count + this->ghost_count);
+    std::copy(local_partition_labels.begin(), local_partition_labels.end(), local_and_ghost_partition_labels.begin());
+
+    std::vector<uint16_t> ghost_send_buffer(this->send_count);
+#pragma omp parallel for
+    for (size_t send_i = 0; send_i < this->send_count; send_i++) {
+        ghost_send_buffer[send_i] = local_and_ghost_partition_labels[this->sending_scatter_map[send_i]];
+    }
+
+    MPI_Barrier(this->comm);
+    par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(),
+                              &local_and_ghost_partition_labels[this->local_count], this->ghost_counts.data(),
+                              this->ghost_counts_scanned.data(), comm);
+
+    MPI_Barrier(this->comm);
+
+    // now calculating partition boundaries
+    std::vector<uint32_t> local_partition_boundaries(procs_n, 0);
+
+    for (size_t local_vertex = 0; local_vertex < this->local_count; local_vertex++) {
+
+        for (size_t neighbor_i = this->local_xdj[local_vertex]; neighbor_i < this->local_xdj[local_vertex + 1];
+             neighbor_i++) {
+            auto neighbor = local_adjncy[neighbor_i];
+            if (local_and_ghost_partition_labels[local_vertex] != local_and_ghost_partition_labels[neighbor]) {
+                local_partition_boundaries[local_and_ghost_partition_labels[local_vertex]]++;
+                break;
+            }
+        }
+    }
+
+    // collect results to 0 MPI proc
+
+    if (!my_rank) {
+        partition_sizes_out.resize(procs_n);
+        std::fill(partition_sizes_out.begin(), partition_sizes_out.end(), 0);
+        partition_boundaries_out.resize(procs_n);
+        std::fill(partition_boundaries_out.begin(), partition_boundaries_out.end(), 0);
+    }
+
+    MPI_Reduce(local_partition_sizes.data(), partition_sizes_out.data(), procs_n, MPI_UINT32_T, MPI_SUM, 0, this->comm);
+    MPI_Barrier(this->comm);
+    MPI_Reduce(local_partition_boundaries.data(), partition_boundaries_out.data(), procs_n, MPI_UINT32_T, MPI_SUM, 0,
+               this->comm);
+}

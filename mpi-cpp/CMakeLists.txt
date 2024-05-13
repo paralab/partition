@@ -81,6 +81,16 @@ set(PARMETIS_LIBRARY "${PARMETIS_INSTALL_DIR_PATH}/lib/libparmetis.so")
 
 include_directories(${PARMETIS_INCLUDE_DIR})
 
+
+# a python helper script is used for exporting partition metrics to json
+# hence we need python dev
+find_package(Python3 COMPONENTS Interpreter Development)
+
+message("Python_FOUND:${Python3_FOUND}")
+message("Python_VERSION:${Python3_VERSION}")
+
+include_directories(${Python3_INCLUDE_DIRS})
+
 set(MAIN_TARGET_NAME "main-new")
 
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
@@ -90,7 +100,7 @@ include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis
 
 
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES})
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES})
 
 
 
