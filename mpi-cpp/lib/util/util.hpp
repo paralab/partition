@@ -81,6 +81,7 @@ void ExportMetricsToPandasJson(
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries,
     std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries,
-    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries);
+    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries,
+    std::string metrics_out_file_path);
 
 #endif

@@ -40,8 +40,15 @@ int main(int argc, char *argv[])
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
-
+    if (argc < 4) {
+        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <metrics out file path>" << std::endl;
+        return 1; // indicating an error
+    }
     const std::string file_path = argv[1];
+    int file_idx = std::stoi(argv[2]);
+
+    const std::string metrics_out_file_path = argv[3];
+
     if(!taskid) print_log("running on", numtasks, "MPI processs");
 
     ElementType elementType = GetElementType(file_path, MPI_COMM_WORLD);
@@ -289,11 +296,12 @@ int main(int argc, char *argv[])
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
         ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-grow.vtk");
 
-        ExportMetricsToPandasJson(file_path, 0, numtasks, global_element_count,
+        ExportMetricsToPandasJson(file_path, file_idx, numtasks, global_element_count,
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries);
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries,
+                                metrics_out_file_path);
 
     }
     

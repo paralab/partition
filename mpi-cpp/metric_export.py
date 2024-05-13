@@ -7,7 +7,8 @@ def export_metrics(mesh_file: str, file_idx: int, partition_count: int, vertex_c
                     sfc_partition_sizes: list[int], sfc_partition_boundaries: list[int],
                     bfs_partition_sizes: list[int], bfs_partition_boundaries: list[int],
                     grow_partition_sizes: list[int], grow_partition_boundaries: list[int],
-                    parmetis_partition_sizes: list[int], parmetis_partition_boundaries: list[int]):
+                    parmetis_partition_sizes: list[int], parmetis_partition_boundaries: list[int],
+                    metrics_out_file_path: str):
     method_names = ['SFC_morton','BFS','BFS_grow','METIS']
     result_row = pd.Series()
     result_row['mesh_idx'] = file_idx
@@ -31,4 +32,5 @@ def export_metrics(mesh_file: str, file_idx: int, partition_count: int, vertex_c
         result_row[f"{method}_rho_min_expr"] = f"{min_part_size}/{ideal_size}"
         result_row[f"{method}_partition_sizes"] = sizes
         result_row[f"{method}_partition_boundaries"] = boundaries
-    pd.DataFrame([result_row]).to_json("results/metrics"+'.json',index=False,mode='a',lines=True,orient='records')
+
+    pd.DataFrame([result_row]).to_json(metrics_out_file_path,index=False,mode='a',lines=True,orient='records')

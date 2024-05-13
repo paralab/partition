@@ -262,7 +262,8 @@ void ExportMetricsToPandasJson(
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries,
     std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries,
-    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries) {
+    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries,
+    std::string metrics_out_file_path) {
 
     // const std::string pythonpath = "/home/budvin/research/Partitioning/paralab-partition/.venv";
     // setenv("PYTHONHOME", pythonpath.c_str(), 1);
@@ -313,12 +314,14 @@ void ExportMetricsToPandasJson(
     PyObject* py_parmetis_partition_boundaries = PyList_New(parmetis_partition_boundaries.size());
     CopyToPythonList(parmetis_partition_boundaries, py_parmetis_partition_boundaries,
                      parmetis_partition_boundaries.size());
-
+    PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
+    print_log("exporting to fl", metrics_out_file_path);
 
     PyObject* all_args = PyTuple_Pack(
-        12, py_mesh_file, py_file_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
+        13, py_mesh_file, py_file_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
         py_sfc_partition_boundaries, py_bfs_partition_sizes, py_bfs_partition_boundaries, py_grow_partition_sizes,
-        py_grow_partition_boundaries, py_parmetis_partition_sizes, py_parmetis_partition_boundaries);
+        py_grow_partition_boundaries, py_parmetis_partition_sizes, py_parmetis_partition_boundaries,
+        py_metrics_out_file_path);
 
     PyObject_CallObject(p_func, all_args);
     Py_Finalize();
