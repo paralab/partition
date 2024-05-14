@@ -223,12 +223,12 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("starting BFS partitioning");
     std::vector<uint16_t> local_bfs_partition_labels(local_element_count);
-    dist_graph.PartitionBFS(local_bfs_partition_labels);
+    auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels);
     if(!taskid) print_log("BFS partitioning done");
 
     if(!taskid) print_log("starting parmetis");
     std::vector<uint16_t> local_parmetis_partition_labels(local_element_count);
-    dist_graph.PartitionParmetis(local_parmetis_partition_labels);
+    auto parmetis_status = dist_graph.PartitionParmetis(local_parmetis_partition_labels);
     if(!taskid) print_log("parmetis done");
 
 
@@ -280,9 +280,9 @@ int main(int argc, char *argv[])
 
         ExportMetricsToPandasJson(file_path, file_idx, numtasks, global_element_count,
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_ms,
                                 metrics_out_file_path);
 
     }

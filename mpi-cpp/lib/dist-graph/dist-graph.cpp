@@ -323,7 +323,7 @@ std::string DistGraph::PrintDist(){
 }
 
 
-void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
+PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -442,6 +442,8 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     {
         partition_labels_out[local_i] = bfs_vector[local_i].label;
     }
+
+    return {.return_code = 0, .time_ms = duration.count()};
 
 }
 
@@ -772,11 +774,11 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
     return changed;
 }
 
-void DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_labels_out){
+PartitionStatus DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_labels_out){
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.end()+ this->local_count + 1);
-    GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
+    return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
 }
 
 /**

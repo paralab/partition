@@ -31,7 +31,7 @@ std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vecto
     return partition_labels__;
 }
 
-int GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
+PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
                           uint64_t num_vertices_local, int32_t partition_count,
                           std::vector<uint16_t>& partition_labels_out, MPI_Comm comm) {
 
@@ -69,5 +69,6 @@ int GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>&
         print_log("ParMetis time:\t\t\t", duration.count(), " ms");
     }
     partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
-    return return_code;
+    return {.return_code = return_code, .time_ms = duration.count()};
+
 }
