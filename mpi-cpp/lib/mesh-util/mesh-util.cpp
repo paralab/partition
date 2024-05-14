@@ -209,7 +209,7 @@ ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
     MPI_Comm_rank(comm, &my_rank);
     // Initialize Gmsh
     gmsh::initialize();
-    if (my_rank)
+    if (1)
     {
         gmsh::option::setNumber("General.Verbosity", 0);
     }

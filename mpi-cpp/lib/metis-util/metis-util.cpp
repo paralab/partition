@@ -66,7 +66,7 @@ int GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>&
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (!my_rank)
     {
-        print_log("ParMetis time:\t", duration.count(), " ms");
+        print_log("ParMetis time:\t\t\t", duration.count(), " ms");
     }
     partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
     return return_code;

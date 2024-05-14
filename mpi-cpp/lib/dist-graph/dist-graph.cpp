@@ -352,10 +352,11 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     auto start = std::chrono::high_resolution_clock::now();
     while (is_not_stable_global)
     {
-        if (!my_rank)
-        {
-            print_log("BFS round: ", ++round_counter);
-        }
+        // if (!my_rank)
+        // {
+        //     print_log("BFS round: ", ++round_counter);
+        // }
+        round_counter++;
         
         is_not_stable_global = false;
         bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector);
@@ -426,10 +427,11 @@ void DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if (!my_rank)
     {
-        print_log("BFS comm time:\t", com_duration.count(), " ms");
-        print_log("BFS comm (reduce) time:\t", reduce_duration.count(), " ms");
+        print_log("BFS sync rounds: ", round_counter);
+        print_log("BFS comm (ghost exchange) time:\t", com_duration.count(), " ms");
+        print_log("BFS comm (reduce) time:\t\t", reduce_duration.count(), " ms");
 
-        print_log("BFS time:\t", duration.count(), " ms");
+        print_log("BFS total time:\t\t\t", duration.count(), " ms");
     }
 
     partition_labels_out.resize(this->local_count);
