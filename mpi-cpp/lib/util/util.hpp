@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <utility>
+#include <algorithm>
 
 #include "../mesh-util/mesh-util.hpp"
 
