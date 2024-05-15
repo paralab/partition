@@ -33,24 +33,26 @@ set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib/libgmsh.so")
 # Include Gmsh headers
 include_directories(${GMSH_INCLUDE_DIRS})
 
-if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
-    set(VTK_DIR ${VTK_ROOT})
-else()
-    if(NOT VTK_INSTALL_DIR_PATH)
-        message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
-    endif()
-    set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
+# if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
+#     set(VTK_DIR ${VTK_ROOT})
+# else()
+#     if(NOT VTK_INSTALL_DIR_PATH)
+#         message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
+#     endif()
+#     set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
 
-endif()
+# endif()
 
 
-# Find VTK package
-find_package(VTK COMPONENTS
-    CommonColor
-    CommonCore
-    CommonSystem
-    CommonExecutionModel
-    IOLegacy)
+# # Find VTK package
+# find_package(VTK COMPONENTS
+#     CommonColor
+#     CommonCore
+#     CommonSystem
+#     CommonExecutionModel
+#     IOLegacy)
+
+
 
 if(NOT METIS_INSTALL_DIR_PATH)
     message(FATAL_ERROR "The METIS_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DMETIS_INSTALL_DIR_PATH=/path/to/metis/build.")
@@ -96,11 +98,13 @@ set(MAIN_TARGET_NAME "main-new")
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
 add_subdirectory(lib)
 
-include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util lib/dist-graph)
+# include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util lib/dist-graph)
+include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph)
 
 
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES}  ${VTK_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES})
+
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES})
 
 
 
