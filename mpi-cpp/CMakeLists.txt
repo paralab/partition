@@ -26,13 +26,20 @@ endif()
 
 
 
-
-# Manually specify the paths to Gmsh headers and libraries
-set(GMSH_INCLUDE_DIRS "${GMSH_SDK_PATH}/include")
-set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib64/libgmsh.so")
-
 # Include Gmsh headers
+set(GMSH_INCLUDE_DIRS "${GMSH_SDK_PATH}/include")
 include_directories(${GMSH_INCLUDE_DIRS})
+
+# Add Gmsh library
+if(EXISTS "${GMSH_SDK_PATH}/lib64/libgmsh.so")
+    set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib64/libgmsh.so")
+elseif(EXISTS "${GMSH_SDK_PATH}/lib/libgmsh.so")
+    set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib/libgmsh.so")
+else()
+    message(FATAL_ERROR "Could not find Gmsh library .so ${GMSH_SDK_PATH}/lib64/libgmsh.so or ${GMSH_SDK_PATH}/lib/libgmsh.so")
+endif()
+
+
 
 # if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
 #     set(VTK_DIR ${VTK_ROOT})

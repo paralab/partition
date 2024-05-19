@@ -6,14 +6,25 @@ export OMP_NUM_THREADS=1
 
 # export OMP_PLACES=threads 
 
+
+GMSH_SDK_PATH=/home/budvin/bin/gmsh-4.13.0-source/build/install
+METIS_INSTALL_DIR_PATH=/home/budvin/bin/METIS-5.2.1/build/build
+GKLIB_INSTALL_DIR_PATH=/home/budvin/bin/GKlib-master/build/Linux-x86_64/build
+PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
+
 mkdir -p build
 
-cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PATH=/home/budvin/bin/gmsh-4.12.2-Linux64-sdk \
-    -DMETIS_INSTALL_DIR_PATH=/home/budvin/bin/METIS-5.2.1/build \
-    -DGKLIB_INSTALL_DIR_PATH=/home/budvin/bin/GKlib-master/build \
-    -DPARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
+cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PATH=${GMSH_SDK_PATH} \
+    -DMETIS_INSTALL_DIR_PATH=${METIS_INSTALL_DIR_PATH} \
+    -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
+    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH}
 
 ninja -C ./build
+
+echo "====== complation done ==============="
+
+export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
+
 
 # python with pandas needed for metrics export in json format
 source ../.venv/bin/activate
