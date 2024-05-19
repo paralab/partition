@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 1:00:00
+#SBATCH -t 2:00:00
 #SBATCH -n 1280
 #SBATCH -N 23
 #SBATCH --cpus-per-task 1
@@ -67,7 +67,7 @@ dir=$PWD
 source "$dir/.venv/bin/activate"
 export PYTHONPATH=$PYTHONPATH:$dir
 
-metrics_file_path="$dir/results/frontera-mvapich2-scaling-$(date +%Y-%m-%d__%H-%M-%S).json"
+metrics_file_path="$dir/results/frontera-intelmpi-scaling-$(date +%Y-%m-%d__%H-%M-%S).json"
 
 echo "exporting metrics to file $metrics_file_path"
 
@@ -83,11 +83,14 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 for file_idx in "${!mesh_file_list[@]}"; do 
     for np in 10 20 40 80 160 320 640 1280
     do
-        ibrun -np $np ./build/main-new $WORK/datasets/Meshes/${mesh_file_list[$file_idx]} $file_idx $metrics_file_path -no-viz
+        for run_idx in {0..4}; do
+            ibrun -np $np ./build/main-new $WORK/datasets/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz
+            sleep 5s
+        done
     done
 done
 
-# ibrun -np 4 ./build/main-new $WORK/datasets/Meshes/hex-box-5x5x2.msh 0 $metrics_file_path -no-viz
+# ibrun -np 4 ./build/main-new $WORK/datasets/Meshes/hex-box-5x5x2.msh 0 0 $metrics_file_path -no-viz
 
 
 # export SFC_morton="$PWD/out-sfc.vtk"
