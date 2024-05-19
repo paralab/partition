@@ -108,11 +108,11 @@ int main(int argc, char *argv[])
         par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         if (! taskid)
         {
             print_log("global sfc sort done");
-            print_log("SFC sort time:\t", duration.count(), " ms");
+            print_log("SFC sort time:\t", duration.count(), " us");
         }
         // print_log("[", taskid, "]: ", "global SFC sort done");
 
@@ -163,11 +163,11 @@ int main(int argc, char *argv[])
         par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
         if (! taskid)
         {
             print_log("global sfc sort done");
-            print_log("SFC sort time:\t", duration.count(), " ms");
+            print_log("SFC sort time:\t", duration.count(), " us");
         }
         
         // print_log("[", taskid, "]: ", "global SFC sort done");

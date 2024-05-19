@@ -23,8 +23,8 @@ std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vecto
     auto result = METIS_PartGraphKway(&num_vertices, &ncon, xadj__.data(), adjncy__.data(), nullptr, nullptr, nullptr,
                         &partition_count, nullptr, nullptr, options, &edgecut, partition_labels.data());
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    print_log("METIS time:\t", duration.count(), " ms");
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    print_log("METIS time:\t", duration.count(), " us");
     assert(result == METIS_OK);
     std::vector<uint64_t> partition_labels__(partition_labels.begin(), partition_labels.end());
 
@@ -63,10 +63,10 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
                                            partitions_labels.data(), &comm);
     MPI_Barrier(comm);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     if (!my_rank)
     {
-        print_log("ParMetis time:\t\t\t", duration.count(), " ms");
+        print_log("ParMetis time:\t\t\t", duration.count(), " us");
     }
     partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
     return {.return_code = return_code, .time_ms = duration.count()};

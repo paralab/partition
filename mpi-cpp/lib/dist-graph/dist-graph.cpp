@@ -346,8 +346,8 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     bool is_not_stable_global = true;      // global BFS stability
     int round_counter = 0;
     MPI_Barrier(this->comm);
-    auto com_duration = std::chrono::milliseconds(0);
-    auto reduce_duration = std::chrono::milliseconds(0);
+    auto com_duration = std::chrono::microseconds(0);
+    auto reduce_duration = std::chrono::microseconds(0);
 
     auto start = std::chrono::high_resolution_clock::now();
     while (is_not_stable_global)
@@ -383,7 +383,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         MPI_Barrier(this->comm);
 
         auto com_end = std::chrono::high_resolution_clock::now();
-        com_duration += std::chrono::duration_cast<std::chrono::milliseconds>(com_end - com_start);
+        com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
 
         //ghost update for received values
         #pragma omp parallel for
@@ -413,7 +413,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
         MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
         auto reduce_com_end = std::chrono::high_resolution_clock::now();
-        reduce_duration += std::chrono::duration_cast<std::chrono::milliseconds>(reduce_com_end - reduce_com_start);
+        reduce_duration += std::chrono::duration_cast<std::chrono::microseconds>(reduce_com_end - reduce_com_start);
         // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
 
         
@@ -424,14 +424,14 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     MPI_Barrier(this->comm);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     if (!my_rank)
     {
         print_log("BFS sync rounds: ", round_counter);
-        print_log("BFS comm (ghost exchange) time:\t", com_duration.count(), " ms");
-        print_log("BFS comm (reduce) time:\t\t", reduce_duration.count(), " ms");
+        print_log("BFS comm (ghost exchange) time:\t", com_duration.count(), " us");
+        print_log("BFS comm (reduce) time:\t\t", reduce_duration.count(), " us");
 
-        print_log("BFS total time:\t\t\t", duration.count(), " ms");
+        print_log("BFS total time:\t\t\t", duration.count(), " us");
     }
 
     partition_labels_out.resize(this->local_count);
@@ -574,8 +574,8 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
     bool is_not_stable_global = true;      // global PageRank stability
     int round_counter = 0;
     MPI_Barrier(this->comm);
-    auto com_duration = std::chrono::milliseconds(0);
-    auto reduce_duration = std::chrono::milliseconds(0);
+    auto com_duration = std::chrono::microseconds(0);
+    auto reduce_duration = std::chrono::microseconds(0);
 
     auto start = std::chrono::high_resolution_clock::now();
     while (is_not_stable_global)
@@ -610,7 +610,7 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
         MPI_Barrier(this->comm);
 
         auto com_end = std::chrono::high_resolution_clock::now();
-        com_duration += std::chrono::duration_cast<std::chrono::milliseconds>(com_end - com_start);
+        com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
 
         //ghost update for received values
         #pragma omp parallel for
@@ -640,7 +640,7 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
 
         MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
         auto reduce_com_end = std::chrono::high_resolution_clock::now();
-        reduce_duration += std::chrono::duration_cast<std::chrono::milliseconds>(reduce_com_end - reduce_com_start);
+        reduce_duration += std::chrono::duration_cast<std::chrono::microseconds>(reduce_com_end - reduce_com_start);
         // print_log("[", my_rank, "]: PageRank vector", VectorToString(pagerank_vector));
 
         
@@ -651,13 +651,13 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
 
     MPI_Barrier(this->comm);
     auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     if (!my_rank)
     {
-        print_log("PageRank comm time:\t", com_duration.count(), " ms");
-        print_log("PageRank comm (reduce) time:\t", reduce_duration.count(), " ms");
+        print_log("PageRank comm time:\t", com_duration.count(), " us");
+        print_log("PageRank comm (reduce) time:\t", reduce_duration.count(), " us");
 
-        print_log("PageRank time:\t", duration.count(), " ms");
+        print_log("PageRank time:\t", duration.count(), " us");
     }
 
     partition_labels_out.resize(this->local_count);
