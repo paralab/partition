@@ -40,15 +40,17 @@ int main(int argc, char *argv[])
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
-    if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+    if (argc < 6) {
+        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1; // indicating an error
     }
     const std::string file_path = argv[1];
     int file_idx = std::stoi(argv[2]);
+    int run_idx = std::stoi(argv[3]);
 
-    const std::string metrics_out_file_path = argv[3];
-    const std::string viz_flag_str = argv[4];
+
+    const std::string metrics_out_file_path = argv[4];
+    const std::string viz_flag_str = argv[5];
     bool viz_flag;
 
     if (viz_flag_str == "-viz")
@@ -60,7 +62,7 @@ int main(int argc, char *argv[])
     }else
     {
         std::cerr << "Invalid flag: " << viz_flag_str << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1;
     }
     
@@ -278,7 +280,7 @@ int main(int argc, char *argv[])
     if (! taskid)
     {   
 
-        ExportMetricsToPandasJson(file_path, file_idx, numtasks, global_element_count,
+        ExportMetricsToPandasJson(file_path, file_idx, run_idx, numtasks, global_element_count,
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,

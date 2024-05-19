@@ -52,9 +52,11 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
 
 for file_idx in "${!mesh_file_list[@]}"; do 
-    for np in 4 8 12
+    for np in 4 8
     do
-        mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $metrics_file_path -no-viz
+        for run_idx in {0..2}; do
+            mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz
+        done
     done
 done
 

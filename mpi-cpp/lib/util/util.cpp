@@ -260,7 +260,7 @@ void CopyToPythonList(std::vector<uint32_t>& in_vector, PyObject* out_list, size
 
 // TODO: populate missing SFC_time
 void ExportMetricsToPandasJson(
-    std::string mesh_file, int file_idx, int partition_count, uint64_t global_vertex_count,
+    std::string mesh_file, int file_idx, int run_idx, int partition_count, uint64_t global_vertex_count,
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_time,
     std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries, int grow_time,
@@ -288,6 +288,8 @@ void ExportMetricsToPandasJson(
 
     PyObject* py_mesh_file = PyUnicode_FromString(mesh_file.c_str());
     PyObject* py_file_idx = PyLong_FromLong(file_idx);
+    PyObject* py_run_idx = PyLong_FromLong(run_idx);
+
     PyObject* py_partition_count = PyLong_FromLong(partition_count);
     PyObject* py_global_vertex_count = PyLong_FromUnsignedLong(global_vertex_count);
     
@@ -331,7 +333,7 @@ void ExportMetricsToPandasJson(
     PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
 
     PyObject* all_args =
-        PyTuple_Pack(16, py_mesh_file, py_file_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
+        PyTuple_Pack(17, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
                      py_sfc_partition_boundaries, py_bfs_partition_sizes, py_bfs_partition_boundaries, py_bfs_time,
                      py_grow_partition_sizes, py_grow_partition_boundaries, py_grow_time, py_parmetis_partition_sizes,
                      py_parmetis_partition_boundaries, py_parmetis_time, py_metrics_out_file_path);

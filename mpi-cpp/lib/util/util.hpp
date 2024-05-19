@@ -78,7 +78,7 @@ inline std::pair<KeyType,ValueType> get_max( const std::unordered_map<KeyType,Va
 
 
 void ExportMetricsToPandasJson(
-    std::string mesh_file, int file_idx, int partition_count, uint64_t global_vertex_count,
+    std::string mesh_file, int file_idx, int run_idx, int partition_count, uint64_t global_vertex_count,
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_time,
     std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries, int grow_time,

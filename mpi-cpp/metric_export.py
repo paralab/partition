@@ -3,7 +3,7 @@ import pandas as pd
 
 import typing
 
-def export_metrics(mesh_file: str, file_idx: int, partition_count: int, vertex_count: int,
+def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count: int, vertex_count: int,
                     sfc_partition_sizes: list, sfc_partition_boundaries: list,
                     bfs_partition_sizes: list, bfs_partition_boundaries: list, bfs_time: int,
                     grow_partition_sizes: list, grow_partition_boundaries: list, grow_time: int,
@@ -13,6 +13,7 @@ def export_metrics(mesh_file: str, file_idx: int, partition_count: int, vertex_c
     times = [0, bfs_time, grow_time, parmetis_time]
     result_row = pd.Series()
     result_row['mesh_idx'] = file_idx
+    result_row['run_idx'] = run_idx
     result_row['mesh_file'] = mesh_file
     result_row['np'] = partition_count
     result_row['n'] = vertex_count
