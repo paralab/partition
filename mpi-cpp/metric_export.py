@@ -4,10 +4,10 @@ import pandas as pd
 import typing
 
 def export_metrics(mesh_file: str, file_idx: int, partition_count: int, vertex_count: int,
-                    sfc_partition_sizes: list[int], sfc_partition_boundaries: list[int],
-                    bfs_partition_sizes: list[int], bfs_partition_boundaries: list[int], bfs_time: int,
-                    grow_partition_sizes: list[int], grow_partition_boundaries: list[int], grow_time: int,
-                    parmetis_partition_sizes: list[int], parmetis_partition_boundaries: list[int], parmetis_time: int,
+                    sfc_partition_sizes: list, sfc_partition_boundaries: list,
+                    bfs_partition_sizes: list, bfs_partition_boundaries: list, bfs_time: int,
+                    grow_partition_sizes: list, grow_partition_boundaries: list, grow_time: int,
+                    parmetis_partition_sizes: list, parmetis_partition_boundaries: list, parmetis_time: int,
                     metrics_out_file_path: str):
     method_names = ['SFC_morton','BFS','BFS_grow','METIS']
     times = [0, bfs_time, grow_time, parmetis_time]

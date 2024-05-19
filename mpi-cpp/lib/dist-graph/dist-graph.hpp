@@ -9,6 +9,7 @@
 #include "../util/util.hpp"
 
 #include <stdint.h>
+#include <cstddef>
 
 
 #define DIST_GRAPH_BFS_NO_LABEL UINT16_MAX

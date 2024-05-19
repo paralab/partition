@@ -1,7 +1,7 @@
 # CMakeLists.txt
 cmake_minimum_required(VERSION 3.20)  # Minimum CMake version required
 
-project(Partitioning)  # Project name
+project(Partitioning CXX)  # Project name
 
 set(CMAKE_COLOR_MAKEFILE ON)
 
@@ -10,7 +10,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 
 # Find MPI package
-find_package(MPI REQUIRED)
+include(FindMPI)
+
 include_directories(${MPI_INCLUDE_PATH})
 
 # Optionally, set compiler flags
@@ -28,7 +29,7 @@ endif()
 
 # Manually specify the paths to Gmsh headers and libraries
 set(GMSH_INCLUDE_DIRS "${GMSH_SDK_PATH}/include")
-set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib/libgmsh.so")
+set(GMSH_LIBRARIES "${GMSH_SDK_PATH}/lib64/libgmsh.so")
 
 # Include Gmsh headers
 include_directories(${GMSH_INCLUDE_DIRS})
@@ -71,7 +72,7 @@ endif()
 
 
 set(GKLIB_INCLUDE_DIR "${GKLIB_INSTALL_DIR_PATH}/include")
-set(GKLIB_LIBRARY "${GKLIB_INSTALL_DIR_PATH}/lib/libGKlib.a")
+set(GKLIB_LIBRARY "${GKLIB_INSTALL_DIR_PATH}/lib/libGKlib.so")
 include_directories(${GKLIB_INCLUDE_DIR})
 
 if(NOT PARMETIS_INSTALL_DIR_PATH)

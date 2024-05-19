@@ -3,6 +3,7 @@
 
 #include <mpi.h>
 #include <complex>
+#include <cstddef>
 
 #include "../mesh-util/mesh-util.hpp"
 
