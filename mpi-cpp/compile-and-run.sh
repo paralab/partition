@@ -15,11 +15,11 @@ PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
 mkdir -p build
 
 cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PATH=${GMSH_SDK_PATH} \
-    -DENABLE_VTK_FEATURES=OFF \
+    -DENABLE_VTK_FEATURES=ON \
     -DVTK_INSTALL_DIR_PATH=/home/budvin/bin/VTK-9.3.0/build \
     -DMETIS_INSTALL_DIR_PATH=${METIS_INSTALL_DIR_PATH} \
     -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
-    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=16 -DBFS_LABEL_TYPE=16
+    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=32 -DBFS_LABEL_TYPE=16
 
 ninja -C ./build
 
@@ -64,7 +64,7 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 # done
 
 
-mpirun -np 4 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh 0 0 $metrics_file_path -viz
+mpirun -np 8 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh 0 0 $metrics_file_path -viz
 
 
 export SFC_morton="$PWD/out-sfc.vtk"

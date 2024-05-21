@@ -782,7 +782,7 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
 PartitionStatus DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_labels_out){
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
-    std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.end()+ this->local_count + 1);
+    std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
     return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
 }
 
