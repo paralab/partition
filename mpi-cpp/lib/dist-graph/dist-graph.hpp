@@ -101,6 +101,8 @@ class par::Mpi_datatype<BFSValue> {
 std::ostream& operator<<(std::ostream& os, const BFSValue& obj);
 
 
+#define DIST_GRAPH_PAGERANK_NO_LABEL UINT16_MAX
+
 struct PageRankValue
 {
     uint16_t label;

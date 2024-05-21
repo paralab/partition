@@ -554,7 +554,7 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
-    std::vector<PageRankValue> pagerank_vector(this->local_xdj.size()-1, {.label = DIST_GRAPH_BFS_NO_LABEL, .value =  0});
+    std::vector<PageRankValue> pagerank_vector(this->local_xdj.size()-1, {.label = DIST_GRAPH_PAGERANK_NO_LABEL, .value =  0});
     std::vector<PageRankValue> ghost_send_buffer(this->send_count);
     std::vector<PageRankValue> ghost_recv_buffer(this->ghost_count);
 
@@ -714,7 +714,7 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
                 for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                 {
                     auto neighbor = local_adjncy[neighbor_i];
-                    if (pagerank_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
+                    if (pagerank_vector[neighbor].label == DIST_GRAPH_PAGERANK_NO_LABEL)
                     {
                         continue;
                     }
@@ -745,7 +745,7 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
                 
                 auto best_incoming = get_max(incoming);
                 // if(!my_rank) print_log(best_incoming.first, best_incoming.second);
-                if (curr_label == DIST_GRAPH_BFS_NO_LABEL)
+                if (curr_label == DIST_GRAPH_PAGERANK_NO_LABEL)
                 {
                     pagerank_vector_tmp[v_i].label = best_incoming.first;
                     pagerank_vector_tmp[v_i].value = best_incoming.second;
