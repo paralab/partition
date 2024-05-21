@@ -328,6 +328,11 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
     std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1, {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY});
+
+    //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
+    std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
+    std::vector<bool> vector_diff(bfs_vector.size());
+    
     std::vector<BFSValue> ghost_send_buffer(this->send_count);
     std::vector<BFSValue> ghost_recv_buffer(this->ghost_count);
 
@@ -359,7 +364,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         round_counter++;
         
         is_not_stable_global = false;
-        bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector);
+        bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff);
         // print_log("[", my_rank, "]: BFS iteration done");
 
         #pragma omp parallel for
@@ -447,15 +452,15 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
 }
 
-bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
+bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, std::vector<bool> vector_diff){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
     bool changed = false;       // to detect if the BFS incremented
 
     bool is_not_stable = true; // to detect if the BFS incremented in each increment
-    std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
-    std::vector<bool> vector_diff(bfs_vector.size());
+    // std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
+    // std::vector<bool> vector_diff(bfs_vector.size());
     while (is_not_stable)
     {
         // print_log(VectorToString(multi_bfs_distances));
@@ -465,14 +470,14 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
         {
             // print_log("thread count ", omp_get_num_threads());
             #pragma omp for
-            for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++)
+            for (graph_indexing_t v_i = 0; v_i < bfs_vector.size(); v_i++)
             {
                 // bfs_status_new_temp[v_i] = NULL;
                 auto best_distance = bfs_vector[v_i].distance;
                 auto best_label = bfs_vector[v_i].label;
                 vector_diff[v_i] = false;
                 // print_log(best_distance, best_label);
-                for (size_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
+                for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                 {
                     auto neighbor = local_adjncy[neighbor_i];
                     if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
@@ -518,7 +523,7 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
  * routine to collect the vextex degrees, including ghost degrees of ghost vertices
  * ghost vertex degrees are required to correctly run the pagerank
 */
-void DistGraph::GetVertexDegrees(std::vector<uint8_t>& degrees_out){
+void DistGraph::GetVertexDegrees(std::vector<graph_indexing_t>& degrees_out){
     int my_rank;
     MPI_Comm_rank(this->comm, &my_rank);
     degrees_out.resize(this->local_count + this->ghost_count);
@@ -529,7 +534,7 @@ void DistGraph::GetVertexDegrees(std::vector<uint8_t>& degrees_out){
     {
         degrees_out[local_i] = this->local_xdj[local_i+1] - this->local_xdj[local_i];
     }
-    std::vector<uint8_t> send_buffer(this->send_count);
+    std::vector<graph_indexing_t> send_buffer(this->send_count);
     #pragma omp parallel for
     for (size_t send_i = 0; send_i < this->send_count; send_i++)
     {
@@ -553,7 +558,7 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
     std::vector<PageRankValue> ghost_send_buffer(this->send_count);
     std::vector<PageRankValue> ghost_recv_buffer(this->ghost_count);
 
-    std::vector<uint8_t> vertex_degrees(this->local_count + this->ghost_count);
+    std::vector<graph_indexing_t> vertex_degrees(this->local_count + this->ghost_count);
     this->GetVertexDegrees(vertex_degrees);
 
     std::vector<bool> ghost_is_not_stable(this->ghost_count);
@@ -673,7 +678,7 @@ void DistGraph::PartitionPageRank(std::vector<uint16_t>& partition_labels_out){
 
 
 bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
-                std::vector<uint8_t> vertex_degrees, const float min_relative_change){
+                std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -696,7 +701,7 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
         {
             // print_log("thread count ", omp_get_num_threads());
             #pragma omp for
-            for (size_t v_i = 0; v_i < pagerank_vector.size(); v_i++)
+            for (graph_indexing_t v_i = 0; v_i < pagerank_vector.size(); v_i++)
             {
                 // bfs_status_new_temp[v_i] = NULL;
                 auto curr_value = pagerank_vector[v_i].value;
@@ -706,7 +711,7 @@ bool DistGraph::RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagera
                 std::unordered_map<decltype(PageRankValue::label),decltype(PageRankValue::value)> incoming;
                 incoming.reserve(this->local_xdj[v_i+1] - this->local_xdj[v_i]);
                 
-                for (size_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
+                for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                 {
                     auto neighbor = local_adjncy[neighbor_i];
                     if (pagerank_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
@@ -820,9 +825,9 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
     // now calculating partition boundaries
     std::vector<uint32_t> local_partition_boundaries(procs_n, 0);
 
-    for (size_t local_vertex = 0; local_vertex < this->local_count; local_vertex++) {
+    for (graph_indexing_t local_vertex = 0; local_vertex < this->local_count; local_vertex++) {
 
-        for (size_t neighbor_i = this->local_xdj[local_vertex]; neighbor_i < this->local_xdj[local_vertex + 1];
+        for (graph_indexing_t neighbor_i = this->local_xdj[local_vertex]; neighbor_i < this->local_xdj[local_vertex + 1];
              neighbor_i++) {
             auto neighbor = local_adjncy[neighbor_i];
             if (local_and_ghost_partition_labels[local_vertex] != local_and_ghost_partition_labels[neighbor]) {

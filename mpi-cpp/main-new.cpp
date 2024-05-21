@@ -1,6 +1,5 @@
 #include "util.hpp"
 #include "mesh-util.hpp"
-// #include "vtk-util.hpp"
 #include "graph.hpp"
 #include "sfc.hpp"
 #include "metis-util.hpp"
@@ -17,6 +16,10 @@
 #include <dtypes.h>
 
 #include "ompUtils.h"
+
+#ifdef ENABLE_VTK_FEATURES
+#include "vtk-util.hpp"
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -289,7 +292,7 @@ int main(int argc, char *argv[])
 
     }
 
-
+    #ifdef ENABLE_VTK_FEATURES
     if (viz_flag)
     {
 
@@ -334,13 +337,15 @@ int main(int argc, char *argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         if (!taskid)
         {
-            // ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
-            // ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
-            // ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
-            // ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-grow.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-grow.vtk");
         }
         
     }
+
+    #endif
     
     
     

@@ -9,6 +9,57 @@ set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 20) 
 
 
+
+# indexing data type for graph encoding
+set(DEFAULT_GRAPH_INDEXING_TYPE "32")
+
+if(GRAPH_INDEXING_TYPE)
+    if(NOT GRAPH_INDEXING_TYPE MATCHES "^(16|32|64)$")
+        message(FATAL_ERROR "Invalid GRAPH_INDEXING_TYPE specified.
+            Given: ${GRAPH_INDEXING_TYPE}
+            Expected one of: 16 32 64")
+    endif()
+else()
+    set(GRAPH_INDEXING_TYPE "${DEFAULT_GRAPH_INDEXING_TYPE}")
+endif()
+message("GRAPH_INDEXING_TYPE:${GRAPH_INDEXING_TYPE}")
+add_compile_definitions(GRAPH_INDEXING_TYPE=${GRAPH_INDEXING_TYPE})
+
+
+
+# data type for BFS distance
+set(DEFAULT_BFS_DISTANCE_TYPE "32")
+
+if(BFS_DISTANCE_TYPE)
+    if(NOT BFS_DISTANCE_TYPE MATCHES "^(16|32|64)$")
+        message(FATAL_ERROR "Invalid BFS_DISTANCE_TYPE specified.
+            Given: ${BFS_DISTANCE_TYPE}
+            Expected one of: 16 32 64")
+    endif()
+else()
+    set(BFS_DISTANCE_TYPE "${DEFAULT_BFS_DISTANCE_TYPE}")
+endif()
+message("BFS_DISTANCE_TYPE:${BFS_DISTANCE_TYPE}")
+add_compile_definitions(BFS_DISTANCE_TYPE=${BFS_DISTANCE_TYPE})
+
+
+# data type for BFS label
+set(DEFAULT_BFS_LABEL_TYPE "32")
+
+if(BFS_LABEL_TYPE)
+    if(NOT BFS_LABEL_TYPE MATCHES "^(16|32|64)$")
+        message(FATAL_ERROR "Invalid BFS_LABEL_TYPE specified.
+            Given: ${BFS_LABEL_TYPE}
+            Expected one of: 16 32 64")
+    endif()
+else()
+    set(BFS_LABEL_TYPE "${DEFAULT_BFS_LABEL_TYPE}")
+endif()
+message("BFS_LABEL_TYPE:${BFS_LABEL_TYPE}")
+add_compile_definitions(BFS_LABEL_TYPE=${BFS_LABEL_TYPE})
+
+
+
 # Find MPI package
 include(FindMPI)
 
@@ -39,26 +90,33 @@ else()
     message(FATAL_ERROR "Could not find Gmsh library .so ${GMSH_SDK_PATH}/lib64/libgmsh.so or ${GMSH_SDK_PATH}/lib/libgmsh.so")
 endif()
 
+option(ENABLE_VTK_FEATURES "Link VTK to output partitioning visualization." OFF)
+
+if(ENABLE_VTK_FEATURES)
+    message("VTK features enabled")
+    add_compile_definitions(ENABLE_VTK_FEATURES=1)
+    if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
+        set(VTK_DIR ${VTK_ROOT})
+    else()
+        if(NOT VTK_INSTALL_DIR_PATH)
+            message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
+        endif()
+        set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
+
+    endif()
 
 
-# if(DEFINED ENV{VTK_ROOT} AND NOT "$ENV{VTK_ROOT}" STREQUAL "")
-#     set(VTK_DIR ${VTK_ROOT})
-# else()
-#     if(NOT VTK_INSTALL_DIR_PATH)
-#         message(FATAL_ERROR "The VTK_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DVTK_INSTALL_DIR_PATH=/path/to/vtk/build.")
-#     endif()
-#     set(VTK_DIR "${VTK_INSTALL_DIR_PATH}")
+    # Find VTK package
+    find_package(VTK COMPONENTS
+        CommonColor
+        CommonCore
+        CommonSystem
+        CommonExecutionModel
+        IOLegacy)
+endif()
 
-# endif()
 
 
-# # Find VTK package
-# find_package(VTK COMPONENTS
-#     CommonColor
-#     CommonCore
-#     CommonSystem
-#     CommonExecutionModel
-#     IOLegacy)
 
 
 
@@ -109,10 +167,12 @@ add_subdirectory(lib)
 # include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/vtk-util lib/dist-graph)
 include_directories(lib/bfs-com lib/graph lib/graph-part lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph)
 
-
-
-
 target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES})
+
+if(ENABLE_VTK_FEATURES)
+    include_directories(lib/vtk-util)
+    target_link_libraries(main-new PRIVATE ${VTK_LIBRARIES})
+endif()
 
 
 

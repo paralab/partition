@@ -8,20 +8,64 @@
 #include "../usort/dtypes.h"
 #include "../util/util.hpp"
 
+#include "../config.h"
+
 #include <stdint.h>
 #include <cstddef>
 
+#if GRAPH_INDEXING_TYPE == 64
+using graph_indexing_t = uint64_t;
+#elif GRAPH_INDEXING_TYPE == 32
+using graph_indexing_t = uint32_t;
+#elif GRAPH_INDEXING_TYPE == 16
+using graph_indexing_t = uint16_t;
+#else
+#error "Invalid GRAPH_INDEXING_TYPE specified. Allowed values: 16, 32, 64"
+#endif
 
-#define DIST_GRAPH_BFS_NO_LABEL UINT16_MAX
+
+
+
+
+
+#if BFS_DISTANCE_TYPE == 64
+using bfs_distance_t = uint64_t;
+#define DIST_GRAPH_BFS_INFINITY UINT64_MAX
+
+#elif BFS_DISTANCE_TYPE == 32
+using bfs_distance_t = uint32_t;
 #define DIST_GRAPH_BFS_INFINITY UINT32_MAX
 
+#elif BFS_DISTANCE_TYPE == 16
+using bfs_distance_t = uint16_t;
+#define DIST_GRAPH_BFS_INFINITY UINT16_MAX
 
-// typedef uint64_t distgraph_vertex_t;
+#else
+#error "Invalid BFS_DISTANCE_TYPE specified. Allowed values: 16, 32, 64"
+#endif
+
+
+#if BFS_LABEL_TYPE == 64
+using bfs_label_t = uint64_t;
+#define DIST_GRAPH_BFS_NO_LABEL UINT64_MAX
+
+#elif BFS_LABEL_TYPE == 32
+using bfs_label_t = uint32_t;
+#define DIST_GRAPH_BFS_NO_LABEL UINT32_MAX
+
+
+#elif BFS_LABEL_TYPE == 16
+using bfs_label_t = uint16_t;
+#define DIST_GRAPH_BFS_NO_LABEL UINT16_MAX
+
+#else
+#error "Invalid BFS_LABEL_TYPE specified. Allowed values: 16, 32, 64"
+#endif
 
 struct BFSValue
 {
-    uint16_t label;
-    uint32_t distance;
+    bfs_label_t label;
+    bfs_distance_t distance;
 };
 
 
@@ -40,7 +84,7 @@ class par::Mpi_datatype<BFSValue> {
         {
             first = false;
             int block_lengths[2] = {1, 1};
-            MPI_Datatype types[2] = {MPI_UINT16_T, MPI_UINT32_T};
+            MPI_Datatype types[2] = {Mpi_datatype<bfs_label_t>::value(), Mpi_datatype<bfs_distance_t>::value()};
             MPI_Aint offsets[2];
             offsets[0] = offsetof(BFSValue, label);
             offsets[1] = offsetof(BFSValue, distance);
@@ -107,14 +151,15 @@ private:
      * Local numbering (i.e. local index) of nodes will be in range [0, size(own_elements)+ size(ghost_elements)]
      * Hence ghost elements will have largest local indices
     */
-    std::vector<uint64_t> local_degrees;
+    std::vector<graph_indexing_t> local_degrees;
 
     //CSR row pointers
-    std::vector<uint64_t> local_xdj;
+    std::vector<graph_indexing_t> local_xdj;
     
 
     //CSR column offsets
-    std::vector<uint64_t> local_adjncy;
+    std::vector<graph_indexing_t> local_adjncy;
+
     std::vector<uint64_t> dist_adjncy;
 
     std::vector<uint64_t> vtx_dist;
@@ -127,11 +172,11 @@ private:
     std::vector<int> send_counts;
     std::vector<int> send_counts_scanned;
 
-    bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector);
+    bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, std::vector<bool> vector_diff);
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
-                std::vector<uint8_t> vertex_degrees, const float min_relative_change);
+                std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
 
-    void GetVertexDegrees(std::vector<uint8_t>& degrees_out);
+    void GetVertexDegrees(std::vector<graph_indexing_t>& degrees_out);
 
 
 public:

@@ -15,13 +15,16 @@ PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
 mkdir -p build
 
 cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PATH=${GMSH_SDK_PATH} \
+    -DENABLE_VTK_FEATURES=OFF \
+    -DVTK_INSTALL_DIR_PATH=/home/budvin/bin/VTK-9.3.0/build \
     -DMETIS_INSTALL_DIR_PATH=${METIS_INSTALL_DIR_PATH} \
     -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
-    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH}
+    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=16 -DBFS_LABEL_TYPE=16
 
 ninja -C ./build
 
 echo "====== complation done ==============="
+
 
 export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
@@ -51,19 +54,22 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
 
-for file_idx in "${!mesh_file_list[@]}"; do 
-    for np in 4 8
-    do
-        for run_idx in {0..2}; do
-            mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz
-        done
-    done
-done
+# for file_idx in "${!mesh_file_list[@]}"; do 
+#     for np in 4 8
+#     do
+#         for run_idx in {0..2}; do
+#             mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz
+#         done
+#     done
+# done
 
 
-# export SFC_morton="$PWD/out-sfc.vtk"
-# export METIS="$PWD/out-parmetis.vtk"
-# export BFS="$PWD/out-bfs.vtk"
-# export BFS_grow="$PWD/out-grow.vtk"
+mpirun -np 4 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh 0 0 $metrics_file_path -viz
 
-# /home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../grow/paraview_script.py
+
+export SFC_morton="$PWD/out-sfc.vtk"
+export METIS="$PWD/out-parmetis.vtk"
+export BFS="$PWD/out-bfs.vtk"
+export BFS_grow="$PWD/out-grow.vtk"
+
+/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../grow/paraview_script.py
