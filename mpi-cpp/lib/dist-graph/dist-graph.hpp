@@ -173,7 +173,7 @@ private:
     std::vector<uint64_t> sending_scatter_map;
     std::vector<int> send_counts;
     std::vector<int> send_counts_scanned;
-
+    void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
     bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, std::vector<bool> vector_diff);
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);

@@ -81,10 +81,15 @@
         "*.txx": "cpp"
     },
     "cmake.configureSettings": { 
-        "GMSH_SDK_PATH": "/home/budvin/bin/gmsh-4.12.2-Linux64-sdk",
+        "GMSH_SDK_PATH": "/home/budvin/bin/gmsh-4.13.0-source/build/install",
         "VTK_INSTALL_DIR_PATH": "/home/budvin/bin/VTK-9.3.0/build",
-        "METIS_INSTALL_DIR_PATH": "/home/budvin/bin/METIS-5.2.1/build",
-        "GKLIB_INSTALL_DIR_PATH": "/home/budvin/bin/GKlib-master/build",
-        "PARMETIS_INSTALL_DIR_PATH": "/home/budvin/bin/ParMETIS/build/Linux-x86_64/build"
+        "METIS_INSTALL_DIR_PATH": "/home/budvin/bin/METIS-5.2.1/build/build",
+        "GKLIB_INSTALL_DIR_PATH": "/home/budvin/bin/GKlib-master/build/Linux-x86_64/build",
+        "PARMETIS_INSTALL_DIR_PATH": "/home/budvin/bin/ParMETIS/build/Linux-x86_64/build",
+        "ENABLE_VTK_FEATURES": "ON",
+        "GRAPH_INDEXING_TYPE": "32",
+        "BFS_DISTANCE_TYPE": "32",
+        "BFS_LABEL_TYPE": "32"
+
     }
 }

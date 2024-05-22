@@ -327,7 +327,27 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
-    std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1, {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY});
+    std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1);
+
+    // BFSValue init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
+
+    // // TODO: openmp can be used to populate
+    // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
+
+    /**
+     * using sfc seeds
+     * elements are already ordered to morton SFC
+     * get the 'middle' local element as seed
+     * TODO: oversampling can be implemented here
+    */
+    graph_indexing_t seed = static_cast<graph_indexing_t>(this->local_count/2);
+
+    // bfs_vector[seed].distance = 0;
+    // bfs_vector[seed].label = my_rank;
+
+    //special first iteration
+    this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
+
 
     //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
     std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
@@ -339,15 +359,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     std::vector<bool> ghost_is_not_stable(this->ghost_count);
 
 
-    /**
-     * using sfc seeds
-     * elements are already ordered to morton SFC
-     * get the 'middle' local element as seed
-     * TODO: oversampling can be implemented here
-    */
 
-    bfs_vector[this->local_count/2].distance = 0;
-    bfs_vector[this->local_count/2].label = my_rank;
     bool is_not_stable_global = true;      // global BFS stability
     int round_counter = 0;
     MPI_Barrier(this->comm);
@@ -364,7 +376,13 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         round_counter++;
         
         is_not_stable_global = false;
-        bool is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff);
+        bool is_not_stable_local = true;
+
+        if (round_counter > 1)      // first round is already handled by the "special first iteration"
+        {   
+            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff);
+        }
+         
         // print_log("[", my_rank, "]: BFS iteration done");
 
         #pragma omp parallel for
@@ -450,6 +468,60 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     return {.return_code = 0, .time_ms = duration.count()};
 
+}
+
+/**
+ * The first BFS iteration in the local partition only has one frontier.
+ * Therefore the first iteration can be implemented in standard BFS way (wihout the flipped version)
+*/
+void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label) {
+    
+    BFSValue init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
+
+    // TODO: openmp can be used to populate
+    std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
+
+    //mark the seed
+    bfs_vector[seed].label = label;
+    bfs_vector[seed].distance = 0;
+
+    std::vector<graph_indexing_t> frontier_buffer(bfs_vector.size());
+    graph_indexing_t curr_frontier_start = 0;
+    graph_indexing_t curr_frontier_size = 1;
+
+    frontier_buffer[curr_frontier_start] = seed; // first frontier has only the seed
+
+    bfs_distance_t curr_distance = 1;
+
+    while (curr_frontier_size != 0) {
+
+        graph_indexing_t next_frontier_size = 0;
+        graph_indexing_t next_frontier_slot = curr_frontier_start + curr_frontier_size;
+        for (graph_indexing_t frontier_i = curr_frontier_start; frontier_i < curr_frontier_start + curr_frontier_size;
+             frontier_i++) {
+            graph_indexing_t frontier_vertex = frontier_buffer[frontier_i];
+
+            // looping neighbors
+            for (graph_indexing_t neighbor_i = this->local_xdj[frontier_vertex];
+                 neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
+            {
+                auto neighbor = local_adjncy[neighbor_i];
+
+                if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL) {
+                    // neighbor is not visited, visit it now
+                    bfs_vector[neighbor].label = label;
+                    bfs_vector[neighbor].distance = curr_distance;
+
+                    // add to next frontier
+                    frontier_buffer[next_frontier_slot++] = neighbor;
+                    next_frontier_size++;
+                }
+            }
+        }
+        curr_distance++;
+        curr_frontier_start+= curr_frontier_size;
+        curr_frontier_size = next_frontier_size;
+    }
 }
 
 bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, std::vector<bool> vector_diff){

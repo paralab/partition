@@ -64,7 +64,7 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 # done
 
 
-mpirun -np 8 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh 0 0 $metrics_file_path -viz
+mpirun -np 10 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh 0 0 $dir/test.json -viz
 
 
 export SFC_morton="$PWD/out-sfc.vtk"
