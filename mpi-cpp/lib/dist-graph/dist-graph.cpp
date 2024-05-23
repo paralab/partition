@@ -345,7 +345,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     // bfs_vector[seed].distance = 0;
     // bfs_vector[seed].label = my_rank;
 
-    //special first iteration
+    //special first iteration using standard BFS frontier method with a queue
     this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
 
 
@@ -356,7 +356,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     std::vector<BFSValue> ghost_send_buffer(this->send_count);
     std::vector<BFSValue> ghost_recv_buffer(this->ghost_count);
 
-    std::vector<bool> ghost_is_not_stable(this->ghost_count);
+    // std::vector<bool> ghost_is_not_stable(this->ghost_count);
 
 
 
@@ -367,6 +367,11 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     auto reduce_duration = std::chrono::microseconds(0);
 
     auto start = std::chrono::high_resolution_clock::now();
+
+    // when we receive ghost updates, set the cutoff as the 'best' received update
+    // then, in the next inner BFS, only the vertices above the cutoff will need updated calculations
+    bfs_distance_t distance_cutoff_for_update = 0;      
+
     while (is_not_stable_global)
     {
         // if (!my_rank)
@@ -380,7 +385,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
         if (round_counter > 1)      // first round is already handled by the "special first iteration"
         {   
-            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff);
+            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, distance_cutoff_for_update);
         }
          
         // print_log("[", my_rank, "]: BFS iteration done");
@@ -391,9 +396,11 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
         }
         auto com_start = std::chrono::high_resolution_clock::now();
-        //ghost exchange
-
-
+        
+        
+        /**
+         * ghost exchange
+        */
         // MPI_Alltoallv(ghost_send_buffer.data(),
         //             this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
         //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
@@ -408,27 +415,33 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         auto com_end = std::chrono::high_resolution_clock::now();
         com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
 
-        //ghost update for received values
-        #pragma omp parallel for
+
+        /**
+         * ghost update using received values
+        */
+        bool ghost_any_is_not_stable = false;
+
+        distance_cutoff_for_update = DIST_GRAPH_BFS_INFINITY;
         for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
         {
-            ghost_is_not_stable[recv_i] = false;
+            // ghost_is_not_stable[recv_i] = false;
             auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
             if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
             {
                 bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
                 bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
                 // is_not_stable_local = true;
-                ghost_is_not_stable[recv_i] = true;
-            }
-            
+                // ghost_is_not_stable[recv_i] = true;
+                ghost_any_is_not_stable = true;
+                distance_cutoff_for_update = std::min(distance_cutoff_for_update, ghost_recv_buffer[recv_i].distance);
+            }            
         }
 
-        bool ghost_any_is_not_stable = false;
-        #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
-        for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
-            ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
-        }
+        
+        // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
+        // for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
+        //     ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
+        // }
 
         is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
 
@@ -471,8 +484,9 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 }
 
 /**
+ * 
  * The first BFS iteration in the local partition only has one frontier.
- * Therefore the first iteration can be implemented in standard BFS way (wihout the flipped version)
+ * This function implements the BFS in the standard way using frontier in a queue
 */
 void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label) {
     
@@ -524,7 +538,8 @@ void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_in
     }
 }
 
-bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, std::vector<bool> vector_diff){
+bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
+        std::vector<bool> vector_diff, bfs_distance_t distance_cutoff_for_update){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -540,7 +555,7 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
         is_not_stable = false;
         #pragma omp parallel
         {
-            // print_log("thread count ", omp_get_num_threads());
+
             #pragma omp for
             for (graph_indexing_t v_i = 0; v_i < bfs_vector.size(); v_i++)
             {
@@ -549,22 +564,25 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
                 auto best_label = bfs_vector[v_i].label;
                 vector_diff[v_i] = false;
                 // print_log(best_distance, best_label);
-                for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
-                {
-                    auto neighbor = local_adjncy[neighbor_i];
-                    if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
+                if (best_distance > distance_cutoff_for_update)
+                {          
+                    for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                     {
-                        continue;
-                    }
-                    // print_log(multi_bfs_labels[neighbor_i]);
+                        auto neighbor = local_adjncy[neighbor_i];
+                        if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
+                        {
+                            continue;
+                        }
+                        // print_log(multi_bfs_labels[neighbor_i]);
 
-                    if (best_distance > (bfs_vector[neighbor].distance + 1))
-                    {
-                        best_distance = bfs_vector[neighbor].distance + 1;
-                        best_label = bfs_vector[neighbor].label;
-                        vector_diff[v_i] = true;
+                        if (best_distance > (bfs_vector[neighbor].distance + 1))
+                        {
+                            best_distance = bfs_vector[neighbor].distance + 1;
+                            best_label = bfs_vector[neighbor].label;
+                            vector_diff[v_i] = true;
 
 
+                        }
                     }
                 }
                 bfs_vector_tmp[v_i].distance = best_distance;
@@ -582,8 +600,6 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
             }
 
             changed = changed || is_not_stable;
-
-
 
         }
     }
