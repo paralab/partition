@@ -174,8 +174,9 @@ private:
     std::vector<int> send_counts;
     std::vector<int> send_counts_scanned;
     void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
+    void CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distances_out);
     bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool> vector_diff, bfs_distance_t distance_cutoff_for_update); 
+        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_ghosts); 
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
 

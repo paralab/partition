@@ -345,6 +345,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     // bfs_vector[seed].distance = 0;
     // bfs_vector[seed].label = my_rank;
 
+    std::vector<bfs_distance_t> distance_from_ghosts(bfs_vector.size());
+
+    this->CalculateDistanceFromGhosts(distance_from_ghosts);
+
     //special first iteration using standard BFS frontier method with a queue
     this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
 
@@ -368,9 +372,9 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    // when we receive ghost updates, set the cutoff as the 'best' received update
-    // then, in the next inner BFS, only the vertices above the cutoff will need updated calculations
-    bfs_distance_t distance_cutoff_for_update = 0;      
+    // when we receive ghost updates, keep track of the update with minimum value
+    // then, in the next inner BFS, vertices can be filtered based on this value
+    bfs_distance_t ghost_min_update = 0;      
 
     while (is_not_stable_global)
     {
@@ -385,7 +389,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
         if (round_counter > 1)      // first round is already handled by the "special first iteration"
         {   
-            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, distance_cutoff_for_update);
+            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_ghosts);
         }
          
         // print_log("[", my_rank, "]: BFS iteration done");
@@ -421,7 +425,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         */
         bool ghost_any_is_not_stable = false;
 
-        distance_cutoff_for_update = DIST_GRAPH_BFS_INFINITY;
+        ghost_min_update = DIST_GRAPH_BFS_INFINITY;
         for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
         {
             // ghost_is_not_stable[recv_i] = false;
@@ -433,7 +437,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                 // is_not_stable_local = true;
                 // ghost_is_not_stable[recv_i] = true;
                 ghost_any_is_not_stable = true;
-                distance_cutoff_for_update = std::min(distance_cutoff_for_update, ghost_recv_buffer[recv_i].distance);
+                ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
             }            
         }
 
@@ -538,8 +542,64 @@ void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_in
     }
 }
 
+/**
+ * to be used as a preprocessing step
+ * this function calculates the minimum distance from ghost nodes for each vertex
+ * afterwards this distances can be used for the filtering citeria calculation in subsequent BFS rounds
+ * 
+*/
+void DistGraph::CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distances_out){
+    // TODO: this function assumes at least one ghost vertex is present
+
+
+    distances_out.resize(this->local_count + this->ghost_count);
+    std::fill(distances_out.begin(), distances_out.begin()+this->local_count, DIST_GRAPH_BFS_INFINITY);
+    std::fill(distances_out.begin()+this->local_count, distances_out.end(), 0);       // ghost vertices are in the last part in this vector
+
+    std::vector<graph_indexing_t> frontier_buffer(distances_out.size());
+    for (graph_indexing_t ghost_i = 0; ghost_i < this->ghost_count; ghost_i++)
+    {
+        frontier_buffer[ghost_i] = this->local_count + ghost_i;     // initial frontier is all the vertices in the ghost layer
+    }
+    
+    graph_indexing_t curr_frontier_start = 0;
+    graph_indexing_t curr_frontier_size = this->ghost_count;
+
+    bfs_distance_t curr_distance = 1;
+
+    while (curr_frontier_size != 0) {
+
+        graph_indexing_t next_frontier_size = 0;
+        graph_indexing_t next_frontier_slot = curr_frontier_start + curr_frontier_size;
+        for (graph_indexing_t frontier_i = curr_frontier_start; frontier_i < curr_frontier_start + curr_frontier_size;
+             frontier_i++) {
+            graph_indexing_t frontier_vertex = frontier_buffer[frontier_i];
+
+            // looping neighbors
+            for (graph_indexing_t neighbor_i = this->local_xdj[frontier_vertex];
+                 neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
+            {
+                auto neighbor = local_adjncy[neighbor_i];
+
+                if (distances_out[neighbor] == DIST_GRAPH_BFS_INFINITY) {
+                    // neighbor is not reached by frontier, visit it now
+                    distances_out[neighbor] = curr_distance;
+
+                    // add to next frontier
+                    frontier_buffer[next_frontier_slot++] = neighbor;
+                    next_frontier_size++;
+                }
+            }
+        }
+        curr_distance++;
+        curr_frontier_start+= curr_frontier_size;
+        curr_frontier_size = next_frontier_size;
+    }
+
+}
+
 bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool> vector_diff, bfs_distance_t distance_cutoff_for_update){
+        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_ghosts){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -564,8 +624,10 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
                 auto best_label = bfs_vector[v_i].label;
                 vector_diff[v_i] = false;
                 // print_log(best_distance, best_label);
-                if (best_distance > distance_cutoff_for_update)
-                {          
+                if (ghost_min_update != DIST_GRAPH_BFS_INFINITY &&
+                    distance_from_ghosts[v_i] != DIST_GRAPH_BFS_INFINITY && 
+                    best_distance > (ghost_min_update + distance_from_ghosts[v_i]))
+                {         
                     for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                     {
                         auto neighbor = local_adjncy[neighbor_i];
