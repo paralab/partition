@@ -19,6 +19,14 @@ std::ostream& operator<<(std::ostream& os, const BFSValue& obj) {
     return os;
 }
 
+// Overloading the << operator for GhostBFSValue
+std::ostream& operator<<(std::ostream& os, const GhostBFSValue& obj) {
+    os << "(" << obj.distance << "," << obj.label << ", [" <<obj.offset  << "])";
+    // os << obj.global_idx;
+    
+    return os;
+}
+
 // Overloading the << operator for PageRankValue
 std::ostream& operator<<(std::ostream& os, const PageRankValue& obj) {
     os << "(" << obj.value << "," << obj.label  << ")";
@@ -329,7 +337,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     MPI_Comm_rank(this->comm, &my_rank);
     std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1);
 
-    // BFSValue init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
+    BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
 
     // // TODO: openmp can be used to populate
     // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
@@ -358,7 +366,9 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     std::vector<bool> vector_diff(bfs_vector.size());
     
     std::vector<BFSValue> ghost_send_buffer(this->send_count);
-    std::vector<BFSValue> ghost_recv_buffer(this->ghost_count);
+    std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
+
+    std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
 
     // std::vector<bool> ghost_is_not_stable(this->ghost_count);
 
@@ -410,15 +420,23 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
         //             par::Mpi_datatype<BFSValue>::value(), comm);
 
-        MPI_Barrier(this->comm);
-        par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+        if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
+        {
+            this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
+            
+        }else
+        {
+            MPI_Barrier(this->comm);
+            par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                    ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
 
-        MPI_Barrier(this->comm);
+            MPI_Barrier(this->comm);
+        }    
 
         auto com_end = std::chrono::high_resolution_clock::now();
         com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
 
+        std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
 
         /**
          * ghost update using received values
@@ -667,6 +685,95 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
     }
 
     return changed;
+}
+
+
+/**
+ * optimized ghost update routine for distributed BFS
+ * checks the previous sent buffer and current sending buffer, and sends only updated values
+ * updated is defined as: BFS distance got reduced
+ * ghost_recv_buffer is updated only for the received values. others are unchanged
+*/
+void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_buffer,
+                                            std::vector<BFSValue>& ghost_send_buffer_prev,
+                                            std::vector<BFSValue>& ghost_recv_buffer)
+{
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+
+    int comm_count = 0;
+    std::vector<int> updated_only_send_counts(procs_n,0);
+    std::vector<int> updated_only_send_counts_scanned(procs_n,0);
+    std::vector<GhostBFSValue> updated_only_send_buffer;
+
+
+    for (int proc_i = 0; proc_i < procs_n; proc_i++)
+    {
+        for (int send_offset = 0; send_offset < this->send_counts[proc_i]; send_offset++)
+        {
+            int idx = send_offset + this->send_counts_scanned[proc_i];
+
+            if (ghost_send_buffer[idx].distance < ghost_send_buffer_prev[idx].distance)             // updated only check
+            {
+                updated_only_send_counts[proc_i]++;
+                updated_only_send_buffer.push_back({.label = ghost_send_buffer[idx].label,
+                                                    .distance = ghost_send_buffer[idx].distance,
+                                                    .offset = static_cast<graph_indexing_t>(send_offset)});
+            }
+        }
+        
+    }
+
+    omp_par::scan(&updated_only_send_counts[0], &updated_only_send_counts_scanned[0], procs_n);
+
+    std::vector<int> updated_only_recv_counts(procs_n,0);
+    
+    MPI_Alltoall(updated_only_send_counts.data(), 1, MPI_INT, updated_only_recv_counts.data(), 1, MPI_INT, comm);
+
+    std::vector<int> updated_only_recv_counts_scanned(procs_n,0);
+    omp_par::scan(&updated_only_recv_counts[0], &updated_only_recv_counts_scanned[0], procs_n);
+
+    int total_updated_only_recv_count = updated_only_recv_counts_scanned[procs_n-1] + updated_only_recv_counts[procs_n-1];
+
+    // print_log("[",my_rank,"] receving_now/total_ghost (%) = ",100 * static_cast<float>(total_updated_only_recv_count)/this->ghost_count, "%");
+
+    std::vector<GhostBFSValue> updated_only_recv_buffer(total_updated_only_recv_count);
+
+    MPI_Barrier(this->comm);
+    par::Mpi_Alltoallv_sparse(updated_only_send_buffer.data(), updated_only_send_counts.data(), updated_only_send_counts_scanned.data(), 
+            updated_only_recv_buffer.data(), updated_only_recv_counts.data(), updated_only_recv_counts_scanned.data(), comm);
+    MPI_Barrier(this->comm);
+
+
+    // now place the received values in correct places in the original receive buffer
+
+    for (int proc_i = 0; proc_i < procs_n; proc_i++)
+    {
+        // if (updated_only_recv_counts[proc_i] == 0)
+        // {
+        //     continue;
+        // }
+        for (int received_i = 0; received_i < updated_only_recv_counts[proc_i]; received_i++)
+        {
+            int idx_in_changed_only_recv_buffer = updated_only_recv_counts_scanned[proc_i] + received_i;
+            GhostBFSValue received_value = updated_only_recv_buffer[idx_in_changed_only_recv_buffer];
+
+            int idx_in_original_recv_buffer = static_cast<int>(received_value.offset) + this->ghost_counts_scanned[proc_i];
+
+            ghost_recv_buffer[idx_in_original_recv_buffer].label = received_value.label;
+            ghost_recv_buffer[idx_in_original_recv_buffer].distance = received_value.distance;
+
+        }
+        
+
+        
+    }
+    
+
+
+
+    
 }
 
 /**

@@ -101,6 +101,51 @@ class par::Mpi_datatype<BFSValue> {
 std::ostream& operator<<(std::ostream& os, const BFSValue& obj);
 
 
+/**
+ * To be used for BFS value exchange for updated only ghost vertices
+*/
+struct GhostBFSValue
+{
+    bfs_label_t label;
+    bfs_distance_t distance;
+    graph_indexing_t offset;            // offset w.r.t original send buffer
+};
+
+
+template <>
+class par::Mpi_datatype<GhostBFSValue> {
+
+    /** 
+         @return the MPI_Datatype for the C++ datatype "GhostBFSValue"
+        **/
+    public:
+    static MPI_Datatype value() {
+        static bool         first = true;
+        static MPI_Datatype custom_mpi_type;
+
+        if (first)
+        {
+            first = false;
+            int block_lengths[3] = {1, 1, 1};
+            MPI_Datatype types[3] = {Mpi_datatype<bfs_label_t>::value(), Mpi_datatype<bfs_distance_t>::value(), Mpi_datatype<graph_indexing_t>::value()};
+            MPI_Aint offsets[3];
+            offsets[0] = offsetof(GhostBFSValue, label);
+            offsets[1] = offsetof(GhostBFSValue, distance);
+            offsets[2] = offsetof(GhostBFSValue, offset);
+
+
+
+            MPI_Type_create_struct(3, block_lengths, offsets, types, &custom_mpi_type);
+            MPI_Type_commit(&custom_mpi_type);
+        }       
+
+        return custom_mpi_type;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const GhostBFSValue& obj);
+
+
 #define DIST_GRAPH_PAGERANK_NO_LABEL UINT16_MAX
 
 struct PageRankValue
@@ -176,7 +221,10 @@ private:
     void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
     void CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distances_out);
     bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_ghosts); 
+        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_ghosts);
+    void ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_buffer,
+                                     std::vector<BFSValue>& ghost_send_buffer_prev,
+                                     std::vector<BFSValue>& ghost_recv_buffer);
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
 
