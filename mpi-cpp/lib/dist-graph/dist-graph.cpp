@@ -81,6 +81,16 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     this->ghost_counts_scanned.resize(procs_n);
     omp_par::scan(&this->ghost_counts[0], &this->ghost_counts_scanned[0], procs_n);
 
+    for (int proc_i = 0; proc_i < procs_n; proc_i++)
+    {
+        if (this->ghost_counts[proc_i] > 0)
+        {
+            this->ghost_procs.push_back(proc_i);
+        }
+        
+    }
+    
+
 
 
     // std::vector<uint64_t> vertex_degrees(own_elements.size() + ghost_elements.size());
@@ -280,6 +290,15 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         {
             this->sending_scatter_map[send_elem_i] = send_elements[send_elem_i].global_idx - proc_element_counts_scanned[my_rank];
         }
+
+        for (int proc_i = 0; proc_i < procs_n; proc_i++)
+        {
+            if (this->send_counts[proc_i] > 0)
+            {
+                this->send_procs.push_back(proc_i);
+            }
+            
+        }
         
 
     }
@@ -426,15 +445,17 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             
         }else
         {
-            MPI_Barrier(this->comm);
+            // MPI_Barrier(this->comm);
             par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
                     ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
 
-            MPI_Barrier(this->comm);
+            // MPI_Barrier(this->comm);
         }    
 
         auto com_end = std::chrono::high_resolution_clock::now();
         com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
+        if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
+
 
         std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
 
@@ -728,22 +749,23 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
     omp_par::scan(&updated_only_send_counts[0], &updated_only_send_counts_scanned[0], procs_n);
 
     std::vector<int> updated_only_recv_counts(procs_n,0);
-    
-    MPI_Alltoall(updated_only_send_counts.data(), 1, MPI_INT, updated_only_recv_counts.data(), 1, MPI_INT, comm);
 
+    this->ExchangeUpdatedOnlyBFSCounts(updated_only_send_counts,updated_only_recv_counts);
+    
     std::vector<int> updated_only_recv_counts_scanned(procs_n,0);
     omp_par::scan(&updated_only_recv_counts[0], &updated_only_recv_counts_scanned[0], procs_n);
 
     int total_updated_only_recv_count = updated_only_recv_counts_scanned[procs_n-1] + updated_only_recv_counts[procs_n-1];
 
-    // print_log("[",my_rank,"] receving_now/total_ghost (%) = ",100 * static_cast<float>(total_updated_only_recv_count)/this->ghost_count, "%");
+    if(!my_rank) print_log("[",my_rank,"] receving_now/total_ghost (%) = ",100 * static_cast<float>(total_updated_only_recv_count)/this->ghost_count, "%");
 
     std::vector<GhostBFSValue> updated_only_recv_buffer(total_updated_only_recv_count);
 
-    MPI_Barrier(this->comm);
+
+    // MPI_Barrier(this->comm);
     par::Mpi_Alltoallv_sparse(updated_only_send_buffer.data(), updated_only_send_counts.data(), updated_only_send_counts_scanned.data(), 
             updated_only_recv_buffer.data(), updated_only_recv_counts.data(), updated_only_recv_counts_scanned.data(), comm);
-    MPI_Barrier(this->comm);
+    // MPI_Barrier(this->comm);
 
 
     // now place the received values in correct places in the original receive buffer
@@ -774,6 +796,53 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
 
 
     
+}
+
+
+/**
+ * MPI routine to exchange the updated only counts before performing the actual updated only exchange.
+ * Uses `this->ghost_procs` and `this->send_procs` to perform point to point comm
+ * We need this because if instead we use `MPI_Alltoall`, it will be a global lock
+ * and the subsequent `Mpi_Alltoallv_sparse` would not get the full benefit
+*/
+void DistGraph::ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send_counts, std::vector<int>& updated_only_recv_counts_out){
+    
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+
+    // exchange my own count (this is not actually needed since there are no ghost or sending vertices to self)
+    updated_only_recv_counts_out[my_rank] = updated_only_send_counts[my_rank];
+
+
+    // now exchanging counts only within neighboring processes
+
+    MPI_Request* requests = new MPI_Request[this->ghost_procs.size() + this->send_procs.size()];
+    assert(requests);
+
+    MPI_Status* statuses = new MPI_Status[this->ghost_procs.size() + this->send_procs.size()];
+    assert(statuses);
+
+    int mpi_idx = 0;
+
+    for (auto& recv_proc : this->ghost_procs)
+    {
+        par::Mpi_Irecv(&(updated_only_recv_counts_out[recv_proc]), 1, recv_proc, 2, this->comm, &(requests[mpi_idx]));
+        mpi_idx++;
+    }
+    
+    for (auto& send_proc : this->send_procs)
+    {
+        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, 2, this->comm, &(requests[mpi_idx]));
+        mpi_idx++;
+    }
+
+    MPI_Waitall(this->ghost_procs.size() + this->send_procs.size(), requests, statuses);
+
+    delete [] requests;
+    delete [] statuses;
+    
+
 }
 
 /**

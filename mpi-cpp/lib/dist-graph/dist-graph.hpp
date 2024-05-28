@@ -215,9 +215,14 @@ private:
     std::vector<int> ghost_counts;
     std::vector<int> ghost_counts_scanned;
 
+    std::vector<int> ghost_procs;
+
     std::vector<uint64_t> sending_scatter_map;
     std::vector<int> send_counts;
     std::vector<int> send_counts_scanned;
+    std::vector<int> send_procs;
+
+
     void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
     void CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distances_out);
     bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
@@ -225,6 +230,7 @@ private:
     void ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_buffer,
                                      std::vector<BFSValue>& ghost_send_buffer_prev,
                                      std::vector<BFSValue>& ghost_recv_buffer);
+    void ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send_counts, std::vector<int>& updated_only_recv_counts_out);
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
 
