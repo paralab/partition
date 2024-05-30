@@ -358,6 +358,8 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
 
+    int BFS_stop_guess = std::min(procs_n, 7);      // TODO: this bound could be improved
+
     // // TODO: openmp can be used to populate
     // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
 
@@ -372,22 +374,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     // bfs_vector[seed].distance = 0;
     // bfs_vector[seed].label = my_rank;
 
-    std::vector<bfs_distance_t> distance_from_ghosts(bfs_vector.size());
 
-    this->CalculateDistanceFromGhosts(distance_from_ghosts);
-
-    //special first iteration using standard BFS frontier method with a queue
-    this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
-
-
-    //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
-    std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
-    std::vector<bool> vector_diff(bfs_vector.size());
-    
-    std::vector<BFSValue> ghost_send_buffer(this->send_count);
-    std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
-
-    std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
 
     // std::vector<bool> ghost_is_not_stable(this->ghost_count);
 
@@ -401,102 +388,126 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     auto start = std::chrono::high_resolution_clock::now();
 
+
+
+    //special first iteration using standard BFS frontier method with a queue
+    this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
+
     // when we receive ghost updates, keep track of the update with minimum value
     // then, in the next inner BFS, vertices can be filtered based on this value
     bfs_distance_t ghost_min_update = 0;      
-
-    while (is_not_stable_global)
+    if(procs_n > 1)
     {
-        // if (!my_rank)
-        // {
-        //     print_log("BFS round: ", ++round_counter);
-        // }
-        round_counter++;
+        std::vector<bfs_distance_t> distance_from_ghosts(bfs_vector.size());
+
+
+        //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
+        std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
+        std::vector<bool> vector_diff(bfs_vector.size());
         
-        is_not_stable_global = false;
-        bool is_not_stable_local = true;
+        std::vector<BFSValue> ghost_send_buffer(this->send_count);
+        std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
 
-        if (round_counter > 1)      // first round is already handled by the "special first iteration"
-        {   
-            is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_ghosts);
-        }
-         
-        // print_log("[", my_rank, "]: BFS iteration done");
-
-        #pragma omp parallel for
-        for (size_t send_i = 0; send_i < this->send_count; send_i++)
+        std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
+        
+        this->CalculateDistanceFromGhosts(distance_from_ghosts);
+        while (is_not_stable_global)
         {
-            ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
-        }
-        auto com_start = std::chrono::high_resolution_clock::now();
-        
-        
-        /**
-         * ghost exchange
-        */
-        // MPI_Alltoallv(ghost_send_buffer.data(),
-        //             this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
-        //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
-        //             par::Mpi_datatype<BFSValue>::value(), comm);
-
-        if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
-        {
-            this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
+            // if (!my_rank)
+            // {
+            //     print_log("BFS round: ", ++round_counter);
+            // }
+            round_counter++;
             
-        }else
-        {
-            // MPI_Barrier(this->comm);
-            par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                    ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+            is_not_stable_global = false;
+            bool is_not_stable_local = true;
 
-            // MPI_Barrier(this->comm);
-        }    
+            if (round_counter > 1)      // first round is already handled by the "special first iteration"
+            {   
+                is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_ghosts);
+            }
+            
+            // print_log("[", my_rank, "]: BFS iteration done");
 
-        auto com_end = std::chrono::high_resolution_clock::now();
-        com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
-        if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
-
-
-        std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
-
-        /**
-         * ghost update using received values
-        */
-        bool ghost_any_is_not_stable = false;
-
-        ghost_min_update = DIST_GRAPH_BFS_INFINITY;
-        for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
-        {
-            // ghost_is_not_stable[recv_i] = false;
-            auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
-            if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+            #pragma omp parallel for
+            for (size_t send_i = 0; send_i < this->send_count; send_i++)
             {
-                bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
-                bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
-                // is_not_stable_local = true;
-                // ghost_is_not_stable[recv_i] = true;
-                ghost_any_is_not_stable = true;
-                ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
-            }            
-        }
+                ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
+            }
+            auto com_start = std::chrono::high_resolution_clock::now();
+            
+            
+            /**
+             * ghost exchange
+            */
+            // MPI_Alltoallv(ghost_send_buffer.data(),
+            //             this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
+            //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
+            //             par::Mpi_datatype<BFSValue>::value(), comm);
 
-        
-        // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
-        // for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
-        //     ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
-        // }
+            if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
+            {
+                this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
+                
+            }else
+            {
+                // MPI_Barrier(this->comm);
+                par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                        ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
 
-        is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
+                // MPI_Barrier(this->comm);
+            }    
 
-        auto reduce_com_start = std::chrono::high_resolution_clock::now();
+            auto com_end = std::chrono::high_resolution_clock::now();
+            com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
+            if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
 
-        MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
-        auto reduce_com_end = std::chrono::high_resolution_clock::now();
-        reduce_duration += std::chrono::duration_cast<std::chrono::microseconds>(reduce_com_end - reduce_com_start);
-        // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
 
-        
-    } 
+            std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
+
+            /**
+             * ghost update using received values
+            */
+            bool ghost_any_is_not_stable = false;
+
+            ghost_min_update = DIST_GRAPH_BFS_INFINITY;
+            for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
+            {
+                // ghost_is_not_stable[recv_i] = false;
+                auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
+                if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+                {
+                    bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
+                    bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
+                    // is_not_stable_local = true;
+                    // ghost_is_not_stable[recv_i] = true;
+                    ghost_any_is_not_stable = true;
+                    ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
+                }            
+            }
+
+            
+            // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
+            // for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
+            //     ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
+            // }
+
+            is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
+
+            if(round_counter >= BFS_stop_guess){
+                auto reduce_com_start = std::chrono::high_resolution_clock::now();
+
+                MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
+                auto reduce_com_end = std::chrono::high_resolution_clock::now();
+                reduce_duration += std::chrono::duration_cast<std::chrono::microseconds>(reduce_com_end - reduce_com_start);
+            } else {
+                is_not_stable_global = true;
+            }
+            // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+
+            
+        } 
+    }
 
     // print_log("[", my_rank, "]: BFS done");
     // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
@@ -642,6 +653,11 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
+
+    if(ghost_min_update == DIST_GRAPH_BFS_INFINITY){    // no change in ghost, dont have to run local BFS
+        return false;
+    }
+
     bool changed = false;       // to detect if the BFS incremented
 
     bool is_not_stable = true; // to detect if the BFS incremented in each increment
@@ -1135,18 +1151,19 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
     std::vector<uint16_t> local_and_ghost_partition_labels(this->local_count + this->ghost_count);
     std::copy(local_partition_labels.begin(), local_partition_labels.end(), local_and_ghost_partition_labels.begin());
 
-    std::vector<uint16_t> ghost_send_buffer(this->send_count);
-#pragma omp parallel for
-    for (size_t send_i = 0; send_i < this->send_count; send_i++) {
-        ghost_send_buffer[send_i] = local_and_ghost_partition_labels[this->sending_scatter_map[send_i]];
+    if(procs_n > 1){
+        std::vector<uint16_t> ghost_send_buffer(this->send_count);
+        #pragma omp parallel for
+        for (size_t send_i = 0; send_i < this->send_count; send_i++) {
+            ghost_send_buffer[send_i] = local_and_ghost_partition_labels[this->sending_scatter_map[send_i]];
+        }
+        MPI_Barrier(this->comm);
+        par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(),
+                                &local_and_ghost_partition_labels[this->local_count], this->ghost_counts.data(),
+                                this->ghost_counts_scanned.data(), comm);
+
+        MPI_Barrier(this->comm);
     }
-
-    MPI_Barrier(this->comm);
-    par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(),
-                              &local_and_ghost_partition_labels[this->local_count], this->ghost_counts.data(),
-                              this->ghost_counts_scanned.data(), comm);
-
-    MPI_Barrier(this->comm);
 
     // now calculating partition boundaries
     std::vector<uint32_t> local_partition_boundaries(procs_n, 0);
