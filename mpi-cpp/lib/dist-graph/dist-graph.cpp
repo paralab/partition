@@ -398,19 +398,22 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     bfs_distance_t ghost_min_update = 0;      
     if(procs_n > 1)
     {
-        std::vector<bfs_distance_t> distance_from_ghosts(bfs_vector.size());
+        std::vector<bfs_distance_t> distance_from_updated_ghosts(bfs_vector.size());
 
 
         //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
         std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
         std::vector<bool> vector_diff(bfs_vector.size());
+        std::vector<graph_indexing_t> tmp_frontier_buffer(bfs_vector.size());            // used for updated ghost distance calculation
         
         std::vector<BFSValue> ghost_send_buffer(this->send_count);
         std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
 
         std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
+
+        std::vector<bool> ghost_updated(this->ghost_count,false);
         
-        this->CalculateDistanceFromGhosts(distance_from_ghosts);
+        
         while (is_not_stable_global)
         {
             // if (!my_rank)
@@ -424,7 +427,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
             if (round_counter > 1)      // first round is already handled by the "special first iteration"
             {   
-                is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_ghosts);
+                is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_updated_ghosts);
             }
             
             // print_log("[", my_rank, "]: BFS iteration done");
@@ -471,6 +474,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             bool ghost_any_is_not_stable = false;
 
             ghost_min_update = DIST_GRAPH_BFS_INFINITY;
+            std::fill(ghost_updated.begin(), ghost_updated.end(), false);
             for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
             {
                 // ghost_is_not_stable[recv_i] = false;
@@ -483,8 +487,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                     // ghost_is_not_stable[recv_i] = true;
                     ghost_any_is_not_stable = true;
                     ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
+                    ghost_updated[recv_i] = true;
                 }            
             }
+            this->CalculateDistanceFromUpdatedGhosts(ghost_updated, tmp_frontier_buffer,  distance_from_updated_ghosts);
 
             
             // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
@@ -593,27 +599,35 @@ void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_in
 }
 
 /**
- * to be used as a preprocessing step
- * this function calculates the minimum distance from ghost nodes for each vertex
+ * to be used as an optimization step
+ * this function calculates the minimum distance from last updated ghost vertices
  * afterwards this distances can be used for the filtering citeria calculation in subsequent BFS rounds
  * 
 */
-void DistGraph::CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distances_out){
+void DistGraph::CalculateDistanceFromUpdatedGhosts(std::vector<bool>& ghost_updated, std::vector<graph_indexing_t>& frontier_buffer,
+                std::vector<bfs_distance_t>& distances_out){
     // TODO: this function assumes at least one ghost vertex is present
 
-
-    distances_out.resize(this->local_count + this->ghost_count);
-    std::fill(distances_out.begin(), distances_out.begin()+this->local_count, DIST_GRAPH_BFS_INFINITY);
-    std::fill(distances_out.begin()+this->local_count, distances_out.end(), 0);       // ghost vertices are in the last part in this vector
-
-    std::vector<graph_indexing_t> frontier_buffer(distances_out.size());
+    // distances_out.resize(this->local_count + this->ghost_count);
+    std::fill(distances_out.begin(), distances_out.end(), DIST_GRAPH_BFS_INFINITY);
+    // std::vector<graph_indexing_t> frontier_buffer(distances_out.size());            // to hold BFS queue
+    graph_indexing_t curr_frontier_size = 0;
     for (graph_indexing_t ghost_i = 0; ghost_i < this->ghost_count; ghost_i++)
     {
-        frontier_buffer[ghost_i] = this->local_count + ghost_i;     // initial frontier is all the vertices in the ghost layer
+        if (ghost_updated[ghost_i])
+        {
+            // ghost vertices are in the last part in the distance vector, so we add this->local_count offset
+            distances_out[this->local_count + ghost_i] = 0;      
+
+            frontier_buffer[curr_frontier_size++] = this->local_count + ghost_i;     // initial frontier is all the updated ghost vertices  
+        }
+        
+
     }
     
+    
     graph_indexing_t curr_frontier_start = 0;
-    graph_indexing_t curr_frontier_size = this->ghost_count;
+
 
     bfs_distance_t curr_distance = 1;
 
@@ -649,7 +663,7 @@ void DistGraph::CalculateDistanceFromGhosts(std::vector<bfs_distance_t>& distanc
 }
 
 bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_ghosts){
+        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_updated_ghosts){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -663,9 +677,12 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
     bool is_not_stable = true; // to detect if the BFS incremented in each increment
     // std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
     // std::vector<bool> vector_diff(bfs_vector.size());
+    // bool print_candidates = true;
     while (is_not_stable)
     {
         // print_log(VectorToString(multi_bfs_distances));
+        // size_t candidates = 0;
+        // size_t changed_count = 0;
 
         is_not_stable = false;
         #pragma omp parallel
@@ -680,9 +697,10 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
                 vector_diff[v_i] = false;
                 // print_log(best_distance, best_label);
                 if (ghost_min_update != DIST_GRAPH_BFS_INFINITY &&
-                    distance_from_ghosts[v_i] != DIST_GRAPH_BFS_INFINITY && 
-                    best_distance > (ghost_min_update + distance_from_ghosts[v_i]))
-                {         
+                    distance_from_updated_ghosts[v_i] != DIST_GRAPH_BFS_INFINITY && 
+                    best_distance > (ghost_min_update + distance_from_updated_ghosts[v_i]))
+                {
+                    // candidates++;         
                     for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
                     {
                         auto neighbor = local_adjncy[neighbor_i];
@@ -710,6 +728,7 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
             for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++){
                 bfs_vector[v_i].distance = bfs_vector_tmp[v_i].distance;
                 bfs_vector[v_i].label = bfs_vector_tmp[v_i].label;
+                // if(vector_diff[v_i]) changed_count++;
             }
             #pragma omp for reduction(||:is_not_stable)
             for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++) {
@@ -719,6 +738,10 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
             changed = changed || is_not_stable;
 
         }
+        // if(print_candidates) print_log("[",my_rank, "] candidates/vector_size (%): ", 100* static_cast<float>(candidates)/bfs_vector.size(),"%");
+        // if(print_candidates) print_log("[",my_rank, "] changed_count/vector_size (%): ", 100* static_cast<float>(changed_count)/bfs_vector.size(),"%");
+        
+        // print_candidates = false;
     }
 
     return changed;
