@@ -427,7 +427,9 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
             if (round_counter > 1)      // first round is already handled by the "special first iteration"
             {   
-                is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_updated_ghosts);
+                // is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_updated_ghosts);
+                is_not_stable_local = this->RunLocalMultiBFSToStable2(bfs_vector, ghost_updated, ghost_min_update);
+
             }
             
             // print_log("[", my_rank, "]: BFS iteration done");
@@ -463,7 +465,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
             auto com_end = std::chrono::high_resolution_clock::now();
             com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
-            if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
+            // if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
 
 
             std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
@@ -490,7 +492,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                     ghost_updated[recv_i] = true;
                 }            
             }
-            this->CalculateDistanceFromUpdatedGhosts(ghost_updated, tmp_frontier_buffer,  distance_from_updated_ghosts);
+            // this->CalculateDistanceFromUpdatedGhosts(ghost_updated, tmp_frontier_buffer,  distance_from_updated_ghosts);
 
             
             // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
@@ -663,7 +665,7 @@ void DistGraph::CalculateDistanceFromUpdatedGhosts(std::vector<bool>& ghost_upda
 }
 
 bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool> vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_updated_ghosts){
+        std::vector<bool>& vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_updated_ghosts){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -749,6 +751,91 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
 
 
 /**
+ * uses an unordered map to maintain a combined frontier
+*/
+bool DistGraph::RunLocalMultiBFSToStable2(std::vector<BFSValue>& bfs_vector, std::vector<bool>& ghost_updated, 
+    bfs_distance_t ghost_min_update){
+
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+
+    if(ghost_min_update == DIST_GRAPH_BFS_INFINITY){    // no change in ghost, dont have to run local BFS
+        return false;
+    }
+
+    bool changed = false;       // to detect if the BFS incremented
+
+    std::vector<graph_indexing_t> frontier;
+
+    for (graph_indexing_t ghost_i = 0; ghost_i < this->ghost_count; ghost_i++)
+    {
+        if (ghost_updated[ghost_i])
+        {
+            frontier.push_back(this->local_count + ghost_i);
+        }
+        
+    }
+
+    while (frontier.size() > 0)
+    {
+        std::unordered_map<graph_indexing_t, BFSValue> next_updated;    // next vertices for potential updates
+        for (auto& frontier_vertex : frontier) {
+            // looping neighbors, add to next_updated
+            for (graph_indexing_t neighbor_i = this->local_xdj[frontier_vertex];
+                    neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
+            {
+                auto neighbor = local_adjncy[neighbor_i];
+                next_updated[neighbor] = bfs_vector[neighbor];      // same neighbor can be written by multiple frontier vertices. but its ok. its the same value
+            }
+        }
+
+        frontier.clear();
+    
+        // now considering only the nighborhoods of next potential updates
+        for (auto& it: next_updated) {
+            auto& vertex = it.first;
+            auto& curr_bfs_val = it.second;
+            bool value_changed = false;
+
+            for (graph_indexing_t neighbor_i = this->local_xdj[vertex];
+                 neighbor_i < this->local_xdj[vertex + 1]; neighbor_i++) 
+            {
+                auto neighbor = local_adjncy[neighbor_i];
+
+                if (bfs_vector[neighbor].label != DIST_GRAPH_BFS_NO_LABEL &&
+                    curr_bfs_val.distance > (bfs_vector[neighbor].distance + 1)) {
+
+                    curr_bfs_val.label = bfs_vector[neighbor].label;
+                    curr_bfs_val.distance = bfs_vector[neighbor].distance + 1;
+
+                    if(! value_changed) frontier.push_back(vertex);
+                    value_changed = true;
+                    changed = true;
+                    
+                }
+            }
+        }
+
+        // writing updated values to BFS vector
+        for (auto& it: next_updated){
+            bfs_vector[it.first].label = it.second.label;
+            bfs_vector[it.first].distance = it.second.distance;
+
+        }
+    }
+
+    return changed;
+    
+    
+
+     
+
+
+}
+
+
+/**
  * optimized ghost update routine for distributed BFS
  * checks the previous sent buffer and current sending buffer, and sends only updated values
  * updated is defined as: BFS distance got reduced
@@ -796,7 +883,7 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
 
     int total_updated_only_recv_count = updated_only_recv_counts_scanned[procs_n-1] + updated_only_recv_counts[procs_n-1];
 
-    if(!my_rank) print_log("[",my_rank,"] receving_now/total_ghost (%) = ",100 * static_cast<float>(total_updated_only_recv_count)/this->ghost_count, "%");
+    // if(!my_rank) print_log("[",my_rank,"] receving_now/total_ghost (%) = ",100 * static_cast<float>(total_updated_only_recv_count)/this->ghost_count, "%");
 
     std::vector<GhostBFSValue> updated_only_recv_buffer(total_updated_only_recv_count);
 
