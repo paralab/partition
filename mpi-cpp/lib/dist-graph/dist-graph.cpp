@@ -8,7 +8,6 @@
 #include "../metis-util/metis-util.hpp"
 
 #include <chrono>
-#include <unordered_map>
 
 
 // Overloading the << operator for BFSValue
@@ -751,7 +750,7 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std:
 
 
 /**
- * uses an unordered map to maintain a combined frontier
+ * maintains a combined bfs frontier and processes only the neighborhood of the frontier
 */
 bool DistGraph::RunLocalMultiBFSToStable2(std::vector<BFSValue>& bfs_vector, std::vector<bool>& ghost_updated, 
     bfs_distance_t ghost_min_update){
@@ -777,16 +776,24 @@ bool DistGraph::RunLocalMultiBFSToStable2(std::vector<BFSValue>& bfs_vector, std
         
     }
 
+    std::vector<bool> added_to_next_updated(bfs_vector.size());
+
     while (frontier.size() > 0)
     {
-        std::unordered_map<graph_indexing_t, BFSValue> next_updated;    // next vertices for potential updates
+        std::fill(added_to_next_updated.begin(), added_to_next_updated.end(), false);
+        std::vector<std::pair<graph_indexing_t, BFSValue>> next_updated;                 // next vertices for potential updates
         for (auto& frontier_vertex : frontier) {
             // looping neighbors, add to next_updated
             for (graph_indexing_t neighbor_i = this->local_xdj[frontier_vertex];
                     neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
             {
                 auto neighbor = local_adjncy[neighbor_i];
-                next_updated[neighbor] = bfs_vector[neighbor];      // same neighbor can be written by multiple frontier vertices. but its ok. its the same value
+                if (!added_to_next_updated[neighbor])
+                {
+                    next_updated.push_back({neighbor, bfs_vector[neighbor]});
+                    added_to_next_updated[neighbor] = true;
+                }
+                
             }
         }
 
