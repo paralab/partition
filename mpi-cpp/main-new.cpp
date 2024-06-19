@@ -43,17 +43,20 @@ int main(int argc, char *argv[])
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
-    if (argc < 6) {
-        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+    if (argc < 7) {
+        std::cerr << "Usage: " << argv[0] << "<original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1; // indicating an error
     }
-    const std::string file_path = argv[1];
-    int file_idx = std::stoi(argv[2]);
-    int run_idx = std::stoi(argv[3]);
+    const std::string original_file_path = argv[1];
+    const std::string part_file_prefix = argv[2];
 
 
-    const std::string metrics_out_file_path = argv[4];
-    const std::string viz_flag_str = argv[5];
+    int file_idx = std::stoi(argv[3]);
+    int run_idx = std::stoi(argv[4]);
+
+
+    const std::string metrics_out_file_path = argv[5];
+    const std::string viz_flag_str = argv[6];
     bool viz_flag;
 
     if (viz_flag_str == "-viz")
@@ -65,7 +68,7 @@ int main(int argc, char *argv[])
     }else
     {
         std::cerr << "Invalid flag: " << viz_flag_str << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << "<original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1;
     }
     
@@ -76,7 +79,7 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("running on", numtasks, "MPI processs");
 
-    ElementType elementType = GetElementType(file_path, MPI_COMM_WORLD);
+    ElementType elementType = GetElementType(part_file_prefix, MPI_COMM_WORLD);
     // print_log("element type: ", elementType);
     uint64_t local_element_count;
     uint64_t global_element_count;
@@ -99,7 +102,7 @@ int main(int argc, char *argv[])
     case ElementType::TET:
     {
         std::vector<TetElementWithFaces> localElementsAllData;
-        GetElementsWithFacesCentroids<TetElementWithFaces>(file_path, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
+        GetElementsWithFacesCentroids<TetElementWithFaces>(part_file_prefix, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
         std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
         if (! taskid)
@@ -154,7 +157,7 @@ int main(int argc, char *argv[])
     case ElementType::HEX:
     {
         std::vector<HexElementWithFaces> localElementsAllData;
-        GetElementsWithFacesCentroids<HexElementWithFaces>(file_path, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
+        GetElementsWithFacesCentroids<HexElementWithFaces>(part_file_prefix, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
         std::vector<HexElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
         if (! taskid)
@@ -196,6 +199,7 @@ int main(int argc, char *argv[])
             local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
 
         }
+        // print_log("[", taskid, "]:", "local_element_count = ", local_element_count);
         // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
         
     
@@ -283,7 +287,7 @@ int main(int argc, char *argv[])
     if (! taskid)
     {   
 
-        ExportMetricsToPandasJson(file_path, file_idx, run_idx, numtasks, global_element_count,
+        ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,

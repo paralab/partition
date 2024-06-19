@@ -51,6 +51,7 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh 0 $metrics_file_path  # smallest tet
 # mpirun -np 8 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh #large tet
 
+# /home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh
 
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
 
@@ -63,8 +64,21 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 #     done
 # done
 
+parts_n=14
+mesh_file=/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh
+part_file_prefix="$dir/tmp/part"
 
-mpirun -np 5 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh 0 0 $dir/test.json -viz
+
+./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
+
+# exit 0
+
+mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
+
+rm "${part_file_prefix}"*
+
+# mpirun -np 4 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh 0 0 $dir/test.json -viz
+
 
 
 export SFC_morton="$PWD/out-sfc.vtk"

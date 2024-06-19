@@ -204,9 +204,10 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
     return element_connectivity_graph;
 }
 
-ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
+ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm){
     int  my_rank;
     MPI_Comm_rank(comm, &my_rank);
+    std::string mesh_part_file_path = part_file_prefix + "_" + std::to_string(my_rank+1) + ".msh";
     // Initialize Gmsh
     gmsh::initialize();
     if (1)
@@ -216,7 +217,7 @@ ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
     
 
     // Load the mesh file
-    gmsh::open(mesh_file_path);
+    gmsh::open(mesh_part_file_path);
 
     // Get the number of nodes and elements
     std::vector<std::pair<int, int>> dimTags;
@@ -343,7 +344,7 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
             {
                 if (last_face_added)
                 {
-                    throw std::runtime_error("more than two elements found for a face");
+                    throw std::runtime_error("more than two elements found for face : " + std::to_string(unpaired_element_faces_sorted[elem_face_i].face_tag));
                 }else
                 {
                     connected_boundary_element_pairs.push_back(

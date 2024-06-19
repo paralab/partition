@@ -25,10 +25,12 @@ make install
 
 
 METIS
+
 make config shared=1 cc=mpicc prefix=./build gklib_path=$WORK/partition-project/dependencies/GKlib/build/Linux-x86_64/build
 make install
 
 ParMETIS
+
 make config shared=1 cc=mpicc prefix=./build gklib_path=$WORK/partition-project/dependencies/GKlib/build/Linux-x86_64/build metis_path=$WORK/partition-project/dependencies/METIS-5.2.1/build/build CFLAGS="-D_POSIX_C_SOURCE=199309L"
 make install
 
@@ -36,6 +38,7 @@ make install
 
 
 gmsh
+
 cd build
 cmake -DENABLE_BUILD_DYNAMIC=1 -DCMAKE_INSTALL_PREFIX=/work2/10000/budvin/frontera/partition-project/dependencies/gmsh-4.13.0-source/build/install  ..
 make -j 4

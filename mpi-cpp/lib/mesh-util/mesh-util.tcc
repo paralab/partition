@@ -5,6 +5,7 @@
 #include <cassert>
 
 #include <unordered_map> 
+#include <fstream>
 
 #include "../util/util.hpp"
 
@@ -12,12 +13,14 @@
 #include <stdexcept>
 
 template <class T>
-void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
+void GetElementsWithFacesCentroids(const std::string &part_file_prefix, std::vector<T> &elements_out,
                           ElementType element_type, MPI_Comm comm)
 {
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
+
+    std::string mesh_part_file_path = part_file_prefix + "_" + std::to_string(my_rank+1) + ".msh";
 
     // Initialize Gmsh
     gmsh::initialize();
@@ -26,7 +29,7 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
         gmsh::option::setNumber("General.Terminal", 0);
     }
     // Load the mesh file
-    gmsh::open(mesh_file_path);
+    gmsh::open(mesh_part_file_path);
 
     // Get the number of nodes and elements
 
@@ -66,33 +69,23 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
     }
     }
 
-    std::vector<uint64_t> elementNodeTags;
-    std::vector<uint64_t> elem_tags;
-    // elem_tags.reserve(200);
-    gmsh::model::mesh::preallocateElementsByType(gmsh_element_type,true,true,elem_tags,elementNodeTags,-1);
+    std::vector<uint64_t> localElementNodeTags;
+    std::vector<uint64_t> local_elem_tags;
 
-    gmsh::model::mesh::getElementsByType(gmsh_element_type, elem_tags, elementNodeTags, -1, my_rank, procs_n);
-    size_t global_element_count = elem_tags.size();
 
-    assert(elementNodeTags.size() == global_element_count*nodes_per_element);
+    gmsh::model::mesh::getElementsByType(gmsh_element_type, local_elem_tags, localElementNodeTags, -1);
 
-    uint64_t local_start = (my_rank * global_element_count) / procs_n;
-    uint64_t local_end = ((my_rank+1) * global_element_count) / procs_n;
-    uint64_t local_element_count = local_end-local_start;
+    // print_log("[", my_rank, "] local_elem_tags:", VectorToString(local_elem_tags));
 
-    std::vector<uint64_t> localElementNodeTags(elementNodeTags.begin()+(local_start*nodes_per_element), elementNodeTags.begin()+(local_end*nodes_per_element));
+  
+
+
+    // uint64_t local_start = (my_rank * global_element_count) / procs_n;
+    // uint64_t local_end = ((my_rank+1) * global_element_count) / procs_n;
+    // uint64_t local_element_count = local_end-lolocal_startcal_start;
+
+    size_t local_element_count = local_elem_tags.size();
     assert(localElementNodeTags.size() == local_element_count*nodes_per_element);
-    std::vector<uint64_t> local_elem_tags(elem_tags.begin()+(local_start), elem_tags.begin()+(local_end));
-    assert(local_elem_tags.size() == local_element_count);
-
-    // print_log("[", my_rank, "]:", "global_element_count = ", global_element_count);
-    // print_log("[", my_rank, "]:", "local_element_count = ", local_element_count);
-
-
-    // print_log("[", my_rank, "]:", VectorToString(local_elem_tags));
-    // print_log("[", my_rank, "]:", VectorToString(localElementNodeTags));
-
-
 
 
     std::vector<uint64_t> allNodeTags;
@@ -105,9 +98,6 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
     {
         node_tag_to_index[allNodeTags[node_i]] = node_i;
     }
-    
-
-
 
 
     std::vector<double> local_elem_coordinates(local_element_count* 3); // 3 for 3D - x,y,z
@@ -135,26 +125,38 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
         local_elem_coordinates[element_i * 3 + 2] = z;
     }
 
-    // print_log("[",my_rank,"]", VectorToString(local_elem_coordinates));
+    // now we load unique face tag information from partitioned .bin files
+
+    std::vector<uint64_t> elemTagsFromFile(local_element_count);
+    std::vector<uint64_t> faceTagsFromFile(local_element_count*faces_per_element);
+    std::unordered_map<uint64_t, uint64_t> fileElemToIdx;
+
+    std::string elemtags_part_file_path = part_file_prefix + "_" + std::to_string(my_rank + 1) + "elemTags.bin";
+    std::string facetags_part_file_path = part_file_prefix + "_" + std::to_string(my_rank + 1) + "faceTags.bin";
+
+    std::ifstream infile{elemtags_part_file_path, std::ios::binary};
+    infile.read(reinterpret_cast<char*>(elemTagsFromFile.data()), local_element_count * sizeof(uint64_t));
+    infile.close();
+
+    std::ifstream infile2{facetags_part_file_path, std::ios::binary};
+    infile2.read(reinterpret_cast<char*>(faceTagsFromFile.data()), local_element_count * faces_per_element * sizeof(uint64_t));
+    infile2.close();
+
+    // print_log("[", my_rank, "] elemTagsFromFile:", VectorToString(elemTagsFromFile));
+    // print_log("[", my_rank, "] faceTagsFromFile:", VectorToString(faceTagsFromFile));
+
+    
+    std::unordered_map<uint64_t, uint64_t> from_file_elem_tag_to_index; 
+    for (size_t elem_i = 0; elem_i < local_element_count; elem_i++)
+    {
+        from_file_elem_tag_to_index[elemTagsFromFile[elem_i]] = elem_i;
+    }
 
 
-    std::vector<std::size_t> faceNodes;
-    gmsh::model::mesh::getElementFaceNodes(gmsh_element_type, gmsh_face_type, faceNodes,-1,false,my_rank,procs_n);
-    assert(faceNodes.size() == (nodes_per_face * faces_per_element * global_element_count));
-
-    std::vector<uint64_t> localFaceNodes(faceNodes.begin()+(local_start*faces_per_element*nodes_per_face), faceNodes.begin()+(local_end*faces_per_element*nodes_per_face));
-    assert(localFaceNodes.size() == local_element_count*faces_per_element*nodes_per_face);
-    // print_log("[",my_rank,"] localFaceNodes: ", VectorToString(localFaceNodes));
+    // print_log("[", my_rank, "] localFaceTags:", VectorToString(localFaceTags));
 
 
-    gmsh::model::mesh::createFaces();
-    std::vector<std::size_t> localFaceTags;
-    std::vector<int> faceOrientations;
-    gmsh::model::mesh::getFaces(gmsh_face_type, localFaceNodes, localFaceTags, faceOrientations);
-    assert(localFaceTags.size() == (faces_per_element * local_element_count));
-    // print_log("[",my_rank,"] localFaceTags: ", VectorToString(localFaceTags));
     elements_out.resize(local_element_count);
-
 
     for (size_t element_i = 0; element_i < local_element_count; element_i++)
     {
@@ -163,9 +165,11 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
         elements_out[element_i].y = local_elem_coordinates[element_i*3+1];
         elements_out[element_i].z = local_elem_coordinates[element_i*3+2];
 
+        size_t element_i_in_file = from_file_elem_tag_to_index[local_elem_tags[element_i]];
+
         for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
         {
-            elements_out[element_i].face_tags[elem_face_i] = localFaceTags[element_i*faces_per_element + elem_face_i];
+            elements_out[element_i].face_tags[elem_face_i] = faceTagsFromFile[element_i_in_file*faces_per_element + elem_face_i];
         }
         
 
@@ -175,7 +179,8 @@ void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vecto
 
 
     gmsh::finalize();
-    // print_log("[",my_rank,"] elements_out: ", VectorToString(elements_out));
+
+    // print_log("[", my_rank, "] elements:", VectorToString(elements_out));
 
     
 }
@@ -234,7 +239,7 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
             {
                 if (last_face_added)
                 {
-                    throw std::runtime_error("more than two elements found for a face");
+                    throw std::runtime_error("more than two elements found for face : " + std::to_string(elements_with_faces[elem_face_i].face_tag));
                 }else
                 {
                     connected_element_pairs_out.push_back(

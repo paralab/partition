@@ -128,7 +128,7 @@ enum ElementType { TET=4, HEX=5 };
 
 Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags);
 
-ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm);
+ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm);
 
 template <class T>
 void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,

@@ -1,0 +1,4 @@
+results/
+build/
+*.vtk
+tmp/
