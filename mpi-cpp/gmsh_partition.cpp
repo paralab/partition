@@ -114,10 +114,12 @@ int main(int argc, char const *argv[])
     // gmsh::option::setNumber("Mesh.PartitionOldStyleMsh2", 1.0);
     // gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
 
-    gmsh::plugin::setNumber("SimplePartition", "NumSlicesX", parts_n);
-    gmsh::plugin::setNumber("SimplePartition", "NumSlicesY", 1);
-    gmsh::plugin::setNumber("SimplePartition", "NumSlicesZ", 1);
-    gmsh::plugin::run("SimplePartition");
+    gmsh::model::mesh::partition(parts_n);
+
+    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesX", parts_n);
+    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesY", 1);
+    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesZ", 1);
+    // gmsh::plugin::run("SimplePartition");
 
 
 
