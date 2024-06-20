@@ -223,6 +223,17 @@ private:
     std::vector<int> send_procs;
 
 
+    // for optimized async operations of exchanging updated only ghost counts
+    static constexpr int GHOST_COUNT_EXCHANGE_TAG = 2; 
+    MPI_Request* ghost_count_requests;      // recev + send
+    MPI_Status* ghost_count_statuses;      // recev + send
+
+    std::vector<int> updated_only_recv_counts;
+
+
+
+
+
     void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
     void CalculateDistanceFromUpdatedGhosts(std::vector<bool>& ghost_updated, std::vector<graph_indexing_t>& frontier_buffer,
         std::vector<bfs_distance_t>& distances_out);
@@ -234,6 +245,9 @@ private:
                                      std::vector<BFSValue>& ghost_send_buffer_prev,
                                      std::vector<BFSValue>& ghost_recv_buffer);
     void ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send_counts, std::vector<int>& updated_only_recv_counts_out);
+    void StartReceivingUpdatedOnlyGhostCounts();
+    void EndExchangingUpdatedOnlyGhostCounts(std::vector<int>& updated_only_send_counts, std::vector<int>& updated_only_recv_counts_out);
+
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
 

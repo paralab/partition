@@ -397,13 +397,13 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     bfs_distance_t ghost_min_update = 0;      
     if(procs_n > 1)
     {
-        std::vector<bfs_distance_t> distance_from_updated_ghosts(bfs_vector.size());
+        // std::vector<bfs_distance_t> distance_from_updated_ghosts(bfs_vector.size());
 
 
         //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
-        std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
-        std::vector<bool> vector_diff(bfs_vector.size());
-        std::vector<graph_indexing_t> tmp_frontier_buffer(bfs_vector.size());            // used for updated ghost distance calculation
+        // std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
+        // std::vector<bool> vector_diff(bfs_vector.size());
+        // std::vector<graph_indexing_t> tmp_frontier_buffer(bfs_vector.size());            // used for updated ghost distance calculation
         
         std::vector<BFSValue> ghost_send_buffer(this->send_count);
         std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
@@ -411,6 +411,11 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
 
         std::vector<bool> ghost_updated(this->ghost_count,false);
+
+        this->ghost_count_requests = new MPI_Request[this->ghost_procs.size() + this->send_procs.size()];
+        this->ghost_count_statuses = new MPI_Status[this->ghost_procs.size() + this->send_procs.size()];
+        this->updated_only_recv_counts.resize(procs_n);
+
         
         
         while (is_not_stable_global)
@@ -424,6 +429,14 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             is_not_stable_global = false;
             bool is_not_stable_local = true;
 
+            if (round_counter > 1)
+            {
+                auto start_ = std::chrono::high_resolution_clock::now();
+                this->StartReceivingUpdatedOnlyGhostCounts();
+                auto end_ = std::chrono::high_resolution_clock::now();
+                com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+            }
+            
             if (round_counter > 1)      // first round is already handled by the "special first iteration"
             {   
                 // is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_updated_ghosts);
@@ -444,11 +457,6 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             /**
              * ghost exchange
             */
-            // MPI_Alltoallv(ghost_send_buffer.data(),
-            //             this->send_counts.data(), this->send_counts_scanned.data(), par::Mpi_datatype<BFSValue>::value(), 
-            //             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(),
-            //             par::Mpi_datatype<BFSValue>::value(), comm);
-
             if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
             {
                 this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
@@ -514,6 +522,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
             
         } 
+
+        delete[] this->ghost_count_requests;
+        delete[] this->ghost_count_statuses;
+
     }
 
     // print_log("[", my_rank, "]: BFS done");
@@ -883,7 +895,9 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
 
     std::vector<int> updated_only_recv_counts(procs_n,0);
 
-    this->ExchangeUpdatedOnlyBFSCounts(updated_only_send_counts,updated_only_recv_counts);
+    this->EndExchangingUpdatedOnlyGhostCounts(updated_only_send_counts,updated_only_recv_counts);
+
+    // this->ExchangeUpdatedOnlyBFSCounts(updated_only_send_counts,updated_only_recv_counts);
     
     std::vector<int> updated_only_recv_counts_scanned(procs_n,0);
     omp_par::scan(&updated_only_recv_counts[0], &updated_only_recv_counts_scanned[0], procs_n);
@@ -960,13 +974,13 @@ void DistGraph::ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send
 
     for (auto& recv_proc : this->ghost_procs)
     {
-        par::Mpi_Irecv(&(updated_only_recv_counts_out[recv_proc]), 1, recv_proc, 2, this->comm, &(requests[mpi_idx]));
+        par::Mpi_Irecv(&(updated_only_recv_counts_out[recv_proc]), 1, recv_proc, this->GHOST_COUNT_EXCHANGE_TAG, this->comm, &(requests[mpi_idx]));
         mpi_idx++;
     }
     
     for (auto& send_proc : this->send_procs)
     {
-        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, 2, this->comm, &(requests[mpi_idx]));
+        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, this->comm, &(requests[mpi_idx]));
         mpi_idx++;
     }
 
@@ -975,6 +989,55 @@ void DistGraph::ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send
     delete [] requests;
     delete [] statuses;
     
+
+}
+
+
+/**
+ * this will issue the Mpi_Irecv requests. later we should wait on these requests.
+*/
+void DistGraph::StartReceivingUpdatedOnlyGhostCounts(){
+
+    std::fill(this->updated_only_recv_counts.begin(), this->updated_only_recv_counts.end(), 0);
+
+    int mpi_idx = 0;
+    for (auto& recv_proc : this->ghost_procs)
+    {
+        par::Mpi_Irecv(&(this->updated_only_recv_counts[recv_proc]), 1, recv_proc, this->GHOST_COUNT_EXCHANGE_TAG, 
+                this->comm, &(this->ghost_count_requests[mpi_idx]));
+        mpi_idx++;
+    }
+
+}
+
+/**
+ * Counterpart (i.e. the matching end) procedure of StartReceivingUpdatedOnlyGhostCounts
+*/
+void DistGraph::EndExchangingUpdatedOnlyGhostCounts(std::vector<int>& updated_only_send_counts, std::vector<int>& updated_only_recv_counts_out){
+
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+
+
+    // since the first part of this->ghost_count_requests contains the recev requests (from ghost procs), we have to offset that
+    int mpi_idx = this->ghost_procs.size();
+
+    for (auto& send_proc : this->send_procs)
+    {
+        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, 
+                this->comm, &(this->ghost_count_requests[mpi_idx]));
+        mpi_idx++;
+    }
+    // print_log("[", my_rank, "]: waiting on EndExchangingUpdatedOnlyGhostCounts");
+    MPI_Waitall(this->ghost_procs.size() + this->send_procs.size(), this->ghost_count_requests, this->ghost_count_statuses);
+    // print_log("[", my_rank, "]: done EndExchangingUpdatedOnlyGhostCounts");
+
+
+    std::copy(this->updated_only_recv_counts.begin(), updated_only_recv_counts.end(), updated_only_recv_counts_out.begin());
+
+    // exchange my own count (this is not actually needed since there are no ghost or sending vertices to self)
+    updated_only_recv_counts_out[my_rank] = updated_only_send_counts[my_rank];
 
 }
 
