@@ -77,7 +77,10 @@ int main(int argc, char *argv[])
     
 
 
-    if(!taskid) print_log("running on", numtasks, "MPI processs");
+    if(!taskid){
+        print_log("running on", numtasks, "MPI processs");
+        print_log("partitioning: ", original_file_path);
+    }
 
     ElementType elementType = GetElementType(part_file_prefix, MPI_COMM_WORLD);
     // print_log("element type: ", elementType);
