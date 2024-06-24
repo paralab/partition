@@ -980,7 +980,7 @@ void DistGraph::ExchangeUpdatedOnlyBFSCounts(std::vector<int>& updated_only_send
     
     for (auto& send_proc : this->send_procs)
     {
-        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, this->comm, &(requests[mpi_idx]));
+        par::Mpi_Isend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, this->comm, &(requests[mpi_idx]));
         mpi_idx++;
     }
 
@@ -1025,13 +1025,18 @@ void DistGraph::EndExchangingUpdatedOnlyGhostCounts(std::vector<int>& updated_on
 
     for (auto& send_proc : this->send_procs)
     {
-        par::Mpi_Issend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, 
+        par::Mpi_Isend(&(updated_only_send_counts[send_proc]), 1, send_proc, this->GHOST_COUNT_EXCHANGE_TAG, 
                 this->comm, &(this->ghost_count_requests[mpi_idx]));
         mpi_idx++;
     }
     // print_log("[", my_rank, "]: waiting on EndExchangingUpdatedOnlyGhostCounts");
+
+    // auto start_ = std::chrono::high_resolution_clock::now();
     MPI_Waitall(this->ghost_procs.size() + this->send_procs.size(), this->ghost_count_requests, this->ghost_count_statuses);
     // print_log("[", my_rank, "]: done EndExchangingUpdatedOnlyGhostCounts");
+    // auto end_ = std::chrono::high_resolution_clock::now();
+    // if(!my_rank) print_log("count exchange waitall time: ", std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_).count(), "us");
+
 
 
     std::copy(this->updated_only_recv_counts.begin(), updated_only_recv_counts.end(), updated_only_recv_counts_out.begin());

@@ -322,7 +322,7 @@ namespace par {
       //Next send the messages. Do not send to self.
       for(int i = 0; i < rank; i++) {
         if(sendcnts[i] > 0) {
-          par::Mpi_Issend<T>( &(sendbuf[sdispls[i]]), sendcnts[i], i, 1,
+          par::Mpi_Isend<T>( &(sendbuf[sdispls[i]]), sendcnts[i], i, 1,
               comm, &(requests[commCnt]) );
           commCnt++;
         }
@@ -330,7 +330,7 @@ namespace par {
 
       for(int i = (rank + 1); i < npes; i++) {
         if(sendcnts[i] > 0) {
-          par::Mpi_Issend<T>( &(sendbuf[sdispls[i]]), sendcnts[i], 
+          par::Mpi_Isend<T>( &(sendbuf[sdispls[i]]), sendcnts[i], 
               i, 1, comm, &(requests[commCnt]) );
           commCnt++;
         }
