@@ -64,8 +64,8 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 #     done
 # done
 
-parts_n=14
-mesh_file=/home/budvin/research/Partitioning/Meshes/10k_tet/196209_sf_hexa.mesh_73346_289961.obj.mesh
+parts_n=4
+mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
 part_file_prefix="$dir/tmp/part"
 
 

@@ -1,0 +1,15 @@
+10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh        // largest tet 1,598,423
+10k_tet/103087_sf_hexa.mesh_47428_166111.obj.mesh       // 838,216 tet
+10k_tet/959829_sf_hexa.mesh_27846_95178.obj.mesh        // 473,265 tet
+10k_tet/59749_sf_hexa.mesh_12474_51229.obj.mesh         // 242,437 tet
+10k_tet/69987_sf_hexa.mesh_7272_25474.obj.mesh          // 124,322 tet
+10k_tet/136935_sf_hexa.mesh_3592_12718.obj.mesh         // 61,088 tet
+
+
+
+10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh
+10k_tet/103087_sf_hexa.mesh_47428_166111.obj.mesh
+10k_tet/959829_sf_hexa.mesh_27846_95178.obj.mesh
+10k_tet/59749_sf_hexa.mesh_12474_51229.obj.mesh
+10k_tet/69987_sf_hexa.mesh_7272_25474.obj.mesh
+10k_tet/136935_sf_hexa.mesh_3592_12718.obj.mesh

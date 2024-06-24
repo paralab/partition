@@ -914,8 +914,12 @@ def get_grow_partitions_noised_BFS(G: nx.Graph ,seeds: list[int],partition_count
 
 
 
-def get_grow_partitions_2_passes_oversampled(G: nx.Graph ,seeds_oversampled: list[int],partition_count: int) -> typing.Dict[int,int]:
+# def get_grow_partitions_2_passes_oversampled(G: nx.Graph ,seeds_oversampled: list[int],partition_count: int) -> typing.Dict[int,int]:
     
+
+#     return get_BFS_partitions(G ,final_seeds,partition_count)
+
+def downsample_with_BFS(G: nx.Graph ,seeds_oversampled: list[int],final_count: int) -> list[int,int]:
     oversampled_partition_count  = len(seeds_oversampled)
     print(f"oversampled_partition_count: {oversampled_partition_count}")
 
@@ -975,7 +979,7 @@ def get_grow_partitions_2_passes_oversampled(G: nx.Graph ,seeds_oversampled: lis
 
 
     # removing bad seeds
-    while len(remaining_seeds) > partition_count and len(seeds_oversampled_pairwise_distances_sorted) > 0:
+    while len(remaining_seeds) > final_count and len(seeds_oversampled_pairwise_distances_sorted) > 0:
         # print(f"remaining_seeds: {remaining_seeds}")
         # print(f"seeds_oversampled_pairwise_distances_sorted:\n{seeds_oversampled_pairwise_distances_sorted}")
 
@@ -984,10 +988,10 @@ def get_grow_partitions_2_passes_oversampled(G: nx.Graph ,seeds_oversampled: lis
         seed_to_remove = closest_pair[0]        # TODO: have a better way to choose one from the pair
         remaining_seeds.remove(seed_to_remove)
         seeds_oversampled_pairwise_distances_sorted = list(filter(lambda x: x[0][0]!= seed_to_remove and x[0][1]!= seed_to_remove, seeds_oversampled_pairwise_distances_sorted))
-    if len(remaining_seeds) > partition_count:
+    if len(remaining_seeds) > final_count:
         print("removing still remaning additional seeds, randomly")
         random.seed(datetime.now().timestamp())
-        final_seeds = random.sample(remaining_seeds, partition_count)   # TODO: have a better to remove further remining seeds
+        final_seeds = random.sample(remaining_seeds, final_count)   # TODO: have a better to remove further remining seeds
     else:
         final_seeds = remaining_seeds
-    return get_BFS_partitions(G ,final_seeds,partition_count)
+    return final_seeds

@@ -26,33 +26,36 @@ import functools
 import math
 from datetime import datetime
 import time
+import subprocess
 
 from hilbertcurve.hilbertcurve import HilbertCurve
 
 
 from BFS_Partition import get_BFS_partitions, get_local_BFS_partitions, get_BFS_partitions_rand_seeds
-from grow_partition import get_grow_partitions_ordered_BFS, get_grow_partitions_noised_BFS, get_grow_partitions_2_passes_for_size_ratio, get_grow_partitions_2_passes_oversampled
+from grow_partition import get_grow_partitions_ordered_BFS, get_grow_partitions_noised_BFS, get_grow_partitions_2_passes_for_size_ratio, downsample_with_BFS
 # from graph_walk import get_seeds_with_walk
 
 # from parititions_by_oversampling import get_parititions_by_oversampling_all_graph_BFS, get_parititions_by_oversampling_early_stop_BFS, get_parititions_by_oversampling_remove_high_cut_partition, get_parititions_by_oversampling_remove_extra_once, get_parititions_by_oversampling_merge_high_cut_pair
 from parititions_by_oversampling import get_parititions_by_oversampling_merge_high_cut_pair
+from pagerank import get_pagerank_partitions, run_pagerank
 
-from vtk_utils import export_points_to_vtk
+
+from vtk_utils import export_points_scalar_to_vtk, export_points_to_vtk
 
 # %matplotlib widget
 method_names = ['SFC_morton','BFS','BFS_grow','METIS']
 
 
-folder = r'/home/budvin/research/Partitioning/Meshes/10k_tet/*.mesh'
+folder = r'/home/budvin/research/Partitioning/Meshes/10k_hex/*.mesh'
 gmsh.initialize() #sys.argv)
 
 stop_after = 70
 
-partition_count=50
+partition_count=3
 
 delete_vtk_files_after_viewing = True
 
-out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc_seed-2pass_2xoversample-np800-70largetetmeshes')
+out_file_name = datetime.now().strftime('%Y-%m-%d___%H-%M-%S-sfc_seed-pagerank-np200-70largehexmeshes')
 
 # out_file_name = "largest_mesh"
 
@@ -91,50 +94,51 @@ def get_metrics(p_count, parition_labels, graph, elem_to_idx_mapping):
 
 
 def to_integer_coords(data_points):
-    levels = 28
+    levels = 19
 
-    # # regular cube box method
+    # regular cube box method
 
-    # bounding_box = [math.inf,-math.inf]         # -limit to +limit
-    # for d in data_points:
-    #     bounding_box[0] = min(min(d),bounding_box[0])
-    #     bounding_box[1] = max(max(d),bounding_box[1])
-    
-    # leaf_node_length = (bounding_box[1] - bounding_box[0])/(2**levels)
-
-    # integer_data_points = []
-
-    # for d in data_points:
-    #     d_new = []
-    #     for dim_i in range(3):
-    #         d_new.append(int((d[dim_i]-bounding_box[0])/leaf_node_length) + 1)
-    #     integer_data_points.append(d_new)
-    # return integer_data_points
-
-    # # regular cube box method end
-
-
-    # cube djust for each dimension
-
-    bounding_box = [[math.inf,-math.inf],[math.inf,-math.inf],[math.inf,-math.inf]]     # x y z bounding box
+    bounding_box = [math.inf,-math.inf]         # -limit to +limit
     for d in data_points:
-        for i in range(3):      # 3 axes
-            bounding_box[i][0] = min(bounding_box[i][0],d[i])
-            bounding_box[i][1] = max(bounding_box[i][1],d[i])
-
-    leaf_node_lengths = [None,None,None]
-
-    for dim_i in range(3):
-        leaf_node_lengths[dim_i] = (bounding_box[i][1] - bounding_box[i][0])/(2**levels)
+        bounding_box[0] = min(min(d),bounding_box[0])
+        bounding_box[1] = max(max(d),bounding_box[1])
     
+    leaf_node_length = (bounding_box[1] - bounding_box[0])/(2**levels)
+
     integer_data_points = []
 
     for d in data_points:
         d_new = []
         for dim_i in range(3):
-            d_new.append(int((d[dim_i]-bounding_box[dim_i][0])/leaf_node_lengths[dim_i]) + 1)
+            d_new.append(int((d[dim_i]-bounding_box[0])/leaf_node_length))
         integer_data_points.append(d_new)
     return integer_data_points
+
+    # regular cube box method end
+
+
+    # # cube djust for each dimension
+
+    # bounding_box = [[math.inf,-math.inf],[math.inf,-math.inf],[math.inf,-math.inf]]     # x y z bounding box
+    # for d in data_points:
+    #     for i in range(3):      # 3 axes
+    #         bounding_box[i][0] = min(bounding_box[i][0],d[i])
+    #         bounding_box[i][1] = max(bounding_box[i][1],d[i])
+    # print(bounding_box)
+    # leaf_node_lengths = [None,None,None]
+
+    # for dim_i in range(3):
+    #     leaf_node_lengths[dim_i] = (bounding_box[dim_i][1] - bounding_box[dim_i][0])/(2**levels)
+    # print(leaf_node_lengths)
+    
+    # integer_data_points = []
+
+    # for d in data_points:
+    #     d_new = []
+    #     for dim_i in range(3):
+    #         d_new.append(int((d[dim_i]-bounding_box[dim_i][0])/leaf_node_lengths[dim_i]) + 1)
+    #     integer_data_points.append(d_new)
+    # return integer_data_points
 
 
 def morton_compare(p1_data, p2_data):
@@ -220,7 +224,7 @@ fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/129930_sf_hexa.mesh_
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh"    #mesh4
 
 
-fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_37260_195498.obj.mesh"       # a very large mesh with holes
+# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_37260_195498.obj.mesh"       # a very large mesh with holes
 
 # fname_ = "/home/budvin/research/Partitioning/mesh_generator/tetMesh3D_lvl0.msh"         # a regular tet mesh of a cube
 
@@ -233,15 +237,26 @@ fname_ = "/home/budvin/research/Partitioning/Meshes/10k_tet/69220_sf_hexa.mesh_3
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/40666_sf_hexa.mesh"
 
-# fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh"     #largest hex mesh 258038 elements
+fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh"     #largest hex mesh 258038 elements
 
 # fname_ = "/home/budvin/research/Partitioning/Meshes/10k_hex/60222_sf_hexa.mesh"
 
-fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/51140_sf_hexa.mesh'
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/51140_sf_hexa.mesh'
 
-fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/472091_sf_hexa.mesh'
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/66485_sf_hexa.mesh'
 
 # fname_ = "/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh"
+
+# fname_ = '/home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh'
+
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_hex/1356639_sf_hexa.mesh'
+
+# fname_= '/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh'
+
+# fname_ = '/home/budvin/research/Partitioning/Meshes/10k_tet/63461_sf_hexa.mesh_44484_213801.obj.mesh'  # 1.1M tet mesh
+
+
+fname_ = "/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh"
 
 list_of_files = filter(os.path.isfile, glob.glob(folder) ) 
   
@@ -262,7 +277,7 @@ file_list = [
 file_count = 0
 # for fname in glob.glob(folder):
 # for fname in [sorted_list_of_files[-1]]:
-# for fname in sorted_list_of_files[2800:]:
+# for fname in sorted_list_of_files[3100:]:
 # for fname in [file_list[1]]:
 # for fname in sorted_list_of_files:
 for fname in [fname_]:
@@ -414,15 +429,33 @@ for fname in [fname_]:
 
 
     # %%
+    # element_to_pagerank = run_pagerank(G, 1000,15,1)
+    # elem_idx_to_pagerank = [None for _ in range(len(elems))]
+
+    # for elem in element_to_pagerank:
+    #     elem_idx_to_pagerank[element_to_idx[elem]] = element_to_pagerank[elem]
+    # pagerank_vtk_file_name = f"{fname_.split('/')[-1]}___pagerank.vtk"
+    # export_points_scalar_to_vtk(elemCenterCoordsXYZ,elem_idx_to_pagerank,pagerank_vtk_file_name)
+    # my_env = os.environ.copy()
+    # my_env['pagerank_vtk_file_name'] = pagerank_vtk_file_name
+
+    # subprocess.run(['/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview','paraview_script_pagerank.py'],env=my_env)
+
+    # if delete_vtk_files_after_viewing:
+    #     os.remove(pagerank_vtk_file_name)
+    # exit(0)
+    # %%
 
 
 
-
+    # print(elemCenterCoordsXYZ)
     integer_elemCenterCoordsXYZ = to_integer_coords(elemCenterCoordsXYZ)
+    # print(integer_elemCenterCoordsXYZ)
     integer_elemCenterCoordsXYZ_with_index = [ [d,i] for (i,d) in enumerate(integer_elemCenterCoordsXYZ)]
 
     integer_elemCenterCoordsXYZ_morton_ordered_with_index = sorted(integer_elemCenterCoordsXYZ_with_index, key=functools.cmp_to_key(morton_compare))
     morton_order = [d[1] for d in integer_elemCenterCoordsXYZ_morton_ordered_with_index]
+    # print(morton_order)
 
 
     # %%
@@ -503,9 +536,17 @@ for fname in [fname_]:
     # ==================================
 
     # BFS_random_seed_indices = [random.randint(0, len(elems)) for _ in range(partition_count)]
+        
+    oversampled_indices = []
+    oversample_rate = 2
+    for sample_i in range(oversample_rate * partition_count):
+        oversampled_indices.append(morton_order[sample_i* (len(elemCenterCoordsXYZ)//(oversample_rate * partition_count))])
+    downsampled_seeds = downsample_with_BFS(G,[idx_to_element[c] for c in oversampled_indices],partition_count)
 
     start_time = time.perf_counter()
     element_to_BFS_partition = get_BFS_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
+    # element_to_BFS_partition = get_BFS_partitions(G,downsampled_seeds,partition_count)
+
     end_time = time.perf_counter()
 
 
@@ -527,12 +568,12 @@ for fname in [fname_]:
     # element_to_BFS_grow_partition = get_grow_partitions_2_passes_for_size_ratio(G,[idx_to_element[c] for c in center_element_indices],partition_count)
     # element_to_BFS_grow_partition = get_BFS_partitions_rand_seeds(G,partition_count)
     
-    oversampled_indices = []
-    oversample_rate = 2
-    for sample_i in range(oversample_rate * partition_count):
-        oversampled_indices.append(morton_order[sample_i* (len(elemCenterCoordsXYZ)//(oversample_rate * partition_count))])
 
-    element_to_BFS_grow_partition = get_grow_partitions_2_passes_oversampled(G,[idx_to_element[c] for c in oversampled_indices],partition_count)
+    
+    # element_to_BFS_grow_partition = get_BFS_partitions(G,downsampled_seeds,partition_count)
+
+    # element_to_BFS_grow_partition = get_pagerank_partitions(G,downsampled_seeds,partition_count)
+    element_to_BFS_grow_partition = get_local_BFS_partitions(G,[idx_to_element[c] for c in center_element_indices],partition_count)
 
     
     BFS_grow_partition_labels = [None for _ in range(len(elems))]
@@ -631,7 +672,6 @@ for labeling, method_name in zip([morton_sfc_partition_labels,BFS_partition_labe
 
 # %%
 
-import subprocess
 
 my_env = os.environ.copy()
 for i in range(len(method_names)):
