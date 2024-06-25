@@ -69,7 +69,7 @@ mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
 part_file_prefix="$dir/tmp/part"
 
 
-./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
+time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
 
 # exit 0
 
@@ -86,4 +86,4 @@ export METIS="$PWD/out-parmetis.vtk"
 export BFS="$PWD/out-bfs.vtk"
 export BFS_grow="$PWD/out-grow.vtk"
 
-/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../grow/paraview_script.py
+/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../misc/grow/paraview_script.py

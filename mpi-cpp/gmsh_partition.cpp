@@ -22,6 +22,8 @@ int main(int argc, char const *argv[])
     
     gmsh::open(input_mesh_file_path);
 
+    // re-number to a continous range (starting from 1) so we can do a matvec later
+    gmsh::model::mesh::renumberNodes();
 
     std::vector<int> elementTypes;
     gmsh::model::mesh::getElementTypes(elementTypes, 3);
@@ -110,16 +112,16 @@ int main(int argc, char const *argv[])
     gmsh::option::setNumber("Mesh.PartitionCreateTopology", 0.0);
     gmsh::option::setNumber("Mesh.PartitionCreatePhysicals", 0.0);
 
-
+    gmsh::option::setNumber("Mesh.Binary", 1);
     // gmsh::option::setNumber("Mesh.PartitionOldStyleMsh2", 1.0);
     // gmsh::option::setNumber("Mesh.MshFileVersion", 2.2);
 
-    gmsh::model::mesh::partition(parts_n);
+    // gmsh::model::mesh::partition(parts_n);
 
-    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesX", parts_n);
-    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesY", 1);
-    // gmsh::plugin::setNumber("SimplePartition", "NumSlicesZ", 1);
-    // gmsh::plugin::run("SimplePartition");
+    gmsh::plugin::setNumber("SimplePartition", "NumSlicesX", parts_n);
+    gmsh::plugin::setNumber("SimplePartition", "NumSlicesY", 1);
+    gmsh::plugin::setNumber("SimplePartition", "NumSlicesZ", 1);
+    gmsh::plugin::run("SimplePartition");
 
 
 
@@ -127,9 +129,11 @@ int main(int argc, char const *argv[])
     gmsh::write(output_path_prefix + ".msh");
 
     // partitioning done
+    std::cout << "gmsh simple partitioning done" << std::endl;
 
     
 
+    std::cout << "calculating global unique face tags" << std::endl;
     // now we save the face tag information in a partitioned way
 
     // taken from https://gitlab.onelab.info/gmsh/gmsh/-/issues/2333#note_19656
@@ -192,6 +196,6 @@ int main(int argc, char const *argv[])
 
 
 
-    std::cout << "gmsh simple partitioning done" << std::endl;
+    std::cout << "face tag calculation done" << std::endl;
     return 0;
 }
