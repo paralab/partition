@@ -552,7 +552,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         partition_labels_out[local_i] = bfs_vector[local_i].label;
     }
 
-    return {.return_code = 0, .time_ms = duration.count()};
+    return {.return_code = 0, .time_us = duration.count()};
 
 }
 

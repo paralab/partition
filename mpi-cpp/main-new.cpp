@@ -104,17 +104,17 @@ int main(int argc, char *argv[])
     {
     case ElementType::TET:
     {
-        std::vector<TetElementWithFaces> localElementsAllData;
-        GetElementsWithFacesCentroids<TetElementWithFaces>(part_file_prefix, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
+        std::vector<TetElementWithFacesNodes> localElementsAllData;
+        GetElementsWithFacesNodesCentroids<TetElementWithFacesNodes>(part_file_prefix, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
-        std::vector<TetElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
+        std::vector<TetElementWithFacesNodes> localElementsAllDataSorted(localElementsAllData.size());
         if (! taskid)
         {
             print_log("starting sfc sort");
         }
         MPI_Barrier(MPI_COMM_WORLD);
         auto start = std::chrono::high_resolution_clock::now();
-        par::sampleSort<TetElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
+        par::sampleSort<TetElementWithFacesNodes>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
         // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
         
     
-        ResolveLocalElementConnectivity<TetElementWithFaces>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
+        ResolveLocalElementConnectivity<TetElementWithFacesNodes>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
         // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
 
 
@@ -159,17 +159,17 @@ int main(int argc, char *argv[])
     }
     case ElementType::HEX:
     {
-        std::vector<HexElementWithFaces> localElementsAllData;
-        GetElementsWithFacesCentroids<HexElementWithFaces>(part_file_prefix, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
+        std::vector<HexElementWithFacesNodes> localElementsAllData;
+        GetElementsWithFacesNodesCentroids<HexElementWithFacesNodes>(part_file_prefix, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
         SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
-        std::vector<HexElementWithFaces> localElementsAllDataSorted(localElementsAllData.size());
+        std::vector<HexElementWithFacesNodes> localElementsAllDataSorted(localElementsAllData.size());
         if (! taskid)
         {
             print_log("starting sfc sort");
         }
         MPI_Barrier(MPI_COMM_WORLD);
         auto start = std::chrono::high_resolution_clock::now();
-        par::sampleSort<HexElementWithFaces>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
+        par::sampleSort<HexElementWithFacesNodes>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
         // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
         
     
-        ResolveLocalElementConnectivity<HexElementWithFaces>(localElementsAllDataSorted,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
+        ResolveLocalElementConnectivity<HexElementWithFacesNodes>(localElementsAllDataSorted,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
         // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
 
 
@@ -292,9 +292,9 @@ int main(int argc, char *argv[])
 
         ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_ms,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_ms,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us,
                                 metrics_out_file_path);
 
     }
@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
         
     // }
     
-    // std::vector<TetElementWithFaces> localElementsAllData(8);
+    // std::vector<TetElementWithFacesNodes> localElementsAllData(8);
     // print_log(VectorToString(localElementsAllData));
     // std::vector<double> elem_coords;
     // std::vector<size_t> elem_tags;

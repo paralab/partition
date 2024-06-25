@@ -201,10 +201,10 @@ to this user-defined datatype.
     };
 
     template <>
-    class Mpi_datatype<TetElementWithFaces> {
+    class Mpi_datatype<TetElementWithFacesNodes> {
 
 	  /** 
-          @return the MPI_Datatype for the C++ datatype "TetElementWithFaces"
+          @return the MPI_Datatype for the C++ datatype "TetElementWithFacesNodes"
          **/
         public:
         static MPI_Datatype value() {
@@ -214,19 +214,21 @@ to this user-defined datatype.
             if (first)
             {
                 first = false;
-                int block_lengths[7] = {1, 1, 1, 1, 1, 1, 4};
-                MPI_Datatype types[7] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T};
-                MPI_Aint offsets[7];
-                offsets[0] = offsetof(TetElementWithFaces, element_tag);
-                offsets[1] = offsetof(TetElementWithFaces, global_idx);
-                offsets[2] = offsetof(TetElementWithFaces, x);
-                offsets[3] = offsetof(TetElementWithFaces, y);
-                offsets[4] = offsetof(TetElementWithFaces, z);
-                offsets[5] = offsetof(TetElementWithFaces, morton_encoding);
-                offsets[6] = offsetof(TetElementWithFaces, face_tags);
+                int block_lengths[8] = {1, 1, 1, 1, 1, 1, 4, 4};
+                MPI_Datatype types[8] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[8];
+                offsets[0] = offsetof(TetElementWithFacesNodes, element_tag);
+                offsets[1] = offsetof(TetElementWithFacesNodes, global_idx);
+                offsets[2] = offsetof(TetElementWithFacesNodes, x);
+                offsets[3] = offsetof(TetElementWithFacesNodes, y);
+                offsets[4] = offsetof(TetElementWithFacesNodes, z);
+                offsets[5] = offsetof(TetElementWithFacesNodes, morton_encoding);
+                offsets[6] = offsetof(TetElementWithFacesNodes, face_tags);
+                offsets[7] = offsetof(TetElementWithFacesNodes, node_tags);
 
 
-                MPI_Type_create_struct(7, block_lengths, offsets, types, &custom_mpi_type);
+
+                MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
                 MPI_Type_commit(&custom_mpi_type);
             }       
 
@@ -237,10 +239,10 @@ to this user-defined datatype.
     };
 
     template <>
-    class Mpi_datatype<HexElementWithFaces> {
+    class Mpi_datatype<HexElementWithFacesNodes> {
 
 	  /** 
-          @return the MPI_Datatype for the C++ datatype "HexElementWithFaces"
+          @return the MPI_Datatype for the C++ datatype "HexElementWithFacesNodes"
          **/
         public:
         static MPI_Datatype value() {
@@ -250,19 +252,21 @@ to this user-defined datatype.
             if (first)
             {
                 first = false;
-                int block_lengths[7] = {1, 1, 1, 1, 1, 1, 6};
-                MPI_Datatype types[7] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T};
-                MPI_Aint offsets[7];
-                offsets[0] = offsetof(TetElementWithFaces, element_tag);
-                offsets[1] = offsetof(TetElementWithFaces, global_idx);
-                offsets[2] = offsetof(TetElementWithFaces, x);
-                offsets[3] = offsetof(TetElementWithFaces, y);
-                offsets[4] = offsetof(TetElementWithFaces, z);
-                offsets[5] = offsetof(TetElementWithFaces, morton_encoding);
-                offsets[6] = offsetof(TetElementWithFaces, face_tags);
+                int block_lengths[8] = {1, 1, 1, 1, 1, 1, 6, 8};
+                MPI_Datatype types[8] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[8];
+                offsets[0] = offsetof(HexElementWithFacesNodes, element_tag);
+                offsets[1] = offsetof(HexElementWithFacesNodes, global_idx);
+                offsets[2] = offsetof(HexElementWithFacesNodes, x);
+                offsets[3] = offsetof(HexElementWithFacesNodes, y);
+                offsets[4] = offsetof(HexElementWithFacesNodes, z);
+                offsets[5] = offsetof(HexElementWithFacesNodes, morton_encoding);
+                offsets[6] = offsetof(HexElementWithFacesNodes, face_tags);
+                offsets[7] = offsetof(HexElementWithFacesNodes, node_tags);
 
 
-                MPI_Type_create_struct(7, block_lengths, offsets, types, &custom_mpi_type);
+
+                MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
                 MPI_Type_commit(&custom_mpi_type);
             }       
 

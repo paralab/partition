@@ -8,7 +8,7 @@
 // #include "mesh-util.hpp"
 #include "../util/util.hpp"
 
-struct TetElementWithFaces {
+struct TetElementWithFacesNodes {
     uint64_t element_tag;
     uint64_t global_idx;
     double x;
@@ -16,26 +16,27 @@ struct TetElementWithFaces {
     double z;
     uint64_t morton_encoding;
     uint64_t face_tags[4];
-    bool operator==(const TetElementWithFaces& other) const {
+    uint64_t node_tags[4];
+    bool operator==(const TetElementWithFacesNodes& other) const {
         return morton_encoding == other.morton_encoding;
     }
-    bool operator<(const TetElementWithFaces& other) const {
+    bool operator<(const TetElementWithFacesNodes& other) const {
         return morton_encoding < other.morton_encoding;
     }
-    bool operator<=(const TetElementWithFaces& other) const {
+    bool operator<=(const TetElementWithFacesNodes& other) const {
         return morton_encoding <= other.morton_encoding;
     }
-    bool operator>=(const TetElementWithFaces& other) const {
+    bool operator>=(const TetElementWithFacesNodes& other) const {
         return morton_encoding >= other.morton_encoding;
     }
-    bool operator>(const TetElementWithFaces& other) const {
+    bool operator>(const TetElementWithFacesNodes& other) const {
         return morton_encoding > other.morton_encoding;
     }
 };
-// Overloading the << operator for TetElementWithFaces
-std::ostream& operator<<(std::ostream& os, const TetElementWithFaces& obj);
+// Overloading the << operator for TetElementWithFacesNodes
+std::ostream& operator<<(std::ostream& os, const TetElementWithFacesNodes& obj);
 
-struct HexElementWithFaces {
+struct HexElementWithFacesNodes {
     uint64_t element_tag;
     uint64_t global_idx;
     double x;
@@ -43,25 +44,26 @@ struct HexElementWithFaces {
     double z;
     uint64_t morton_encoding;
     uint64_t face_tags[6];
-    bool operator==(const HexElementWithFaces& other) const {
+    uint64_t node_tags[8];
+    bool operator==(const HexElementWithFacesNodes& other) const {
         return morton_encoding == other.morton_encoding;
     }
-    bool operator<(const HexElementWithFaces& other) const {
+    bool operator<(const HexElementWithFacesNodes& other) const {
         return morton_encoding < other.morton_encoding;
     }
-    bool operator<=(const HexElementWithFaces& other) const {
+    bool operator<=(const HexElementWithFacesNodes& other) const {
         return morton_encoding <= other.morton_encoding;
     }
-    bool operator>=(const HexElementWithFaces& other) const {
+    bool operator>=(const HexElementWithFacesNodes& other) const {
         return morton_encoding >= other.morton_encoding;
     }
-    bool operator>(const HexElementWithFaces& other) const {
+    bool operator>(const HexElementWithFacesNodes& other) const {
         return morton_encoding > other.morton_encoding;
     }
 };
 
-// Overloading the << operator for HexElementWithFaces
-std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj);
+// Overloading the << operator for HexElementWithFacesNodes
+std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj);
 
 
 
@@ -131,7 +133,7 @@ Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double
 ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm);
 
 template <class T>
-void GetElementsWithFacesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
+void GetElementsWithFacesNodesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
                           ElementType element_type, MPI_Comm comm);
 
 

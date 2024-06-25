@@ -13,7 +13,7 @@
 #include <stdexcept>
 
 template <class T>
-void GetElementsWithFacesCentroids(const std::string &part_file_prefix, std::vector<T> &elements_out,
+void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std::vector<T> &elements_out,
                           ElementType element_type, MPI_Comm comm)
 {
     int procs_n, my_rank;
@@ -164,6 +164,13 @@ void GetElementsWithFacesCentroids(const std::string &part_file_prefix, std::vec
         elements_out[element_i].x = local_elem_coordinates[element_i*3];
         elements_out[element_i].y = local_elem_coordinates[element_i*3+1];
         elements_out[element_i].z = local_elem_coordinates[element_i*3+2];
+
+        for (size_t elem_node_i = 0; elem_node_i < nodes_per_element; elem_node_i++)
+        {
+            size_t nodeTag = localElementNodeTags[element_i*nodes_per_element + elem_node_i];
+            elements_out[element_i].node_tags[elem_node_i] = nodeTag;
+        }
+
 
         size_t element_i_in_file = from_file_elem_tag_to_index[local_elem_tags[element_i]];
 

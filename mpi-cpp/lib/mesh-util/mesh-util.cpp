@@ -270,25 +270,40 @@ ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm){
 
 }
 
-// Overloading the << operator for TetElementWithFaces
-std::ostream& operator<<(std::ostream& os, const TetElementWithFaces& obj) {
-    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+// Overloading the << operator for TetElementWithFacesNodes
+std::ostream& operator<<(std::ostream& os, const TetElementWithFacesNodes& obj) {
+    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", faces[";
     for (size_t i = 0; i < 4; i++)
     {
         os << (i?",": " ") << obj.face_tags[i] ;
     
     }
+    os << "], nodes[";
+
+    for (size_t i = 0; i < 4; i++)
+    {
+        os << (i?",": " ") << obj.node_tags[i] ;
+    
+    }
+
+
     os << "])";
     
     return os;
 }
 
-// Overloading the << operator for HexElementWithFaces
-std::ostream& operator<<(std::ostream& os, const HexElementWithFaces& obj) {
-    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", [";
+// Overloading the << operator for HexElementWithFacesNodes
+std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj) {
+    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", faces[";
     for (size_t i = 0; i < 6; i++)
     {
         os << (i?",": " ") << obj.face_tags[i] ;
+    
+    }
+    os << "], nodes[";
+    for (size_t i = 0; i < 8; i++)
+    {
+        os << (i?",": " ") << obj.node_tags[i] ;
     
     }
     os << "])";

@@ -23,8 +23,8 @@ void GetSamplesFromOrdered(std::vector<uint64_t> &order, std::vector<uint64_t> &
 // template <typename T> std::string VectorToString(std::vector<T> vec);
 
 // // Explicit instantiation of the specialized template
-// extern template std::string VectorToString<TetElementWithFaces>(std::vector<TetElementWithFaces> vec);
-// extern template std::string VectorToString<HexElementWithFaces>(std::vector<HexElementWithFaces> vec);
+// extern template std::string VectorToString<TetElementWithFacesNodes>(std::vector<TetElementWithFacesNodes> vec);
+// extern template std::string VectorToString<HexElementWithFacesNodes>(std::vector<HexElementWithFacesNodes> vec);
 
 // Variadic template function to mimic std::cout with spaces between arguments
 template<typename T, typename... Args>
@@ -88,7 +88,7 @@ void ExportMetricsToPandasJson(
 struct PartitionStatus
 {
     int return_code;
-    int time_ms;
+    int time_us;
 };
 
 #endif

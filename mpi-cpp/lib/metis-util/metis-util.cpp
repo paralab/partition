@@ -70,6 +70,6 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
         print_log("ParMetis time:\t\t\t", duration.count(), " us");
     }
     partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
-    return {.return_code = return_code, .time_ms = duration.count()};
+    return {.return_code = return_code, .time_us = duration.count()};
 
 }
