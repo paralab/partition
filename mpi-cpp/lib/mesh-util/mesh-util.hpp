@@ -7,6 +7,7 @@
 #include "mpi.h"
 // #include "mesh-util.hpp"
 #include "../util/util.hpp"
+#include "../usort/dtypes.h"
 
 struct TetElementWithFacesNodes {
     uint64_t element_tag;
@@ -124,6 +125,224 @@ struct ElementWithTag
 };
 std::ostream& operator<<(std::ostream& os, const ElementWithTag& obj);
 
+namespace par
+{
+    template <>
+    class Mpi_datatype<TetElementWithFacesNodes> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "TetElementWithFacesNodes"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[8] = {1, 1, 1, 1, 1, 1, 4, 4};
+                MPI_Datatype types[8] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[8];
+                offsets[0] = offsetof(TetElementWithFacesNodes, element_tag);
+                offsets[1] = offsetof(TetElementWithFacesNodes, global_idx);
+                offsets[2] = offsetof(TetElementWithFacesNodes, x);
+                offsets[3] = offsetof(TetElementWithFacesNodes, y);
+                offsets[4] = offsetof(TetElementWithFacesNodes, z);
+                offsets[5] = offsetof(TetElementWithFacesNodes, morton_encoding);
+                offsets[6] = offsetof(TetElementWithFacesNodes, face_tags);
+                offsets[7] = offsetof(TetElementWithFacesNodes, node_tags);
+
+
+
+                MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<HexElementWithFacesNodes> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "HexElementWithFacesNodes"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[8] = {1, 1, 1, 1, 1, 1, 6, 8};
+                MPI_Datatype types[8] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[8];
+                offsets[0] = offsetof(HexElementWithFacesNodes, element_tag);
+                offsets[1] = offsetof(HexElementWithFacesNodes, global_idx);
+                offsets[2] = offsetof(HexElementWithFacesNodes, x);
+                offsets[3] = offsetof(HexElementWithFacesNodes, y);
+                offsets[4] = offsetof(HexElementWithFacesNodes, z);
+                offsets[5] = offsetof(HexElementWithFacesNodes, morton_encoding);
+                offsets[6] = offsetof(HexElementWithFacesNodes, face_tags);
+                offsets[7] = offsetof(HexElementWithFacesNodes, node_tags);
+
+
+
+                MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<ElementWithFace> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "ElementWithFace"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[3] = {1, 1, 1};
+                MPI_Datatype types[3] = {MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[3];
+                offsets[0] = offsetof(ElementWithFace, element_tag);
+                offsets[1] = offsetof(ElementWithFace, global_idx);
+                offsets[2] = offsetof(ElementWithFace, face_tag);
+
+
+                MPI_Type_create_struct(3, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<ElementWithTag> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "ElementWithTag"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[2] = {1, 1};
+                MPI_Datatype types[2] = {MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[2];
+                offsets[0] = offsetof(ElementWithTag, element_tag);
+                offsets[1] = offsetof(ElementWithTag, global_idx);
+
+
+
+                MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<ElementWithCoord> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "ElementWithCoord"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[5] = {1, 1, 1, 1, 1};
+                MPI_Datatype types[5] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE};
+                MPI_Aint offsets[5];
+                offsets[0] = offsetof(ElementWithCoord, element_tag);
+                offsets[1] = offsetof(ElementWithCoord, global_idx);
+                offsets[2] = offsetof(ElementWithCoord, x);
+                offsets[3] = offsetof(ElementWithCoord, y);
+                offsets[4] = offsetof(ElementWithCoord, z);
+
+
+
+
+                MPI_Type_create_struct(5, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_pairtype<ElementWithTag,ElementWithTag> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "std::pair<ElementWithTag,ElementWithTag>"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                
+                first = false;
+                MPI_Datatype inner_type = Mpi_datatype<ElementWithTag>::value();
+                
+                int second_value_offset;
+                MPI_Type_size(inner_type, &second_value_offset);
+                int block_lengths[2] = {1, 1};
+                MPI_Datatype types[2] = {inner_type, inner_type};
+                MPI_Aint offsets[2];
+                offsets[0] = 0;
+                offsets[1] = static_cast<MPI_Aint>(second_value_offset);
+
+
+                MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+
+
+}
+
 
 enum ElementType { TET=4, HEX=5 };
 
@@ -154,6 +373,11 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
                           std::vector<uint64_t>& proc_element_counts_scanned,
                           std::vector<ElementWithTag>& ghost_elements_out, std::vector<int>& ghost_element_counts_out,
                           MPI_Comm comm);
+
+
+
+template <class T>
+void Redestribute(const std::vector<T> &elements, std::vector<uint16_t>& labeling, MPI_Comm comm);
 #include "mesh-util.tcc"
 
 #endif

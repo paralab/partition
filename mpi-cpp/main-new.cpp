@@ -21,6 +21,9 @@
 #include "vtk-util.hpp"
 #endif
 
+template <class T>
+void ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm);
+
 int main(int argc, char *argv[])
 {
     int numtasks, taskid, len;
@@ -92,6 +95,11 @@ int main(int argc, char *argv[])
 
     std::vector<uint64_t> proc_element_counts(numtasks);
     std::vector<uint64_t> proc_element_counts_scanned(numtasks);
+
+
+    std::vector<TetElementWithFacesNodes> localElementsAllData_Tet;     // contains all information about face tags, node tags
+    std::vector<HexElementWithFacesNodes> localElementsAllData_Hex;
+
     std::vector<ElementWithCoord> local_elements;       // contains {element_tag, global_idx, [x,y,z]}
     std::vector<std::pair<ElementWithTag, ElementWithTag>> local_connected_element_pairs;
     std::vector<std::pair<ElementWithTag, ElementWithTag>> boundary_connected_element_pairs;
@@ -100,126 +108,92 @@ int main(int argc, char *argv[])
 
 
 
+    
     switch (elementType)
     {
     case ElementType::TET:
     {
-        std::vector<TetElementWithFacesNodes> localElementsAllData;
-        GetElementsWithFacesNodesCentroids<TetElementWithFacesNodes>(part_file_prefix, localElementsAllData, ElementType::TET, MPI_COMM_WORLD);
-        SetMortonEncoding(localElementsAllData,ElementType::TET,MPI_COMM_WORLD);
-        std::vector<TetElementWithFacesNodes> localElementsAllDataSorted(localElementsAllData.size());
-        if (! taskid)
-        {
-            print_log("starting sfc sort");
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-        auto start = std::chrono::high_resolution_clock::now();
-        par::sampleSort<TetElementWithFacesNodes>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
-        MPI_Barrier(MPI_COMM_WORLD);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        if (! taskid)
-        {
-            print_log("global sfc sort done");
-            print_log("SFC sort time:\t", duration.count(), " us");
-        }
-        // print_log("[", taskid, "]: ", "global SFC sort done");
-
-
-        local_element_count = localElementsAllDataSorted.size();
-        local_elements.resize(local_element_count);
-        MPI_Allgather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,MPI_COMM_WORLD);
-
-        MPI_Allreduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,MPI_COMM_WORLD);
-
-        omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],numtasks);
-        uint64_t global_idx_start = proc_element_counts_scanned[taskid];
-        // print_log("[", taskid, "]: proc_element_counts_scanned ", VectorToString(proc_element_counts_scanned));
-        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
-        {
-            localElementsAllDataSorted[local_elem_i].global_idx = global_idx_start + local_elem_i;
-            local_elements[local_elem_i].global_idx = global_idx_start + local_elem_i;
-
-            local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
-            local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
-            local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
-            local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
-
-        }
-        // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
-        
-    
-        ResolveLocalElementConnectivity<TetElementWithFacesNodes>(localElementsAllDataSorted,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
-        // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
-
-
-        ResolveBoundaryElementConnectivity(local_unconnected_elements_faces,proc_element_counts, boundary_connected_element_pairs,MPI_COMM_WORLD);
-
+        ReadAndDistributeSFC(part_file_prefix, ElementType::TET, localElementsAllData_Tet, MPI_COMM_WORLD);
+        local_element_count = localElementsAllData_Tet.size();
         break;
     }
     case ElementType::HEX:
     {
-        std::vector<HexElementWithFacesNodes> localElementsAllData;
-        GetElementsWithFacesNodesCentroids<HexElementWithFacesNodes>(part_file_prefix, localElementsAllData, ElementType::HEX, MPI_COMM_WORLD);
-        SetMortonEncoding(localElementsAllData,ElementType::HEX,MPI_COMM_WORLD);
-        std::vector<HexElementWithFacesNodes> localElementsAllDataSorted(localElementsAllData.size());
-        if (! taskid)
-        {
-            print_log("starting sfc sort");
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-        auto start = std::chrono::high_resolution_clock::now();
-        par::sampleSort<HexElementWithFacesNodes>(localElementsAllData,localElementsAllDataSorted,MPI_COMM_WORLD);
-        MPI_Barrier(MPI_COMM_WORLD);
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        if (! taskid)
-        {
-            print_log("global sfc sort done");
-            print_log("SFC sort time:\t", duration.count(), " us");
-        }
-        
-        // print_log("[", taskid, "]: ", "global SFC sort done");
-
-
-        local_element_count = localElementsAllDataSorted.size();
-        local_elements.resize(local_element_count);
-        MPI_Allgather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,MPI_COMM_WORLD);
-
-        MPI_Allreduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,MPI_COMM_WORLD);
-
-        omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],numtasks);
-        uint64_t global_idx_start = proc_element_counts_scanned[taskid];
-        // print_log("[", taskid, "]: proc_element_counts_scanned ", VectorToString(proc_element_counts_scanned));
-        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
-        {
-            localElementsAllDataSorted[local_elem_i].global_idx = global_idx_start + local_elem_i;
-            local_elements[local_elem_i].global_idx = global_idx_start + local_elem_i;
-
-            local_elements[local_elem_i].element_tag = localElementsAllDataSorted[local_elem_i].element_tag;
-            local_elements[local_elem_i].x = localElementsAllDataSorted[local_elem_i].x;
-            local_elements[local_elem_i].y = localElementsAllDataSorted[local_elem_i].y;
-            local_elements[local_elem_i].z = localElementsAllDataSorted[local_elem_i].z;
-
-        }
-        // print_log("[", taskid, "]:", "local_element_count = ", local_element_count);
-        // print_log("[", taskid, "]:", "localElementsAllDataSorted = ", VectorToString(localElementsAllDataSorted));
-        
-    
-        ResolveLocalElementConnectivity<HexElementWithFacesNodes>(localElementsAllDataSorted,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
-        // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
-
-
-        ResolveBoundaryElementConnectivity(local_unconnected_elements_faces,proc_element_counts, boundary_connected_element_pairs,MPI_COMM_WORLD);
-
+        ReadAndDistributeSFC(part_file_prefix, ElementType::HEX, localElementsAllData_Hex, MPI_COMM_WORLD);
+        local_element_count = localElementsAllData_Hex.size();
         break;
     }
-
-    default: {
+    
+    default:
+    {
         throw std::runtime_error("Unknown element type");
         break;
     }
+        
     }
+    
+   
+    
+    MPI_Allgather(&local_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,MPI_COMM_WORLD);
+
+    MPI_Allreduce(&local_element_count,&global_element_count,1,MPI_UINT64_T,MPI_SUM,MPI_COMM_WORLD);
+
+    omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],numtasks);
+
+    local_elements.resize(local_element_count);
+    uint64_t global_idx_start = proc_element_counts_scanned[taskid];
+
+    switch (elementType)
+    {
+    case ElementType::TET:
+    {
+        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
+        {
+            localElementsAllData_Tet[local_elem_i].global_idx = global_idx_start + local_elem_i;
+            local_elements[local_elem_i].global_idx = global_idx_start + local_elem_i;
+
+            local_elements[local_elem_i].element_tag = localElementsAllData_Tet[local_elem_i].element_tag;
+            local_elements[local_elem_i].x = localElementsAllData_Tet[local_elem_i].x;
+            local_elements[local_elem_i].y = localElementsAllData_Tet[local_elem_i].y;
+            local_elements[local_elem_i].z = localElementsAllData_Tet[local_elem_i].z;
+
+        }
+        ResolveLocalElementConnectivity(localElementsAllData_Tet,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
+        break;
+    }
+    case ElementType::HEX:
+    {
+
+        for (size_t local_elem_i = 0; local_elem_i < local_element_count; local_elem_i++)
+        {
+            localElementsAllData_Hex[local_elem_i].global_idx = global_idx_start + local_elem_i;
+            local_elements[local_elem_i].global_idx = global_idx_start + local_elem_i;
+
+            local_elements[local_elem_i].element_tag = localElementsAllData_Hex[local_elem_i].element_tag;
+            local_elements[local_elem_i].x = localElementsAllData_Hex[local_elem_i].x;
+            local_elements[local_elem_i].y = localElementsAllData_Hex[local_elem_i].y;
+            local_elements[local_elem_i].z = localElementsAllData_Hex[local_elem_i].z;
+
+        }
+        ResolveLocalElementConnectivity(localElementsAllData_Hex,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
+        break;
+    }
+    
+    default:
+    {
+        throw std::runtime_error("Unknown element type");
+        break;
+    }
+        
+    }
+
+
+    // print_log("[", taskid, "]:", "local_elements = ", VectorToString(local_elements));
+
+
+    ResolveBoundaryElementConnectivity(local_unconnected_elements_faces,proc_element_counts, boundary_connected_element_pairs,MPI_COMM_WORLD);
+
+
 
     std::vector<ElementWithTag> ghost_elements;
     std::vector<int> ghost_element_counts(numtasks);
@@ -230,11 +204,9 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("graph formation done");
 
-    // print_log("[", taskid, "]:\n", dist_graph.GraphToString());
-    // print_log("[", taskid, "]:\n", dist_graph.PrintDist());
 
     if(!taskid) print_log("starting BFS partitioning");
-    std::vector<uint16_t> local_bfs_partition_labels(local_element_count);
+    std::vector<uint16_t> local_bfs_partition_labels(local_element_count);      // TODO: make the label type consistent with bfs_label_t or int32
     auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels);
     if(!taskid) print_log("BFS partitioning done");
 
@@ -285,6 +257,7 @@ int main(int argc, char *argv[])
     // MPI_Gatherv(local_grow_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_grow_partition_labels.data(),
     //             proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
     // dist_graph.GetPartitionMetrics(nullptr,NULL,NULL,NULL);
+
 
 
     if (! taskid)
@@ -354,69 +327,55 @@ int main(int argc, char *argv[])
 
     #endif
     
+    switch (elementType)
+    {
+    case ElementType::TET:
+    {
+        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels, MPI_COMM_WORLD);
+        break;
+    }
+    case ElementType::HEX:
+    {
+        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels, MPI_COMM_WORLD);
+        break;
+    }
     
-    
-
-    // if (!taskid)
-    // {
-    //     global_element_partition_labels_morton.resize(global_element_count);
-    //     uint64_t sum=0;
-    //     for (size_t part_i = 0; part_i < numtasks; part_i++)
-    //     {
-    //         uint64_t start = sum;
-    //         uint64_t end = sum+proc_element_counts[part_i];
-    //         for (size_t element_i = start; element_i < end; element_i++)
-    //         {
-    //             global_element_partition_labels_morton[element_i] = part_i;
-    //         }
-    //         sum+=proc_element_counts[part_i];
-            
-    //     }
-    //     // print_log(VectorToString(global_element_coords));
-
-    //     // print_log(VectorToString(global_element_partition_labels_morton));
-    //     PointsWithPartitionsToVtk(global_element_coords,global_element_partition_labels_morton,global_element_count,"out-sfc.vtk");
-
+    default:
+    {
+        throw std::runtime_error("Unknown element type");
+        break;
+    }
         
-    // }
-    
-    // std::vector<TetElementWithFacesNodes> localElementsAllData(8);
-    // print_log(VectorToString(localElementsAllData));
-    // std::vector<double> elem_coords;
-    // std::vector<size_t> elem_tags;
-
-    // Graph element_connectivity_graph =  GmshGetElementGraph(file_path, elem_coords, elem_tags);
-    // uint64_t element_count = element_connectivity_graph.GetSize();
-
-    // // print_log(VectorToString(elem_coords));
-    // std::vector<uint64_t> morton_order_indices = SortMorton(elem_coords, element_count);
-    // std::vector<uint64_t> SFC_partition_labels(element_count);
-    // AssignPartitionLabelsInOrder(morton_order_indices, element_count,partition_count,SFC_partition_labels);
-    // PointsWithPartitionsToVtk(elem_coords,SFC_partition_labels,element_count,"out-sfc.vtk");
-
-    // std::vector<uint64_t> BFS_seeds(partition_count);
-
-    // GetSamplesFromOrdered(morton_order_indices, elem_tags,partition_count, BFS_seeds);
-    // element_connectivity_graph.InitMultiBFS(BFS_seeds, partition_count);
-    // auto start = std::chrono::high_resolution_clock::now();
-    // element_connectivity_graph.RunMultiBFSToStable();
-    // auto end = std::chrono::high_resolution_clock::now();
-    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    // print_log("Multi BFS time:\t", duration.count(), " ms");
-
-    // auto BFS_partition_labels = element_connectivity_graph.GetMultiBFSLabels();
-
-
-    // // std::vector<double> BFS_partition_labels_(BFS_partition_labels.begin(), BFS_partition_labels.end());
-    // PointsWithPartitionsToVtk(elem_coords,BFS_partition_labels,element_count,"out-bfs.vtk");
-    // // PointsToVtk(elem_integer_coords_,element_count, "out-integer.vtk");
-    // auto xadj = element_connectivity_graph.GetCSR_xadj();
-    // auto adjncy = element_connectivity_graph.GetCSR_adjncy();
-    // print_log("csr done");
-    // auto metis_partition_labels = GetMETISPartitions(xadj, adjncy, (int32_t)element_count, (int32_t)partition_count);
-    // PointsWithPartitionsToVtk(elem_coords,metis_partition_labels,element_count,"out-metis.vtk");
-    // }
-    
+    }
+   
     MPI_Finalize();
     return 0;
+}
+
+template <class T>
+void ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm){
+
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+
+    std::vector<T> initial_elements;        // before SFC
+    GetElementsWithFacesNodesCentroids<T>(part_file_prefix, initial_elements, element_type, MPI_COMM_WORLD);
+    SetMortonEncoding(initial_elements,element_type,MPI_COMM_WORLD);
+    elements_out.resize(initial_elements.size());
+    if (! my_rank)
+    {
+        print_log("starting sfc sort");
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto start = std::chrono::high_resolution_clock::now();
+    par::sampleSort<T>(initial_elements,elements_out,MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    if (! my_rank)
+    {
+        print_log("global sfc sort done");
+        print_log("SFC sort time:\t", duration.count(), " us");
+    }
 }

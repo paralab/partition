@@ -288,3 +288,95 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
     // const std::vector<T> elements_cpy(elements);
     // const std::vector<T> elements_sorted(elements);
 }
+
+
+/**
+ * Given a new labeling (i.e. a new partitioning) this function redestributes elements.
+ * The input `elements` vector is modified by this function)
+*/
+template <class T>
+void Redestribute(const std::vector<T> &elements, std::vector<uint16_t>& labeling, MPI_Comm comm){
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+
+    assert(elements.size() == labeling.size());
+    
+    std::vector<std::pair<uint64_t, uint16_t>> idx_label_pairs(elements.size());    // temp array for sorting
+
+    for (uint64_t i = 0; i < elements.size(); i++)
+    {        
+        idx_label_pairs[i] = {i, labeling[i]};
+    }
+
+    std::sort(idx_label_pairs.begin(), idx_label_pairs.end(), 
+        [](auto &left, auto &right) {
+            return left.second < right.second;
+        }
+    );
+
+    const std::vector<T> elements_ordered(elements.size());
+
+    for (uint64_t i = 0; i < elements.size(); i++)
+    {        
+        elements_ordered[i] = elements[idx_label_pairs[i].first];
+    }
+
+
+
+
+    std::vector<int> send_counts(procs_n);
+    {
+        uint64_t current_proc = 0;
+        for (uint64_t i = 0; i < elements_ordered.size(); i++)
+        {
+            if (idx_label_pairs[i].second == current_proc)
+            {
+                send_counts[current_proc]++;
+            } else
+            {
+                while (1)
+                {
+                    current_proc++;
+                    if (idx_label_pairs[i].second == current_proc)
+                    {
+                        send_counts[current_proc]++;
+                        break;
+                    }                    
+                }
+                
+            }   
+        }       
+
+    }
+    // print_log("[", my_rank, "]: elements", VectorToString(elements));
+    // print_log("[", my_rank, "]: labeling", VectorToString(labeling));
+
+
+    std::vector<int> recev_counts(procs_n);
+
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT, recev_counts.data(), 1, MPI_INT, comm);
+
+    // print_log("[", my_rank, "]: recev_counts", VectorToString(recev_counts));
+
+    std::vector<int> send_displs(procs_n);
+    omp_par::scan(&send_counts[0],&send_displs[0],procs_n);
+    // print_log("[", my_rank, "]: send_displs", VectorToString(send_displs));
+
+
+
+    std::vector<int> recv_displs(procs_n);
+    omp_par::scan(&recev_counts[0],&recv_displs[0],procs_n);
+    // print_log("[", my_rank, "]: recv_displs", VectorToString(recv_displs));
+
+    int total_receive_count = recev_counts[procs_n-1]+recv_displs[procs_n-1];
+    
+    elements.resize(total_receive_count);
+    MPI_Alltoallv(elements_ordered.data(),
+                  send_counts.data(), send_displs.data(), par::Mpi_datatype<T>::value(), 
+                  elements.data(), recev_counts.data(), recv_displs.data(),
+                  par::Mpi_datatype<T>::value(), comm);
+    // print_log("[", my_rank, "]: new elements", VectorToString(elements));
+    
+    
+}
