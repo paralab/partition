@@ -1,7 +1,6 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include "../graph/graph.hpp"
 
 #include <iostream>
 #include <sstream>
@@ -11,12 +10,6 @@
 #include "../mesh-util/mesh-util.hpp"
 
 
-bool IsValidVertex(int x, int graph_size);
-bool IsMyVertex(vertex_t v, int my_rank, int num_tasks, int graph_size);
-int GetMyBoundarySize(Graph& graph, int my_rank, int num_tasks, int graph_size, int N);
-std::vector<vertex_t> GetMyBoundaryVertices(Graph& graph, int my_rank, int num_tasks, int graph_size, int N);
-std::vector<std::vector<int>> GetMyGhostVerticesRelativeIndices(Graph& graph, std::vector<vertex_t> external_vertices, std::vector<int> external_vertex_counts, int my_rank, int num_tasks, int graph_size, int N);
-void AddEdgesToGhostVertex(Graph& graph, vertex_t v, int my_rank, int num_tasks, int graph_size, int N);
 void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, uint64_t count, uint64_t partition_count, std::vector<uint64_t> &labels_out);
 void GetSamplesFromOrdered(std::vector<uint64_t> &order, std::vector<uint64_t> &input_arr, uint64_t sample_count, std::vector<uint64_t> &samples_out);
 

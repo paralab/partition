@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <string>
-#include "../graph/graph.hpp"
+// #include "../graph/graph.hpp"
 #include "mpi.h"
 // #include "mesh-util.hpp"
 #include "../util/util.hpp"
@@ -347,7 +347,7 @@ namespace par
 enum ElementType { TET=4, HEX=5 };
 
 
-Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags);
+// Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags);
 
 ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm);
 
