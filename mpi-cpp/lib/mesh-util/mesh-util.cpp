@@ -333,6 +333,23 @@ std::ostream& operator<<(std::ostream& os, const ElementWithTag& obj) {
     return os;
 }
 
+// Overloading the << operator for NodeLocationPair
+std::ostream& operator<<(std::ostream& os, const NodeLocationPair& obj) {
+    os << "(" << obj.node_tag << "," << obj.location_rank  << ")";
+    // os << obj.global_idx;
+    
+    return os;
+}
+
+
+// Overloading the << operator for NodeNewInfo
+std::ostream& operator<<(std::ostream& os, const NodeNewInfo& obj) {
+    os << "(" << obj.node_tag << "," << obj.location_rank << "," << obj.owner_rank << "," << obj.global_idx  << ")";
+    // os << obj.global_idx;
+    
+    return os;
+}
+
 void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_element_faces,
                                         std::vector<uint64_t> &proc_element_counts,
                                         std::vector<std::pair<ElementWithTag, ElementWithTag>> &boundary_connected_element_pairs_out,
@@ -343,10 +360,10 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
     MPI_Comm_rank(comm, &my_rank);
     uint64_t local_element_count = proc_element_counts[my_rank];
     std::vector<ElementWithFace> unpaired_element_faces_sorted(unpaired_element_faces.size());
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(comm);
 
     par::sampleSort<ElementWithFace>(unpaired_element_faces,unpaired_element_faces_sorted,comm);
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(comm);
     // print_log("[", my_rank, "]: unpaired_element_faces_sorted", VectorToString(unpaired_element_faces_sorted));
 
     std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_boundary_element_pairs;

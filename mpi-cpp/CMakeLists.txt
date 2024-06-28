@@ -150,6 +150,23 @@ set(PARMETIS_LIBRARY "${PARMETIS_INSTALL_DIR_PATH}/lib/libparmetis.so")
 include_directories(${PARMETIS_INCLUDE_DIR})
 
 
+if(NOT PETSC_INSTALL_DIR_PATH)
+    message(FATAL_ERROR "The PETSC_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DPETSC_INSTALL_DIR_PATH=/path/to/petsc/build ")
+endif()
+
+set(PETSC_INCLUDE_DIR "${PETSC_INSTALL_DIR_PATH}/include")
+set(PETSC_LIBRARY "${PETSC_INSTALL_DIR_PATH}/lib/libpetsc.so")
+
+include_directories(${PETSC_INCLUDE_DIR})
+
+
+if(ENABLE_PETSC_DRAW_FEATURES)
+    message("PETSC draw features enabled")
+    add_compile_definitions(ENABLE_PETSC_DRAW_FEATURES=1)
+endif()
+
+
+
 # a python helper script is used for exporting partition metrics to json
 # hence we need python dev
 find_package(Python3 COMPONENTS Interpreter Development)
@@ -164,9 +181,9 @@ set(MAIN_TARGET_NAME "main-new")
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
 add_subdirectory(lib)
 
-include_directories(lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph)
+include_directories(lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph lib/linalg)
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES})
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES} ${PETSC_LIBRARY})
 
 if(ENABLE_VTK_FEATURES)
     include_directories(lib/vtk-util)

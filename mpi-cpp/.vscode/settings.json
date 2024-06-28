@@ -86,10 +86,12 @@
         "METIS_INSTALL_DIR_PATH": "/home/budvin/bin/METIS-5.2.1/build/build",
         "GKLIB_INSTALL_DIR_PATH": "/home/budvin/bin/GKlib-master/build/Linux-x86_64/build",
         "PARMETIS_INSTALL_DIR_PATH": "/home/budvin/bin/ParMETIS/build/Linux-x86_64/build",
+        "PETSC_INSTALL_DIR_PATH": "/home/budvin/bin/petsc/build/install",
         "ENABLE_VTK_FEATURES": "ON",
+        "ENABLE_PETSC_DRAW_FEATURES": "ON",
         "GRAPH_INDEXING_TYPE": "32",
         "BFS_DISTANCE_TYPE": "32",
-        "BFS_LABEL_TYPE": "32"
+        "BFS_LABEL_TYPE": "16"
 
     }
 }

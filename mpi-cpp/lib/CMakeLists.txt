@@ -6,6 +6,8 @@ add_subdirectory(metis-util)
 add_subdirectory(usort SYSTEM)
 add_subdirectory(dist-graph)
 
+add_subdirectory(linalg)
+
 if(ENABLE_VTK_FEATURES)
     add_subdirectory(vtk-util)
 endif()

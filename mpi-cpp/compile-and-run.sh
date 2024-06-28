@@ -11,6 +11,8 @@ GMSH_SDK_PATH=/home/budvin/bin/gmsh-4.13.0-source/build/install
 METIS_INSTALL_DIR_PATH=/home/budvin/bin/METIS-5.2.1/build/build
 GKLIB_INSTALL_DIR_PATH=/home/budvin/bin/GKlib-master/build/Linux-x86_64/build
 PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
+PETSC_INSTALL_DIR_PATH=/home/budvin/bin/petsc/build/install
+
 
 mkdir -p build
 
@@ -19,14 +21,16 @@ cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PAT
     -DVTK_INSTALL_DIR_PATH=/home/budvin/bin/VTK-9.3.0/build \
     -DMETIS_INSTALL_DIR_PATH=${METIS_INSTALL_DIR_PATH} \
     -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
-    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=32 -DBFS_LABEL_TYPE=16
+    -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} \
+    -DPETSC_INSTALL_DIR_PATH=${PETSC_INSTALL_DIR_PATH} \
+    -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=32 -DBFS_LABEL_TYPE=16
 
 ninja -C ./build
 
 echo "====== complation done ==============="
 
 
-export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
 
 # python with pandas needed for metrics export in json format
@@ -65,7 +69,7 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 # done
 
 parts_n=4
-mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
+mesh_file=/home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh
 part_file_prefix="$dir/tmp/part"
 
 

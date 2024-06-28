@@ -74,7 +74,7 @@ struct ElementWithFace
     uint64_t global_idx;
     uint64_t face_tag;
     bool operator==(const ElementWithFace& other) const {
-        return face_tag < other.face_tag;
+        return face_tag == other.face_tag;
     }
     bool operator<(const ElementWithFace& other) const {
         return face_tag < other.face_tag;
@@ -108,7 +108,7 @@ struct ElementWithTag
     uint64_t element_tag;
     uint64_t global_idx;
     bool operator==(const ElementWithTag& other) const {
-        return global_idx < other.global_idx;
+        return global_idx == other.global_idx;
     }
     bool operator<(const ElementWithTag& other) const {
         return global_idx < other.global_idx;
@@ -124,6 +124,64 @@ struct ElementWithTag
     }
 };
 std::ostream& operator<<(std::ostream& os, const ElementWithTag& obj);
+
+
+/**
+ * node_tag and its current MPI rank
+*/
+struct NodeLocationPair
+{
+    uint64_t node_tag;
+    int location_rank;
+
+    bool operator==(const NodeLocationPair& other) const {
+        return node_tag == other.node_tag;
+    }
+    bool operator<(const NodeLocationPair& other) const {
+        return node_tag < other.node_tag;
+    }
+    bool operator<=(const NodeLocationPair& other) const {
+        return node_tag <= other.node_tag;
+    }
+    bool operator>=(const NodeLocationPair& other) const {
+        return node_tag >= other.node_tag;
+    }
+    bool operator>(const NodeLocationPair& other) const {
+        return node_tag > other.node_tag;
+    }
+
+};
+
+std::ostream& operator<<(std::ostream& os, const NodeLocationPair& obj);
+
+
+
+struct NodeNewInfo
+{
+    uint64_t node_tag;
+    int location_rank;
+    int owner_rank;
+    uint64_t global_idx;
+
+    bool operator==(const NodeNewInfo& other) const {
+        return node_tag == other.node_tag;
+    }
+    bool operator<(const NodeNewInfo& other) const {
+        return node_tag < other.node_tag;
+    }
+    bool operator<=(const NodeNewInfo& other) const {
+        return node_tag <= other.node_tag;
+    }
+    bool operator>=(const NodeNewInfo& other) const {
+        return node_tag >= other.node_tag;
+    }
+    bool operator>(const NodeNewInfo& other) const {
+        return node_tag > other.node_tag;
+    }
+
+};
+
+std::ostream& operator<<(std::ostream& os, const NodeNewInfo& obj);
 
 namespace par
 {
@@ -339,7 +397,66 @@ namespace par
         }
     };
 
+    template <>
+    class Mpi_datatype<NodeLocationPair> {
 
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "NodeLocationPair"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[2] = {1, 1};
+                MPI_Datatype types[2] = {MPI_UINT64_T, MPI_INT};
+                MPI_Aint offsets[2];
+                offsets[0] = offsetof(NodeLocationPair, node_tag);
+                offsets[1] = offsetof(NodeLocationPair, location_rank);
+
+
+
+                MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }
+
+            return custom_mpi_type;
+        }
+    };
+
+
+    template <>
+    class Mpi_datatype<NodeNewInfo> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "NodeNewInfo"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[4] = {1, 1, 1, 1};
+                MPI_Datatype types[4] = {MPI_UINT64_T, MPI_INT, MPI_INT, MPI_UINT64_T};
+                MPI_Aint offsets[4];
+                offsets[0] = offsetof(NodeNewInfo, node_tag);
+                offsets[1] = offsetof(NodeNewInfo, location_rank);
+                offsets[2] = offsetof(NodeNewInfo, owner_rank);
+                offsets[3] = offsetof(NodeNewInfo, global_idx);
+
+                MPI_Type_create_struct(4, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }
+
+            return custom_mpi_type;
+        }
+    };
 
 }
 
@@ -377,7 +494,13 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
 
 
 template <class T>
-void Redestribute(const std::vector<T> &elements, std::vector<uint16_t>& labeling, MPI_Comm comm);
+void Redestribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, std::vector<T> &elements_out, MPI_Comm comm);
+
+// template <class T>
+// void GetOwnNodes(const std::vector<T> &local_elements, ElementType element_type, std::vector<u_int64_t>& own_node_tags_out, MPI_Comm comm);
+template <class T>
+void GetNodetagToGlobalIdx(const std::vector<T> &local_elements, ElementType element_type, 
+        std::unordered_map<uint64_t, uint64_t>& mapping_out, uint64_t& global_count_out, uint64_t& local_start_out, uint64_t& local_end_out, MPI_Comm comm);
 #include "mesh-util.tcc"
 
 #endif

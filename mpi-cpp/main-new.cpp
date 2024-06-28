@@ -4,6 +4,7 @@
 #include "sfc.hpp"
 #include "metis-util.hpp"
 #include "dist-graph.hpp"
+#include "linalg.hpp"
 #include <string>
 #include <stdexcept>
 
@@ -331,12 +332,37 @@ int main(int argc, char *argv[])
     {
     case ElementType::TET:
     {
-        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels, MPI_COMM_WORLD);
+        if(!taskid) print_log("testing SFC partitioning");
+        TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
+
+        if(!taskid) print_log("testing BFS partitioning");
+        std::vector<TetElementWithFacesNodes> localElementsAllData_Tet_2;
+        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+        TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
+
+
+        if(!taskid) print_log("testing parMETIS partitioning");
+        localElementsAllData_Tet_2.clear();
+        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+        TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
+
         break;
     }
     case ElementType::HEX:
     {
-        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels, MPI_COMM_WORLD);
+        if(!taskid) print_log("testing SFC partitioning");
+        TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+
+        if(!taskid) print_log("testing BFS partitioning");
+        std::vector<HexElementWithFacesNodes> localElementsAllData_Hex_2;
+        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+        TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+
+
+        if(!taskid) print_log("testing parMETIS partitioning");
+        localElementsAllData_Hex_2.clear();
+        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+        TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
         break;
     }
     
