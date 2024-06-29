@@ -22,8 +22,14 @@
 #include "vtk-util.hpp"
 #endif
 
+struct SFCStatus
+{
+    int return_code;
+    int time_us;
+};
+
 template <class T>
-void ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm);
+SFCStatus ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm);
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +54,7 @@ int main(int argc, char *argv[])
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
     if (argc < 7) {
-        std::cerr << "Usage: " << argv[0] << "<original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1; // indicating an error
     }
     const std::string original_file_path = argv[1];
@@ -72,7 +78,7 @@ int main(int argc, char *argv[])
     }else
     {
         std::cerr << "Invalid flag: " << viz_flag_str << std::endl;
-        std::cerr << "Usage: " << argv[0] << "<original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1;
     }
     
@@ -108,19 +114,19 @@ int main(int argc, char *argv[])
     std::vector<ElementWithFace> local_unconnected_elements_faces;
 
 
-
+    SFCStatus sfc_status;
     
     switch (elementType)
     {
     case ElementType::TET:
     {
-        ReadAndDistributeSFC(part_file_prefix, ElementType::TET, localElementsAllData_Tet, MPI_COMM_WORLD);
+        sfc_status = ReadAndDistributeSFC(part_file_prefix, ElementType::TET, localElementsAllData_Tet, MPI_COMM_WORLD);
         local_element_count = localElementsAllData_Tet.size();
         break;
     }
     case ElementType::HEX:
     {
-        ReadAndDistributeSFC(part_file_prefix, ElementType::HEX, localElementsAllData_Hex, MPI_COMM_WORLD);
+        sfc_status = ReadAndDistributeSFC(part_file_prefix, ElementType::HEX, localElementsAllData_Hex, MPI_COMM_WORLD);
         local_element_count = localElementsAllData_Hex.size();
         break;
     }
@@ -261,17 +267,6 @@ int main(int argc, char *argv[])
 
 
 
-    if (! taskid)
-    {   
-
-        ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
-                                global_sfc_partition_sizes, global_sfc_partition_boundaries,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us,
-                                metrics_out_file_path);
-
-    }
 
     #ifdef ENABLE_VTK_FEATURES
     if (viz_flag)
@@ -328,41 +323,50 @@ int main(int argc, char *argv[])
 
     #endif
     
+    DistributionStatus bfs_distribution_status;
+    DistributionStatus parmetis_distribution_status;
+
+    SpMVStatus sfc_spmv_status;
+    SpMVStatus bfs_spmv_status;
+    SpMVStatus parmetis_spmv_status;
+
+
+
     switch (elementType)
     {
     case ElementType::TET:
     {
         if(!taskid) print_log("testing SFC partitioning");
-        TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
+        sfc_spmv_status = TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
 
         if(!taskid) print_log("testing BFS partitioning");
         std::vector<TetElementWithFacesNodes> localElementsAllData_Tet_2;
-        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
+        bfs_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+        bfs_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
 
 
         if(!taskid) print_log("testing parMETIS partitioning");
         localElementsAllData_Tet_2.clear();
-        Redestribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
+        parmetis_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+        parmetis_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
         break;
     }
     case ElementType::HEX:
     {
         if(!taskid) print_log("testing SFC partitioning");
-        TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+        sfc_spmv_status = TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
         if(!taskid) print_log("testing BFS partitioning");
         std::vector<HexElementWithFacesNodes> localElementsAllData_Hex_2;
-        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+        bfs_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+        bfs_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
 
         if(!taskid) print_log("testing parMETIS partitioning");
         localElementsAllData_Hex_2.clear();
-        Redestribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+        parmetis_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+        parmetis_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
         break;
     }
     
@@ -373,13 +377,23 @@ int main(int argc, char *argv[])
     }
         
     }
+    if (! taskid)
+    {   
+
+        ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
+                                global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, parmetis_distribution_status.time_us, parmetis_spmv_status.mat_assembly_time_us, parmetis_spmv_status.matvec_time_us,
+                                metrics_out_file_path);
+
+    }
    
     MPI_Finalize();
     return 0;
 }
 
 template <class T>
-void ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm){
+SFCStatus ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm){
 
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
@@ -404,4 +418,10 @@ void ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type
         print_log("global sfc sort done");
         print_log("SFC sort time:\t", duration.count(), " us");
     }
+
+    SFCStatus status;
+    status.return_code = 0;
+    status.time_us = duration.count();
+
+    return status;
 }

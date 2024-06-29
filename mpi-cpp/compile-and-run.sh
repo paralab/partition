@@ -18,6 +18,7 @@ mkdir -p build
 
 cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PATH=${GMSH_SDK_PATH} \
     -DENABLE_VTK_FEATURES=ON \
+    -DENABLE_PETSC_DRAW_FEATURES=OFF \
     -DVTK_INSTALL_DIR_PATH=/home/budvin/bin/VTK-9.3.0/build \
     -DMETIS_INSTALL_DIR_PATH=${METIS_INSTALL_DIR_PATH} \
     -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
@@ -59,35 +60,36 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
 
-# for file_idx in "${!mesh_file_list[@]}"; do 
-#     for np in 4 8
-#     do
-#         for run_idx in {0..2}; do
-#             mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz
-#         done
-#     done
-# done
-
-parts_n=4
-mesh_file=/home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh
 part_file_prefix="$dir/tmp/part"
 
 
-time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
+for file_idx in "${!mesh_file_list[@]}"; do 
+    for np in 2 4
+    do
+        time ./build/gmsh_partition /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $np $part_file_prefix
+        for run_idx in {0..2}; do
+            mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $part_file_prefix $file_idx $run_idx $dir/test.json  -no-viz
+        done
+        rm "${part_file_prefix}"*
+    done
+done
 
-# exit 0
-
-mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
-
-rm "${part_file_prefix}"*
-
-# mpirun -np 4 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2.msh 0 0 $dir/test.json -viz
 
 
+# parts_n=10
+# mesh_file=/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh
 
-export SFC_morton="$PWD/out-sfc.vtk"
-export METIS="$PWD/out-parmetis.vtk"
-export BFS="$PWD/out-bfs.vtk"
-export BFS_grow="$PWD/out-grow.vtk"
 
-/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../misc/grow/paraview_script.py
+# time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
+# mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
+# rm "${part_file_prefix}"*
+
+
+
+
+# export SFC_morton="$PWD/out-sfc.vtk"
+# export METIS="$PWD/out-parmetis.vtk"
+# export BFS="$PWD/out-bfs.vtk"
+# export BFS_grow="$PWD/out-grow.vtk"
+
+# /home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../misc/grow/paraview_script.py

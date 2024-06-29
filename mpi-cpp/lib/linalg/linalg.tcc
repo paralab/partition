@@ -8,7 +8,7 @@
 
 
 template <class T>
-void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz_flag, MPI_Comm comm)
+SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz_flag, MPI_Comm comm)
 {
 
     int procs_n, my_rank;
@@ -29,15 +29,15 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
     Vec             x, y;       
     Mat             A;        
 
-    PetscFunctionBeginUser;
+    // PetscFunctionBeginUser;
     PETSC_COMM_WORLD = comm;
-    PetscCall(PetscInitializeNoArguments());
+    PetscCallThrow(PetscInitializeNoArguments());
 
 
     // setting matrix
-    PetscCall(MatCreate(PETSC_COMM_WORLD, &A));
-    PetscCall(MatSetSizes(A, local_count, local_count, global_node_count, global_node_count));
-    PetscCall(MatSetFromOptions(A));
+    PetscCallThrow(MatCreate(PETSC_COMM_WORLD, &A));
+    PetscCallThrow(MatSetSizes(A, local_count, local_count, global_node_count, global_node_count));
+    PetscCallThrow(MatSetFromOptions(A));
 
     // populating the matrix with elemental matrices
     for (auto & local_element : elements)
@@ -49,7 +49,7 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
             {
                 PetscInt global_y = static_cast<PetscInt>(node_tag_to_global_idx_map[node_y]);
                 PetscScalar val = 1.0;
-                PetscCall(MatSetValue(A, global_x, global_y, val, ADD_VALUES));
+                PetscCallThrow(MatSetValue(A, global_x, global_y, val, ADD_VALUES));
             }
         }
         
@@ -61,8 +61,8 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
     // matrix assembly
     MPI_Barrier(comm);
     auto mat_assemble_start = std::chrono::high_resolution_clock::now();
-    PetscCall(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY));
-    PetscCall(MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY));
+    PetscCallThrow(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY));
+    PetscCallThrow(MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY));
     MPI_Barrier(comm);
     auto mat_assemble_end = std::chrono::high_resolution_clock::now();
     auto mat_assemble_duration = std::chrono::duration_cast<std::chrono::microseconds>(mat_assemble_end - mat_assemble_start);
@@ -75,8 +75,8 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
     if (viz_flag)
     {
         PetscViewer     viewer;
-        PetscCall(PetscViewerDrawOpen(PETSC_COMM_WORLD, NULL, "Matrix Structure", PETSC_DECIDE, PETSC_DECIDE, 500, 500, &viewer));
-        PetscCall(PetscViewerDrawSetPause(viewer, -1));
+        PetscCallThrow(PetscViewerDrawOpen(PETSC_COMM_WORLD, NULL, "Matrix Structure", PETSC_DECIDE, PETSC_DECIDE, 500, 500, &viewer));
+        PetscCallThrow(PetscViewerDrawSetPause(viewer, -1));
         MatView(A, viewer);
     }
     #endif
@@ -85,7 +85,7 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
     // MatView(A, PETSC_VIEWER_STDOUT_WORLD);
 
     // setup vectors for y = Ax
-    PetscCall(MatCreateVecs(A, &x, &y));
+    PetscCallThrow(MatCreateVecs(A, &x, &y));
     for (auto & local_element : elements)
     {
         for (uint64_t node : local_element.node_tags)
@@ -93,7 +93,7 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
 
             PetscInt global_idx= static_cast<PetscInt>(node_tag_to_global_idx_map[node]);
             PetscScalar val = 1.0;
-            PetscCall(VecSetValue(x, global_idx, val, ADD_VALUES));            
+            PetscCallThrow(VecSetValue(x, global_idx, val, ADD_VALUES));            
         }     
     }
 
@@ -132,6 +132,12 @@ void TestSpMV(const std::vector<T> &elements, ElementType element_type, bool viz
     PetscFinalize();
     if(!my_rank) print_log("SpMV done");
 
-    PetscFunctionReturn();  
+    SpMVStatus status;
+
+    status.return_code = 0;
+    status.mat_assembly_time_us = mat_assemble_duration.count();
+    status.matvec_time_us = matvec_duration.count();
+
+    return status;
 
 }

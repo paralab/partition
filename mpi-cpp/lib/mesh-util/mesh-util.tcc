@@ -15,6 +15,7 @@
 #include "../usort/parUtils.h"
 
 #include <stdexcept>
+#include <chrono>
 
 template <class T>
 void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std::vector<T> &elements_out,
@@ -295,19 +296,21 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
 
 
 /**
- * Given a new labeling (i.e. a new partitioning) this function redestributes elements_in.
+ * Given a new labeling (i.e. a new partitioning) this function redistributes elements_in.
  * Output is in elements_out
  * Final local elements are further sorted according to morton encoding
  * Also adjusts global_idx of elements to new partitioned range
  * 
 */
 template <class T>
-void Redestribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, std::vector<T> &elements_out, MPI_Comm comm){
+DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, std::vector<T> &elements_out, MPI_Comm comm){
     
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
     if(!my_rank) print_log("starting redistribution");
+    MPI_Barrier(comm);
+    auto start = std::chrono::high_resolution_clock::now();
 
     assert(elements_in.size() == labeling.size());
     
@@ -406,8 +409,19 @@ void Redestribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, 
     }
 
     // print_log("[", my_rank, "]: new elements", VectorToString(elements_out));
+    MPI_Barrier(comm);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    if(!my_rank)
+    {
+        print_log("redistribution done");
+        print_log("element redistribution time:\t", duration.count(), " us");
+    } 
+    DistributionStatus status;
+    status.return_code = 0;
+    status.time_us = duration.count();
 
-    if(!my_rank) print_log("redistribution done");
+    return status;
 
 
     

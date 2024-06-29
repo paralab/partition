@@ -9,6 +9,8 @@
 #include "../util/util.hpp"
 #include "../usort/dtypes.h"
 
+#include <unordered_map>
+
 struct TetElementWithFacesNodes {
     uint64_t element_tag;
     uint64_t global_idx;
@@ -464,6 +466,14 @@ namespace par
 enum ElementType { TET=4, HEX=5 };
 
 
+struct DistributionStatus
+{
+    int return_code;
+    int time_us;
+};
+
+
+
 // Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags);
 
 ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm);
@@ -494,7 +504,7 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
 
 
 template <class T>
-void Redestribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, std::vector<T> &elements_out, MPI_Comm comm);
+DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_t>& labeling, std::vector<T> &elements_out, MPI_Comm comm);
 
 // template <class T>
 // void GetOwnNodes(const std::vector<T> &local_elements, ElementType element_type, std::vector<u_int64_t>& own_node_tags_out, MPI_Comm comm);

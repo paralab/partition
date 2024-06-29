@@ -6,6 +6,8 @@
 
 #include <Python.h>
 
+#include <vector>
+
 
 
 
@@ -70,25 +72,17 @@ void CopyToPythonList(std::vector<uint32_t>& in_vector, PyObject* out_list, size
 }
 
 
-// TODO: populate missing SFC_time
 void ExportMetricsToPandasJson(
     std::string mesh_file, int file_idx, int run_idx, int partition_count, uint64_t global_vertex_count,
-    std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries,
-    std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_time,
-    std::vector<uint32_t>& grow_partition_sizes, std::vector<uint32_t>& grow_partition_boundaries, int grow_time,
-    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_time,
+    std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
+    std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
+    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
     std::string metrics_out_file_path) {
 
-    // const std::string pythonpath = "/home/budvin/research/Partitioning/paralab-partition/.venv";
-    // setenv("PYTHONHOME", pythonpath.c_str(), 1);
+
     
     Py_Initialize();
 
-    // const char *script_path = "/home/budvin/research/Partitioning/paralab-partition/mpi-cpp";
-
-    // // Append the module directory to Python's sys.path
-    // PyObject *sysPath = PySys_GetObject("path");
-    // PyList_Append(sysPath, PyUnicode_FromString(script_path));
     
     PyObject* p_module = PyImport_ImportModule("metric_export");
     assert(p_module!=NULL);
@@ -104,53 +98,62 @@ void ExportMetricsToPandasJson(
 
     PyObject* py_partition_count = PyLong_FromLong(partition_count);
     PyObject* py_global_vertex_count = PyLong_FromUnsignedLong(global_vertex_count);
-    
-
-    PyObject* py_sfc_partition_sizes = PyList_New(sfc_partition_sizes.size());
-    CopyToPythonList(sfc_partition_sizes, py_sfc_partition_sizes, sfc_partition_sizes.size());
-
-    PyObject* py_sfc_partition_boundaries = PyList_New(sfc_partition_boundaries.size());
-    CopyToPythonList(sfc_partition_boundaries, py_sfc_partition_boundaries, sfc_partition_boundaries.size());
-
-
-    PyObject* py_bfs_partition_sizes = PyList_New(bfs_partition_sizes.size());
-    CopyToPythonList(bfs_partition_sizes, py_bfs_partition_sizes, bfs_partition_sizes.size());
-
-    PyObject* py_bfs_partition_boundaries = PyList_New(bfs_partition_boundaries.size());
-    CopyToPythonList(bfs_partition_boundaries, py_bfs_partition_boundaries, bfs_partition_boundaries.size());
-
-    PyObject* py_bfs_time = PyLong_FromLong(bfs_time);
 
 
 
-    PyObject* py_grow_partition_sizes = PyList_New(grow_partition_sizes.size());
-    CopyToPythonList(grow_partition_sizes, py_grow_partition_sizes, grow_partition_sizes.size());
+    PyObject* py_sfc_partition_sizes;
+    PyObject* py_sfc_partition_boundaries;
 
-    PyObject* py_grow_partition_boundaries = PyList_New(grow_partition_boundaries.size());
-    CopyToPythonList(grow_partition_boundaries, py_grow_partition_boundaries, grow_partition_boundaries.size());
+    PyObject* py_bfs_partition_sizes;
+    PyObject* py_bfs_partition_boundaries;
 
-    PyObject* py_grow_time = PyLong_FromLong(grow_time);
+    PyObject* py_parmetis_partition_sizes;
+    PyObject* py_parmetis_partition_boundaries;
+
+    std::vector<PyObject**> py_lists = {&py_sfc_partition_sizes, &py_sfc_partition_boundaries, &py_bfs_partition_sizes, &py_bfs_partition_boundaries, &py_parmetis_partition_sizes, &py_parmetis_partition_boundaries};
+    std::vector<std::vector<uint32_t>*> cpp_vectors = {&sfc_partition_sizes, &sfc_partition_boundaries, &bfs_partition_sizes, &bfs_partition_boundaries, &parmetis_partition_sizes, &parmetis_partition_boundaries};
 
 
 
-    PyObject* py_parmetis_partition_sizes = PyList_New(parmetis_partition_sizes.size());
-    CopyToPythonList(parmetis_partition_sizes, py_parmetis_partition_sizes, parmetis_partition_sizes.size());
+    for (int list_i = 0; list_i < py_lists.size(); list_i++)
+    {
+        // print_log(py_lists[list_i]);
+        // print_log(VectorToString(*cpp_vectors[list_i]));
+        *py_lists[list_i] = PyList_New(cpp_vectors[list_i]->size());
+        CopyToPythonList(*cpp_vectors[list_i], *py_lists[list_i], cpp_vectors[list_i]->size());
+        // print_log(py_lists[list_i]);
 
-    PyObject* py_parmetis_partition_boundaries = PyList_New(parmetis_partition_boundaries.size());
-    CopyToPythonList(parmetis_partition_boundaries, py_parmetis_partition_boundaries,
-                     parmetis_partition_boundaries.size());
-    PyObject* py_parmetis_time = PyLong_FromLong(parmetis_time);
+
+    }
+
+
+    PyObject* py_sfc_partition_time = PyLong_FromLong(sfc_partition_time);
+    PyObject* py_sfc_mat_assembly_time = PyLong_FromLong(sfc_mat_assembly_time);
+    PyObject* py_sfc_matvec_time = PyLong_FromLong(sfc_matvec_time);
+
+    PyObject* py_bfs_labeling_time = PyLong_FromLong(bfs_labeling_time);
+    PyObject* py_bfs_redistribution_time = PyLong_FromLong(bfs_redistribution_time);
+    PyObject* py_bfs_mat_assembly_time = PyLong_FromLong(bfs_mat_assembly_time);
+    PyObject* py_bfs_matvec_time = PyLong_FromLong(bfs_matvec_time);
+
+
+    PyObject* py_parmetis_labeling_time = PyLong_FromLong(parmetis_labeling_time);
+    PyObject* py_parmetis_redistribution_time = PyLong_FromLong(parmetis_redistribution_time);
+    PyObject* py_parmetis_mat_assembly_time = PyLong_FromLong(parmetis_mat_assembly_time);
+    PyObject* py_parmetis_matvec_time = PyLong_FromLong(parmetis_matvec_time);
 
 
     PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
-
     PyObject* all_args =
-        PyTuple_Pack(17, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, py_sfc_partition_sizes,
-                     py_sfc_partition_boundaries, py_bfs_partition_sizes, py_bfs_partition_boundaries, py_bfs_time,
-                     py_grow_partition_sizes, py_grow_partition_boundaries, py_grow_time, py_parmetis_partition_sizes,
-                     py_parmetis_partition_boundaries, py_parmetis_time, py_metrics_out_file_path);
+        PyTuple_Pack(23, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, 
+                        py_sfc_partition_sizes, py_sfc_partition_boundaries, py_sfc_partition_time, py_sfc_mat_assembly_time, py_sfc_matvec_time,
+                        py_bfs_partition_sizes, py_bfs_partition_boundaries, py_bfs_labeling_time, py_bfs_redistribution_time, py_bfs_mat_assembly_time, py_bfs_matvec_time,
+                        py_parmetis_partition_sizes, py_parmetis_partition_boundaries, py_parmetis_labeling_time, py_parmetis_redistribution_time, py_parmetis_mat_assembly_time, py_parmetis_matvec_time,
+                        py_metrics_out_file_path);
 
     PyObject_CallObject(p_func, all_args);
+
+    PyErr_Print();
     Py_Finalize();
 }
 
