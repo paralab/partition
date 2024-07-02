@@ -150,6 +150,10 @@ int main(int argc, char *argv[])
     local_elements.resize(local_element_count);
     uint64_t global_idx_start = proc_element_counts_scanned[taskid];
 
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto graph_setup_start = std::chrono::high_resolution_clock::now();
+
     switch (elementType)
     {
     case ElementType::TET:
@@ -209,7 +213,13 @@ int main(int argc, char *argv[])
     DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
                             proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
 
-    if(!taskid) print_log("graph formation done");
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto graph_setup_end = std::chrono::high_resolution_clock::now();
+
+    if(!taskid) print_log("graph setup done");
+    auto graph_setup_duration = std::chrono::duration_cast<std::chrono::microseconds>(graph_setup_end - graph_setup_start);
+    if(!taskid) print_log("graph setup time:", graph_setup_duration.count(), "us");
+
 
 
     if(!taskid) print_log("starting BFS partitioning");
@@ -381,6 +391,7 @@ int main(int argc, char *argv[])
     {   
 
         ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
+                                graph_setup_duration.count(),
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
                                 global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, parmetis_distribution_status.time_us, parmetis_spmv_status.mat_assembly_time_us, parmetis_spmv_status.matvec_time_us,

@@ -4,6 +4,7 @@ import pandas as pd
 import typing
 
 def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count: int, vertex_count: int,
+                    graph_setup_time : int,
                     sfc_partition_sizes: list, sfc_partition_boundaries: list, sfc_partition_time: int, sfc_mat_assembly_time: int, sfc_matvec_time: int,
                     bfs_partition_sizes: list, bfs_partition_boundaries: list, bfs_labeling_time: int, bfs_redistribution_time: int, bfs_mat_assembly_time: int, bfs_matvec_time: int,
                     parmetis_partition_sizes: list, parmetis_partition_boundaries: list, parmetis_labeling_time: int, parmetis_redistribution_time: int, parmetis_mat_assembly_time: int, parmetis_matvec_time: int,
@@ -44,6 +45,8 @@ def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count:
         result_row[f"{method}_matvec_time"] = matvec_time
 
 
+
+    result_row['graph_setup_time'] = graph_setup_time
 
     result_row['SFC_morton_partition_time'] = sfc_partition_time
 

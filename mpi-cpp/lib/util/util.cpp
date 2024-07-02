@@ -74,6 +74,7 @@ void CopyToPythonList(std::vector<uint32_t>& in_vector, PyObject* out_list, size
 
 void ExportMetricsToPandasJson(
     std::string mesh_file, int file_idx, int run_idx, int partition_count, uint64_t global_vertex_count,
+    int graph_setup_time,
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
     std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
@@ -99,6 +100,7 @@ void ExportMetricsToPandasJson(
     PyObject* py_partition_count = PyLong_FromLong(partition_count);
     PyObject* py_global_vertex_count = PyLong_FromUnsignedLong(global_vertex_count);
 
+    PyObject* py_graph_setup_time = PyLong_FromLong(graph_setup_time);
 
 
     PyObject* py_sfc_partition_sizes;
@@ -145,7 +147,8 @@ void ExportMetricsToPandasJson(
 
     PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
     PyObject* all_args =
-        PyTuple_Pack(23, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, 
+        PyTuple_Pack(24, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, 
+                        py_graph_setup_time,
                         py_sfc_partition_sizes, py_sfc_partition_boundaries, py_sfc_partition_time, py_sfc_mat_assembly_time, py_sfc_matvec_time,
                         py_bfs_partition_sizes, py_bfs_partition_boundaries, py_bfs_labeling_time, py_bfs_redistribution_time, py_bfs_mat_assembly_time, py_bfs_matvec_time,
                         py_parmetis_partition_sizes, py_parmetis_partition_boundaries, py_parmetis_labeling_time, py_parmetis_redistribution_time, py_parmetis_mat_assembly_time, py_parmetis_matvec_time,
