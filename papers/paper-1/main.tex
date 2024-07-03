@@ -108,7 +108,7 @@ Ghost portion of the BFS vector is partitioned and sorted according to the ghost
 % TODO: add BFS vector illustration with ghost portion and scatter map
 
 \subsection{Algorithm}
-Given the data structures, high level outline of the BFS partition algorithm is given in Fig. \ref{algo:bfs-par-outline}. \verb|BFS-Round()| and \verb|Ghost-Update()| procedures are repeatedly applied until the global BFS state is stable across all partitions. Subsequent element/graph redistribution is done by accessing the computed \verb|distance| field in the BFS vector.
+Given the data structures, high level outline of the BFS partition algorithm is given in Fig. \ref{algo:bfs-par-outline}. \verb|BFS-Round()| and \verb|Ghost-Update()| procedures are repeatedly applied until the global BFS state is stable across all partitions. \verb|Ghost-Update()| uses the pre-computed \verb|scatter_map| to prepare the sending buffer. BFS vector is updated with the received ghost values accordingly. Subsequent element/graph redistribution is done by accessing the computed \verb|distance| field in the BFS vector.
 
 \begin{figure}  
     \begin{algorithmic}[1]  
@@ -120,7 +120,7 @@ Given the data structures, high level outline of the BFS partition algorithm is 
     \State $global \gets $ true
     \While{$global$}
         \State $global \gets $ false
-        \State {$local \gets $ \Call{BFS-Initial}{$local\_graph$,$bfs\_vec$}}
+        \State {$local \gets $ \Call{BFS-Round}{$local\_graph$, $bfs\_vec$}}
         \State \Call{Update-Ghost}{}()
         \State $global \gets$ \Call{MPI-Reduce}{$local$, LOGICAL\_OR}
     \EndWhile
@@ -167,8 +167,8 @@ Given the data structures, high level outline of the BFS partition algorithm is 
         
         \State $bfs\_vec\_temp \gets bfs\_vec$.copy()
         \ForAll{$v \in local\_graph.vertices$}
-        \State $best\_dist \gets bfs\_vec[u].distance$
-        \State $best\_label \gets bfs\_vec[u].label$ 
+        \State $best\_dist \gets bfs\_vec[v].distance$
+        \State $best\_label \gets bfs\_vec[v].label$ 
             \ForAll{$u \in local\_graph.neighbors(v)$}
             \If{$best\_label ==$ NO\_LABEL \textbf{or} ($bfs\_vec[u].label \neq$ NO\_LABEL \textbf{and} $best\_dist > bfs\_vec[u].distance + 1 $)}
                 \State $best\_dist \gets bfs\_vec[u].distance + 1$
@@ -194,6 +194,7 @@ Given the data structures, high level outline of the BFS partition algorithm is 
 \end{figure}
 
 \subsection{Optimizations}
+In \verb|BFS-Round()| given in Fig \ref{algo:bfs-par-outline} each \verb|while| loop iteration evaluates all the vertices and their neighborhoods. Since BFS flows similar to a frontier in the graph, it is sufficient to check and update the neighborhoods of the last updated vertices. To implement this, \verb|Update-Ghost()| is modified to provide the list of vertices that were updated in the last ghost value exchange. Thereafter, \verb|BFS-Round()| proceeds to check only the neighborhood vertices of the last updated vertices. Furthermore, \verb|Update-Ghost()| is optimized to compare the current send buffer with the last send buffer and send only the updated values.
 
 % \subsection{A list}
 % \begin{itemize}
