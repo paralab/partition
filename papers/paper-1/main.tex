@@ -3,7 +3,13 @@
 % The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
+
+\usepackage{algorithmicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\algrenewcommand\algorithmicindent{10pt}%
+
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -83,85 +89,184 @@ keyword1, keyword2, keyword2
 
 \lipsum[1-1]
 
-\section{Methods}
+\section{Methodology}
+In this section we outline the data structures and key routines for BFS-partition.
 
 
-\subsection{method 1}
+\subsection{Data Structures}
+Elements contain both global and local indexing numbers. In each initial partition local indexing covers both own elements and ghost elements. Ghost elements are placed at the end of the local indexing. We use a conventional graph CSR encoding to store the graph representation of the elements in the mesh. Figure x illustrates an example.
+% TODO: add illsutration with local+ghost nodes
 
-\lipsum[1-1]
+A BFS vector with size own element count + ghost element count, stores the BFS information for both own elements and ghost elements. Each entry in the BFS vector contains two fields: 
 
-\subsection{A list}
-\begin{itemize}
-\item \lipsum[1][1]
-\item \lipsum[1][1]
-\item \lipsum[1][1]
-\end{itemize}
+\begin{enumerate}
+    \item \verb|label| = Assigned new partition label
+    \item \verb|distance| = Distance from the seed of the current partition
+\end{enumerate}
+Ghost portion of the BFS vector is partitioned and sorted according to the ghost partitions. Thus, the ghost portion of the BFS vector is directly used as the ghost receive buffer for subsequent synchronization in BFS rounds. Each partition maintains a \verb|scatter_map| for sending updated values to neighboring partitions. 
 
-\subsection{Equations}
+% TODO: add BFS vector illustration with ghost portion and scatter map
 
-\begin{equation}
-a+b=\gamma\label{eq}
-\end{equation}
+\subsection{Algorithm}
+Given the data structures, high level outline of the BFS partition algorithm is given in Fig. \ref{algo:bfs-par-outline}. \verb|BFS-Round()| and \verb|Ghost-Update()| procedures are repeatedly applied until the global BFS state is stable across all partitions. Subsequent element/graph redistribution is done by accessing the computed \verb|distance| field in the BFS vector.
 
-Be sure that the 
-symbols in your equation have been defined before or immediately following 
-the equation. Use ``\eqref{eq}'', not ``Eq.~\eqref{eq}'' or ``equation \eqref{eq}'', except at 
-the beginning of a sentence: ``Equation \eqref{eq} is . . .''
+\begin{figure}  
+    \begin{algorithmic}[1]  
+    \Procedure{BFS-Partition}{$local\_graph$}  
+    \State $bfs\_vec \gets$ Vector(size: $local\_graph.vertex\_count$)
+    \State $mid \gets (local\_graph.own\_vertex\_count) /2$
+    \State $bfs\_vec[mid].label \gets $ MPI\_rank
+    \State $bfs\_vec[mid].distance \gets 0$
+    \State $global \gets $ true
+    \While{$global$}
+        \State $global \gets $ false
+        \State {$local \gets $ \Call{BFS-Initial}{$local\_graph$,$bfs\_vec$}}
+        \State \Call{Update-Ghost}{}()
+        \State $global \gets$ \Call{MPI-Reduce}{$local$, LOGICAL\_OR}
+    \EndWhile
+    
+    \EndProcedure  
+    \end{algorithmic}
 
-\subsection{\LaTeX-Specific Advice}
+    \vspace{10pt}
 
-Please use ``soft'' (e.g., \verb|\eqref{Eq}|) cross references instead
-of ``hard'' references (e.g., \verb|(1)|). That will make it possible
-to combine sections, add equations, or change the order of figures or
-citations without having to go through the file line by line.
+    \begin{algorithmic}[1]  
+    % \Procedure{BFS-Initial}{$local\_graph$, $bfs\_vec$}
+    
+    % \State $mid \gets (local\_graph.own\_vertex\_count) /2$
+    % \State \Comment{\emph{SFC mid as the seed}}
+    % \State $dist \gets 0$
+    % \State $bfs\_vec[mid].label \gets $ MPI\_rank
+    % \State $bfs\_vec[mid].distance \gets dist$
+    % \State $bfs\_q \gets $ Queue()
+    % \State $bfs\_q.enqueue(mid)$
+    % \While {$bfs\_q \neq \emptyset$ }
+    %     \State $dist = dist + 1$
+    %     \State $v \gets bfs\_q.dequeue()$
+    %     \ForAll{$u \in local\_graph.neighbors(v)$}
+    %         \If{$bfs\_vec[u].label == $ NO\_LABEL}
+    %             \State $bfs\_vec[u].label \gets $ MPI\_rank
+    %             \State $bfs\_vec[u].distance \gets dist$
+    %             \State $bfs\_q.enqueue(u)$
+    %         \EndIf
+    %     \EndFor
 
-Please don't use the \verb|{eqnarray}| equation environment. Use
-\verb|{align}| or \verb|{IEEEeqnarray}| instead. The \verb|{eqnarray}|
-environment leaves unsightly spaces around relation symbols.
+    % \EndWhile
 
-Please note that the \verb|{subequations}| environment in {\LaTeX}
-will increment the main equation counter even when there are no
-equation numbers displayed. If you forget that, you might write an
-article in which the equation numbers skip from (17) to (20), causing
-the copy editors to wonder if you've discovered a new method of
-counting.
+    % \EndProcedure  
+
+    \vspace{10pt}
 
 
+    \Procedure{BFS-Round}{$local\_graph$, $bfs\_vec$}
+    \State $changed \gets $ false
+    \State $not\_stable \gets $ true
+
+    \While{$not\_stable$}
+        \State $not\_stable \gets $ false
+        
+        \State $bfs\_vec\_temp \gets bfs\_vec$.copy()
+        \ForAll{$v \in local\_graph.vertices$}
+        \State $best\_dist \gets bfs\_vec[u].distance$
+        \State $best\_label \gets bfs\_vec[u].label$ 
+            \ForAll{$u \in local\_graph.neighbors(v)$}
+            \If{$best\_label ==$ NO\_LABEL \textbf{or} ($bfs\_vec[u].label \neq$ NO\_LABEL \textbf{and} $best\_dist > bfs\_vec[u].distance + 1 $)}
+                \State $best\_dist \gets bfs\_vec[u].distance + 1$
+                \State $best\_label \gets bfs\_vec[u].label$
+                \State $not\_stable \gets $ true
+                \State $changed \gets $ true
+
+            \EndIf
+            \EndFor
+        \State $bfs\_vec\_temp[v].distance \gets best\_dist$
+        \State $bfs\_vec\_temp[v].label \gets best\_label$
+
+        \EndFor
+        \State $bfs\_vec \gets bfs\_vec\_temp$
+    \EndWhile
+    \State \textbf{return} $changed$
+    \EndProcedure
 
 
-\subsection{Figures and Tables}
-\paragraph{Positioning Figures and Tables} Place figures and tables at the top and 
-bottom of columns. Avoid placing them in the middle of columns. Large 
-figures and tables may span across both columns. Figure captions should be 
-below the figures; table heads should appear above the tables. Insert 
-figures and tables after they are cited in the text. Use the abbreviation 
-``Fig. \ref{fig}'', even at the beginning of a sentence.
-
-\begin{table}[htbp]
-\caption{Table Type Styles}
-\begin{center}
-\begin{tabular}{|c|c|c|c|}
-\hline
-\textbf{Table}&\multicolumn{3}{|c|}{\textbf{Table Column Head}} \\
-\cline{2-4} 
-\textbf{Head} & \textbf{\textit{Table column subhead}}& \textbf{\textit{Subhead}}& \textbf{\textit{Subhead}} \\
-\hline
-copy& More table copy$^{\mathrm{a}}$& &  \\
-\hline
-\multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
-\end{tabular}
-\label{tab1}
-\end{center}
-\end{table}
-
-\begin{figure}[htbp]
-\centerline{\includegraphics{figures/fig1.png}}
-\caption{Example of a figure caption.}
-\label{fig}
+    \end{algorithmic}  
+    \caption{BFS partition algorithm outline}  
+    \label{algo:bfs-par-outline}  
 \end{figure}
 
+\subsection{Optimizations}
+
+% \subsection{A list}
+% \begin{itemize}
+% \item \lipsum[1][1]
+% \item \lipsum[1][1]
+% \item \lipsum[1][1]
+% \end{itemize}
+
+% \subsection{Equations}
+
+% \begin{equation}
+% a+b=\gamma\label{eq}
+% \end{equation}
+
+% Be sure that the 
+% symbols in your equation have been defined before or immediately following 
+% the equation. Use ``\eqref{eq}'', not ``Eq.~\eqref{eq}'' or ``equation \eqref{eq}'', except at 
+% the beginning of a sentence: ``Equation \eqref{eq} is . . .''
+
+% \subsection{\LaTeX-Specific Advice}
+
+% Please use ``soft'' (e.g., \verb|\eqref{Eq}|) cross references instead
+% of ``hard'' references (e.g., \verb|(1)|). That will make it possible
+% to combine sections, add equations, or change the order of figures or
+% citations without having to go through the file line by line.
+
+% Please don't use the \verb|{eqnarray}| equation environment. Use
+% \verb|{align}| or \verb|{IEEEeqnarray}| instead. The \verb|{eqnarray}|
+% environment leaves unsightly spaces around relation symbols.
+
+% Please note that the \verb|{subequations}| environment in {\LaTeX}
+% will increment the main equation counter even when there are no
+% equation numbers displayed. If you forget that, you might write an
+% article in which the equation numbers skip from (17) to (20), causing
+% the copy editors to wonder if you've discovered a new method of
+% counting.
+
+
+
+
+% \subsection{Figures and Tables}
+% \paragraph{Positioning Figures and Tables} Place figures and tables at the top and 
+% bottom of columns. Avoid placing them in the middle of columns. Large 
+% figures and tables may span across both columns. Figure captions should be 
+% below the figures; table heads should appear above the tables. Insert 
+% figures and tables after they are cited in the text. Use the abbreviation 
+% ``Fig. \ref{fig}'', even at the beginning of a sentence.
+
+% \begin{table}[htbp]
+% \caption{Table Type Styles}
+% \begin{center}
+% \begin{tabular}{|c|c|c|c|}
+% \hline
+% \textbf{Table}&\multicolumn{3}{|c|}{\textbf{Table Column Head}} \\
+% \cline{2-4} 
+% \textbf{Head} & \textbf{\textit{Table column subhead}}& \textbf{\textit{Subhead}}& \textbf{\textit{Subhead}} \\
+% \hline
+% copy& More table copy$^{\mathrm{a}}$& &  \\
+% \hline
+% \multicolumn{4}{l}{$^{\mathrm{a}}$Sample of a Table footnote.}
+% \end{tabular}
+% \label{tab1}
+% \end{center}
+% \end{table}
+
+% \begin{figure}[htbp]
+% \centerline{\includegraphics{figures/fig1.png}}
+% \caption{Example of a figure caption.}
+% \label{fig}
+% \end{figure}
+
 \section{Experimental Results}
-\lipsum[1-1]
+We present the experimental results for two aspects of the partitioning algorithm, (1) partition quality and (2) performance. We compare our results with two commonly used partitioning algorithms, (1) SFC method and (2) parMETIS algorithm.
 
 
 
