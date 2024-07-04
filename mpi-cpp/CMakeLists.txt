@@ -167,6 +167,23 @@ endif()
 
 
 
+
+if(NOT SCOTCH_INSTALL_DIR_PATH)
+    message(FATAL_ERROR "The SCOTCH_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DSCOTCH_INSTALL_DIR_PATH=/path/to/scotch/build ")
+endif()
+
+set(SCOTCH_INCLUDE_DIR "${SCOTCH_INSTALL_DIR_PATH}/include")
+
+set(SCOTCH_LIBRARY "${SCOTCH_INSTALL_DIR_PATH}/lib/libscotch.so")
+set(SCOTCHERR_LIBRARY "${SCOTCH_INSTALL_DIR_PATH}/lib/libscotcherr.so")
+set(PTSCOTCH_LIBRARY "${SCOTCH_INSTALL_DIR_PATH}/lib/libptscotch.so")
+set(PTSCOTCHERR_LIBRARY "${SCOTCH_INSTALL_DIR_PATH}/lib/libptscotcherr.so")
+
+
+include_directories(${SCOTCH_INCLUDE_DIR})
+
+
+
 # a python helper script is used for exporting partition metrics to json
 # hence we need python dev
 find_package(Python3 COMPONENTS Interpreter Development)
@@ -183,7 +200,7 @@ add_subdirectory(lib)
 
 include_directories(lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph lib/linalg)
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES} ${PETSC_LIBRARY})
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
 if(ENABLE_VTK_FEATURES)
     include_directories(lib/vtk-util)

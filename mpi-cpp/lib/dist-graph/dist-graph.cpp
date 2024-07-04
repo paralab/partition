@@ -6,6 +6,8 @@
 
 #include "mpi.h"
 #include "../metis-util/metis-util.hpp"
+#include "../scotch-util/scotch-util.hpp"
+
 
 #include <chrono>
 
@@ -62,7 +64,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     this->vtx_dist.assign(proc_element_counts_scanned.begin(), proc_element_counts_scanned.end());
 
     this->vtx_dist.push_back(proc_element_counts_scanned[procs_n-1] + proc_element_counts[procs_n-1]);
-
+    this->global_count = proc_element_counts_scanned[procs_n-1] + proc_element_counts[procs_n-1];
     // print_log("[", my_rank, "]: vtx_dist ", VectorToString(vtx_dist));
 
 
@@ -1311,6 +1313,14 @@ PartitionStatus DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_la
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
     return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
+}
+
+PartitionStatus DistGraph::PartitionPtSotch(std::vector<uint16_t>& partition_labels_out) {
+    int procs_n;
+    MPI_Comm_size(this->comm, &procs_n);
+    std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin() + (this->local_count + 1));
+    return GetPtScotchPartitions(this->vtx_dist, dist_xadj, this->dist_adjncy, this->local_count, this->global_count,
+                                 procs_n, partition_labels_out, this-> comm);
 }
 
 /**

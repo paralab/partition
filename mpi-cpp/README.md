@@ -5,6 +5,8 @@ Cmake dependencies
 - METIS https://github.com/KarypisLab/METIS/tags
 - ParMETIS (depends on METIS) https://github.com/KarypisLab/ParMETIS
 - GKLIB (required for METIS) https://github.com/KarypisLab/GKlib
+- PtScotch https://gitlab.inria.fr/scotch/scotch
+    - bison and flex should be installed in the system to build PtScotch
 
 
 Note:
@@ -38,8 +40,14 @@ make install
 
 
 gmsh
-
+add -DENABLE_FLTK=0 on server environments without displays
 cd build
 cmake -DENABLE_BUILD_DYNAMIC=1 -DCMAKE_INSTALL_PREFIX=/work2/10000/budvin/frontera/partition-project/dependencies/gmsh-4.13.0-source/build/install  ..
 make -j 4
 make install
+
+
+PtScotch
+Note: if there is an error related to PRIu64 set(CMAKE_C_STANDARD 99) in the CMake file in scotch root dir
+mkdir build && cd build && cmake -DCMAKE_INSTALL_PREFIX=/home/budvin/bin/scotch/build/install/ -DBUILD_SHARED_LIBS=ON -DMPI_HOME=/usr/lib/x86_64-linux-gnu/openmpi/ .. && make -j5 && make install
+

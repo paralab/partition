@@ -189,6 +189,7 @@ class DistGraph
 {
 private:
     MPI_Comm comm;
+    uint64_t global_count;
     uint64_t local_count;
     uint64_t ghost_count;
     uint64_t send_count;
@@ -269,6 +270,8 @@ public:
     PartitionStatus PartitionBFS(std::vector<uint16_t>& partition_labels_out);
     void PartitionPageRank(std::vector<uint16_t>& partition_labels_out);
     PartitionStatus PartitionParmetis(std::vector<uint16_t>& partition_labels_out);
+    PartitionStatus PartitionPtSotch(std::vector<uint16_t>& partition_labels_out);
+
     void GetPartitionMetrics(std::vector<uint16_t>& local_partition_labels, std::vector<uint32_t>& partition_sizes_out,
                              std::vector<uint32_t>& partition_boundaries_out);
     // ~DistGraph();

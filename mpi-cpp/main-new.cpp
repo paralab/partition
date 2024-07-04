@@ -232,6 +232,10 @@ int main(int argc, char *argv[])
     auto parmetis_status = dist_graph.PartitionParmetis(local_parmetis_partition_labels);
     if(!taskid) print_log("parmetis done");
 
+    if(!taskid) print_log("starting ptscotch");
+    std::vector<uint16_t> local_ptscotch_partition_labels(local_element_count);
+    auto ptscotch_status = dist_graph.PartitionPtSotch(local_ptscotch_partition_labels);
+    if(!taskid) print_log("ptscotch done");
 
 
     std::vector<uint16_t> local_sfc_partition_labels(local_element_count,taskid);
@@ -268,6 +272,10 @@ int main(int argc, char *argv[])
     std::vector<uint32_t> global_parmetis_partition_boundaries;
     dist_graph.GetPartitionMetrics(local_parmetis_partition_labels,global_parmetis_partition_sizes, global_parmetis_partition_boundaries);
 
+    std::vector<uint32_t> global_ptscotch_partition_sizes;
+    std::vector<uint32_t> global_ptscotch_partition_boundaries;
+    dist_graph.GetPartitionMetrics(local_ptscotch_partition_labels,global_ptscotch_partition_sizes, global_ptscotch_partition_boundaries);
+
 
 
     // MPI_Barrier(MPI_COMM_WORLD);
@@ -287,6 +295,8 @@ int main(int argc, char *argv[])
         std::vector<uint16_t> global_all_elements_bfs_partition_labels;
         std::vector<uint16_t> global_all_elements_sfc_partition_labels;
         std::vector<uint16_t> global_all_elements_parmetis_partition_labels;
+        std::vector<uint16_t> global_all_elements_ptscotch_partition_labels;
+
 
         if (! taskid)
         {
@@ -294,6 +304,8 @@ int main(int argc, char *argv[])
             global_all_elements_bfs_partition_labels.resize(global_element_count);
             global_all_elements_sfc_partition_labels.resize(global_element_count);
             global_all_elements_parmetis_partition_labels.resize(global_element_count);
+            global_all_elements_ptscotch_partition_labels.resize(global_element_count);
+
 
         }
         
@@ -321,12 +333,16 @@ int main(int argc, char *argv[])
         MPI_Gatherv(local_parmetis_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_parmetis_partition_labels.data(),
                     proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
+
+        MPI_Gatherv(local_ptscotch_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_ptscotch_partition_labels.data(),
+                    proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
         if (!taskid)
         {
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
-            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-grow.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_ptscotch_partition_labels, global_element_count, "out-grow.vtk");
         }
         
     }
@@ -335,10 +351,14 @@ int main(int argc, char *argv[])
     
     DistributionStatus bfs_distribution_status;
     DistributionStatus parmetis_distribution_status;
+    DistributionStatus ptscotch_distribution_status;
+
 
     SpMVStatus sfc_spmv_status;
     SpMVStatus bfs_spmv_status;
     SpMVStatus parmetis_spmv_status;
+    SpMVStatus ptscotch_spmv_status;
+
 
 
 
@@ -360,6 +380,12 @@ int main(int argc, char *argv[])
         parmetis_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
         parmetis_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
+        if(!taskid) print_log("testing ptscotch partitioning");
+        localElementsAllData_Tet_2.clear();
+        ptscotch_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_ptscotch_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+        ptscotch_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
+
+
         break;
     }
     case ElementType::HEX:
@@ -377,6 +403,11 @@ int main(int argc, char *argv[])
         localElementsAllData_Hex_2.clear();
         parmetis_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
         parmetis_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+
+        if(!taskid) print_log("testing ptscotch partitioning");
+        localElementsAllData_Hex_2.clear();
+        ptscotch_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_ptscotch_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+        ptscotch_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
         break;
     }
     

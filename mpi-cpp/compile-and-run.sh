@@ -12,6 +12,7 @@ METIS_INSTALL_DIR_PATH=/home/budvin/bin/METIS-5.2.1/build/build
 GKLIB_INSTALL_DIR_PATH=/home/budvin/bin/GKlib-master/build/Linux-x86_64/build
 PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
 PETSC_INSTALL_DIR_PATH=/home/budvin/bin/petsc/build/install
+SCOTCH_INSTALL_DIR_PATH=/home/budvin/bin/scotch/build/install
 
 
 mkdir -p build
@@ -24,6 +25,7 @@ cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PAT
     -DGKLIB_INSTALL_DIR_PATH=${GKLIB_INSTALL_DIR_PATH} \
     -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} \
     -DPETSC_INSTALL_DIR_PATH=${PETSC_INSTALL_DIR_PATH} \
+    -DSCOTCH_INSTALL_DIR_PATH=${SCOTCH_INSTALL_DIR_PATH} \
     -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=32 -DBFS_LABEL_TYPE=16
 
 ninja -C ./build
@@ -31,7 +33,7 @@ ninja -C ./build
 echo "====== complation done ==============="
 
 
-export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
 
 # python with pandas needed for metrics export in json format
@@ -63,33 +65,33 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 part_file_prefix="$dir/tmp/part"
 
 
-for file_idx in "${!mesh_file_list[@]}"; do 
-    for np in 2 4
-    do
-        time ./build/gmsh_partition /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $np $part_file_prefix
-        for run_idx in {0..2}; do
-            mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $part_file_prefix $file_idx $run_idx $dir/test.json  -no-viz
-        done
-        rm "${part_file_prefix}"*
-    done
-done
+# for file_idx in "${!mesh_file_list[@]}"; do 
+#     for np in 2 4
+#     do
+#         time ./build/gmsh_partition /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $np $part_file_prefix
+#         for run_idx in {0..2}; do
+#             mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $part_file_prefix $file_idx $run_idx $dir/test.json  -no-viz
+#         done
+#         rm "${part_file_prefix}"*
+#     done
+# done
 
 
 
-# parts_n=10
-# mesh_file=/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh
+parts_n=10
+mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
 
 
-# time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
-# mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
-# rm "${part_file_prefix}"*
+time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
+mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
+rm "${part_file_prefix}"*
 
 
 
 
-# export SFC_morton="$PWD/out-sfc.vtk"
-# export METIS="$PWD/out-parmetis.vtk"
-# export BFS="$PWD/out-bfs.vtk"
-# export BFS_grow="$PWD/out-grow.vtk"
+export SFC_morton="$PWD/out-sfc.vtk"
+export METIS="$PWD/out-parmetis.vtk"
+export BFS="$PWD/out-bfs.vtk"
+export BFS_grow="$PWD/out-grow.vtk"
 
-# /home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../misc/grow/paraview_script.py
+/home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ../misc/grow/paraview_script.py

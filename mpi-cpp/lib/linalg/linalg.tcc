@@ -49,6 +49,8 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     uint64_t        local_count = local_node_idx_end - local_node_idx_start;
     Vec             x, y;       
     Mat             A;        
+    KSP             ksp; 
+    // PC              pc;
 
     // PetscFunctionBeginUser;
     PETSC_COMM_WORLD = comm;
@@ -91,8 +93,23 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
         }
     }
 
-    std::vector<PetscScalar> row_values(elements.size()*(nodes_per_element*nodes_per_element), 1.125);      // TODO: add some logic to populate values
+    std::vector<PetscScalar> row_values(elements.size()*(nodes_per_element*nodes_per_element));     
     
+    {
+        uint64_t idx = 0;
+        for (auto & local_element : elements)
+        {
+            for (uint64_t node_x : local_element.node_tags)
+            {
+                auto node_x_global_idx = node_tag_to_global_idx_map[node_x];
+                for (uint64_t node_y : local_element.node_tags)
+                {
+                    auto node_y_global_idx = node_tag_to_global_idx_map[node_y];
+                    row_values[idx++] = sin(node_x_global_idx+node_y_global_idx);
+                }
+            }
+        }
+    }    
     PetscCallAbort(comm, MatSetValuesBatch(A,elements.size(),nodes_per_element,rows.data(),row_values.data()));
 
     // matrix assembly
@@ -129,7 +146,7 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
         {
 
             PetscInt global_idx= static_cast<PetscInt>(node_tag_to_global_idx_map[node]);
-            PetscScalar val = 1.0;
+            PetscScalar val = static_cast<PetscScalar>(cos(global_idx));
             PetscCallAbort(comm, VecSetValue(x, global_idx, val, ADD_VALUES));            
         }     
     }
@@ -148,10 +165,18 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     // PetscPrintf(PETSC_COMM_WORLD, "Vec x:\n");
     // VecView(x, PETSC_VIEWER_STDOUT_WORLD);
 
+    KSPCreate(PETSC_COMM_WORLD, &ksp);
+    KSPSetOperators(ksp, A, A);
+    KSPSetFromOptions(ksp);
+
+    // KSPGetPC(ksp, &pc);
+    // PCSetType(pc, PCLU);
+
     // Perform the matrix-vector multiplication
     MPI_Barrier(comm);
     auto matvec_start = std::chrono::high_resolution_clock::now();
-    MatMult(A, x, y);
+    // MatMult(A, x, y);
+    KSPSolve(ksp,x,y);
     MPI_Barrier(comm);
     auto matvec_end = std::chrono::high_resolution_clock::now();
     auto matvec_duration = std::chrono::duration_cast<std::chrono::microseconds>(matvec_end - matvec_start);
@@ -162,6 +187,7 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     // VecView(y, PETSC_VIEWER_STDOUT_WORLD);
 
     // Clean up
+    KSPDestroy(&ksp);
     VecDestroy(&x);
     VecDestroy(&y);
     MatDestroy(&A);
