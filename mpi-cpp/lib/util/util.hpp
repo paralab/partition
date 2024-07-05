@@ -77,6 +77,7 @@ void ExportMetricsToPandasJson(
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
     std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
+    std::vector<uint32_t>& ptscotch_partition_sizes, std::vector<uint32_t>& ptscotch_partition_boundaries, int ptscotch_labeling_time, int ptscotch_redistribution_time, int ptscotch_mat_assembly_time, int ptscotch_matvec_time,
     std::string metrics_out_file_path) ;
 
 struct PartitionStatus

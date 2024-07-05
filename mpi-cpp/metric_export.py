@@ -8,6 +8,7 @@ def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count:
                     sfc_partition_sizes: list, sfc_partition_boundaries: list, sfc_partition_time: int, sfc_mat_assembly_time: int, sfc_matvec_time: int,
                     bfs_partition_sizes: list, bfs_partition_boundaries: list, bfs_labeling_time: int, bfs_redistribution_time: int, bfs_mat_assembly_time: int, bfs_matvec_time: int,
                     parmetis_partition_sizes: list, parmetis_partition_boundaries: list, parmetis_labeling_time: int, parmetis_redistribution_time: int, parmetis_mat_assembly_time: int, parmetis_matvec_time: int,
+                    ptscotch_partition_sizes: list, ptscotch_partition_boundaries: list, ptscotch_labeling_time: int, ptscotch_redistribution_time: int, ptscotch_mat_assembly_time: int, ptscotch_matvec_time: int,
                     metrics_out_file_path: str):
 
     result_row = pd.Series()
@@ -18,14 +19,15 @@ def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count:
     result_row['n'] = vertex_count
 
 
-    method_names = ['SFC_morton','BFS','parMETIS']
-    mat_assembly_times = [sfc_mat_assembly_time, bfs_mat_assembly_time, parmetis_mat_assembly_time]
-    matvec_times = [sfc_matvec_time, bfs_matvec_time, parmetis_matvec_time]
+    method_names = ['SFC_morton','BFS','parMETIS', 'ptscotch']
+    mat_assembly_times = [sfc_mat_assembly_time, bfs_mat_assembly_time, parmetis_mat_assembly_time, ptscotch_mat_assembly_time]
+    matvec_times = [sfc_matvec_time, bfs_matvec_time, parmetis_matvec_time, ptscotch_matvec_time]
 
     for (sizes,boundaries), mat_assembly_time, matvec_time, method in zip([
         [sfc_partition_sizes,sfc_partition_boundaries],
         [bfs_partition_sizes,bfs_partition_boundaries],
-        [parmetis_partition_sizes,parmetis_partition_boundaries]], mat_assembly_times, matvec_times, method_names):
+        [parmetis_partition_sizes,parmetis_partition_boundaries],
+        [ptscotch_partition_sizes,ptscotch_partition_boundaries]], mat_assembly_times, matvec_times, method_names):
         
         total_boundary_size = sum(boundaries)
         max_part_size = max(sizes)
@@ -52,9 +54,13 @@ def export_metrics(mesh_file: str, file_idx: int, run_idx: int, partition_count:
 
     result_row['BFS_labeling_time'] = bfs_labeling_time
     result_row['parMETIS_labeling_time'] = parmetis_labeling_time
+    result_row['ptscotch_labeling_time'] = ptscotch_labeling_time
+
 
     result_row['BFS_redistribution_time'] = bfs_redistribution_time
     result_row['parMETIS_redistribution_time'] = parmetis_redistribution_time
+    result_row['ptscotch_redistribution_time'] = ptscotch_redistribution_time
+
 
 
 

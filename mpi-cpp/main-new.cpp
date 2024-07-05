@@ -234,26 +234,11 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("starting ptscotch");
     std::vector<uint16_t> local_ptscotch_partition_labels(local_element_count);
-    dist_graph.PartitionPtSotch(local_ptscotch_partition_labels);
+    auto ptscotch_status = dist_graph.PartitionPtScotch(local_ptscotch_partition_labels);
     if(!taskid) print_log("ptscotch done");
 
 
     std::vector<uint16_t> local_sfc_partition_labels(local_element_count,taskid);
-
-
-    // std::vector<uint16_t> local_grow_partition_labels(local_element_count);
-    // dist_graph.Partitiongrow(local_grow_partition_labels);
-   
-
-    // std::vector<uint16_t> global_all_elements_grow_partition_labels;
-
-    // if (! taskid)
-    // {
-    //     global_all_elements_grow_partition_labels.resize(global_element_count);
-
-    // }
-
-
 
 
 
@@ -275,14 +260,6 @@ int main(int argc, char *argv[])
     std::vector<uint32_t> global_ptscotch_partition_sizes;
     std::vector<uint32_t> global_ptscotch_partition_boundaries;
     dist_graph.GetPartitionMetrics(local_ptscotch_partition_labels,global_ptscotch_partition_sizes, global_ptscotch_partition_boundaries);
-
-
-
-    // MPI_Barrier(MPI_COMM_WORLD);
-    // MPI_Gatherv(local_grow_partition_labels.data(),local_element_count,MPI_UINT16_T,global_all_elements_grow_partition_labels.data(),
-    //             proc_element_counts_.data(),proc_element_counts_scanned_.data(),MPI_UINT16_T, 0, MPI_COMM_WORLD);
-    // dist_graph.GetPartitionMetrics(nullptr,NULL,NULL,NULL);
-
 
 
 
@@ -342,7 +319,7 @@ int main(int argc, char *argv[])
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_bfs_partition_labels, global_element_count, "out-bfs.vtk");
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_sfc_partition_labels, global_element_count, "out-sfc.vtk");
             ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_parmetis_partition_labels, global_element_count, "out-parmetis.vtk");
-            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_ptscotch_partition_labels, global_element_count, "out-grow.vtk");
+            ElementsWithPartitionsToVtk(global_all_elements, global_all_elements_ptscotch_partition_labels, global_element_count, "out-ptscotch.vtk");
         }
         
     }
@@ -426,6 +403,7 @@ int main(int argc, char *argv[])
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
                                 global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, parmetis_distribution_status.time_us, parmetis_spmv_status.mat_assembly_time_us, parmetis_spmv_status.matvec_time_us,
+                                global_ptscotch_partition_sizes,global_ptscotch_partition_boundaries, ptscotch_status.time_us, ptscotch_distribution_status.time_us, ptscotch_spmv_status.mat_assembly_time_us, ptscotch_spmv_status.matvec_time_us,
                                 metrics_out_file_path);
 
     }

@@ -78,6 +78,7 @@ void ExportMetricsToPandasJson(
     std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
     std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
     std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
+    std::vector<uint32_t>& ptscotch_partition_sizes, std::vector<uint32_t>& ptscotch_partition_boundaries, int ptscotch_labeling_time, int ptscotch_redistribution_time, int ptscotch_mat_assembly_time, int ptscotch_matvec_time,
     std::string metrics_out_file_path) {
 
 
@@ -112,8 +113,11 @@ void ExportMetricsToPandasJson(
     PyObject* py_parmetis_partition_sizes;
     PyObject* py_parmetis_partition_boundaries;
 
-    std::vector<PyObject**> py_lists = {&py_sfc_partition_sizes, &py_sfc_partition_boundaries, &py_bfs_partition_sizes, &py_bfs_partition_boundaries, &py_parmetis_partition_sizes, &py_parmetis_partition_boundaries};
-    std::vector<std::vector<uint32_t>*> cpp_vectors = {&sfc_partition_sizes, &sfc_partition_boundaries, &bfs_partition_sizes, &bfs_partition_boundaries, &parmetis_partition_sizes, &parmetis_partition_boundaries};
+    PyObject* py_ptscotch_partition_sizes;
+    PyObject* py_ptscotch_partition_boundaries;
+
+    std::vector<PyObject**> py_lists = {&py_sfc_partition_sizes, &py_sfc_partition_boundaries, &py_bfs_partition_sizes, &py_bfs_partition_boundaries, &py_parmetis_partition_sizes, &py_parmetis_partition_boundaries, &py_ptscotch_partition_sizes, &py_ptscotch_partition_boundaries};
+    std::vector<std::vector<uint32_t>*> cpp_vectors = {&sfc_partition_sizes, &sfc_partition_boundaries, &bfs_partition_sizes, &bfs_partition_boundaries, &parmetis_partition_sizes, &parmetis_partition_boundaries, &ptscotch_partition_sizes, &ptscotch_partition_boundaries};
 
 
 
@@ -144,14 +148,20 @@ void ExportMetricsToPandasJson(
     PyObject* py_parmetis_mat_assembly_time = PyLong_FromLong(parmetis_mat_assembly_time);
     PyObject* py_parmetis_matvec_time = PyLong_FromLong(parmetis_matvec_time);
 
+    PyObject* py_ptscotch_labeling_time = PyLong_FromLong(ptscotch_labeling_time);
+    PyObject* py_ptscotch_redistribution_time = PyLong_FromLong(ptscotch_redistribution_time);
+    PyObject* py_ptscotch_mat_assembly_time = PyLong_FromLong(ptscotch_mat_assembly_time);
+    PyObject* py_ptscotch_matvec_time = PyLong_FromLong(ptscotch_matvec_time);
+
 
     PyObject* py_metrics_out_file_path = PyUnicode_FromString(metrics_out_file_path.c_str());
     PyObject* all_args =
-        PyTuple_Pack(24, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, 
+        PyTuple_Pack(30, py_mesh_file, py_file_idx, py_run_idx, py_partition_count, py_global_vertex_count, 
                         py_graph_setup_time,
                         py_sfc_partition_sizes, py_sfc_partition_boundaries, py_sfc_partition_time, py_sfc_mat_assembly_time, py_sfc_matvec_time,
                         py_bfs_partition_sizes, py_bfs_partition_boundaries, py_bfs_labeling_time, py_bfs_redistribution_time, py_bfs_mat_assembly_time, py_bfs_matvec_time,
                         py_parmetis_partition_sizes, py_parmetis_partition_boundaries, py_parmetis_labeling_time, py_parmetis_redistribution_time, py_parmetis_mat_assembly_time, py_parmetis_matvec_time,
+                        py_ptscotch_partition_sizes, py_ptscotch_partition_boundaries, py_ptscotch_labeling_time, py_ptscotch_redistribution_time, py_ptscotch_mat_assembly_time, py_ptscotch_matvec_time,
                         py_metrics_out_file_path);
 
     PyObject_CallObject(p_func, all_args);
