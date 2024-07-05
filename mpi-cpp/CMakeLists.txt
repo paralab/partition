@@ -198,7 +198,7 @@ set(MAIN_TARGET_NAME "main-new")
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
 add_subdirectory(lib)
 
-include_directories(lib/mesh-util lib/metis-util lib/sfc lib/usort lib/util lib/dist-graph lib/linalg)
+include_directories(lib/util lib/mesh-util lib/metis-util lib/sfc lib/usort lib/dist-graph lib/linalg)
 
 target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${Python3_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 

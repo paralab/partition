@@ -41,7 +41,6 @@ int main(int argc, char const *argv[])
     int gmsh_face_type;
     size_t nodes_per_face;
     size_t faces_per_element;
-    size_t nodes_per_element;
 
 
     switch (gmsh_element_type)
@@ -51,7 +50,6 @@ int main(int argc, char const *argv[])
         gmsh_face_type = 3; // triangle
         nodes_per_face = 3;
         faces_per_element = 4;
-        nodes_per_element = 4;
         // std::cout << "linear tetrahedra mesh\n";
         break;
     }
@@ -60,7 +58,6 @@ int main(int argc, char const *argv[])
         gmsh_face_type = 4; // quadtriangle
         nodes_per_face = 4;
         faces_per_element = 6;
-        nodes_per_element = 8;
         // std::cout << "linear hexahedra mesh\n";
         break;
     }
@@ -163,7 +160,7 @@ int main(int argc, char const *argv[])
 
     }
 
-    for (size_t part_i = 0; part_i < parts_n; part_i++){
+    for (int part_i = 0; part_i < parts_n; part_i++){
         // std::cout << "part: " << part_i << std::endl;
         size_t part_elem_count = partition_to_elements[part_i].size();
         std::vector<uint64_t> face_tags_in_part(part_elem_count * faces_per_element);

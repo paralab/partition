@@ -9,7 +9,6 @@
 #include <unordered_map>
 
 
-#include "../mesh-util/mesh-util.hpp"
 
 
 void AssignPartitionLabelsInOrder(std::vector<uint64_t> &ordering, uint64_t count, uint64_t partition_count, std::vector<uint64_t> &labels_out);

@@ -1,4 +1,5 @@
 #include <util.hpp>
+#include "mpi.h"
 #include <vector>
 
 PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj,

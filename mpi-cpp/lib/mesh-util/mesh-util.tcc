@@ -39,8 +39,6 @@ void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std
     // Get the number of nodes and elements
 
     int gmsh_element_type;
-    int gmsh_face_type;
-    size_t nodes_per_face;
     size_t faces_per_element;
     size_t nodes_per_element;
 
@@ -49,8 +47,6 @@ void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std
     case ElementType::TET: // linear tet
     {
         gmsh_element_type=4;
-        gmsh_face_type = 3; // triangle
-        nodes_per_face = 3;
         faces_per_element = 4;
         nodes_per_element = 4;
 
@@ -59,8 +55,6 @@ void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std
     case 5: // linear hexahedra
     {
         gmsh_element_type=5;
-        gmsh_face_type = 4; // quadtriangle
-        nodes_per_face = 4;
         faces_per_element = 6;
         nodes_per_element = 8;
 
@@ -327,7 +321,7 @@ DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_
         }
     );
 
-    const std::vector<T> elements_ordered(elements_in.size());
+    std::vector<T> elements_ordered(elements_in.size());
 
     for (uint64_t i = 0; i < elements_in.size(); i++)
     {        

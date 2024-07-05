@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("starting ptscotch");
     std::vector<uint16_t> local_ptscotch_partition_labels(local_element_count);
-    auto ptscotch_status = dist_graph.PartitionPtSotch(local_ptscotch_partition_labels);
+    dist_graph.PartitionPtSotch(local_ptscotch_partition_labels);
     if(!taskid) print_log("ptscotch done");
 
 

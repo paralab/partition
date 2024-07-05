@@ -358,7 +358,7 @@ void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_e
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
-    uint64_t local_element_count = proc_element_counts[my_rank];
+    
     std::vector<ElementWithFace> unpaired_element_faces_sorted(unpaired_element_faces.size());
     MPI_Barrier(comm);
 

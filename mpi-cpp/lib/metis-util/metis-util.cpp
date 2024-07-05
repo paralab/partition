@@ -24,8 +24,8 @@ std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vecto
                         &partition_count, nullptr, nullptr, options, &edgecut, partition_labels.data());
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    if(!(result == METIS_OK)) throw std::runtime_error("METIS partitioning error");
     print_log("METIS time:\t", duration.count(), " us");
-    assert(result == METIS_OK);
     std::vector<uint64_t> partition_labels__(partition_labels.begin(), partition_labels.end());
 
     return partition_labels__;
@@ -65,11 +65,12 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     MPI_Barrier(comm);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    if(! (return_code == METIS_OK)) throw std::runtime_error("parMETIS partitioning error");
     if (!my_rank)
     {
         print_log("ParMetis time:\t\t\t", duration.count(), " us");
     }
     partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
-    return {.return_code = return_code, .time_us = duration.count()};
+    return {.return_code = return_code, .time_us = static_cast<int>(duration.count())};
 
 }

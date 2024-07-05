@@ -117,7 +117,7 @@ void ExportMetricsToPandasJson(
 
 
 
-    for (int list_i = 0; list_i < py_lists.size(); list_i++)
+    for (size_t list_i = 0; list_i < py_lists.size(); list_i++)
     {
         // print_log(py_lists[list_i]);
         // print_log(VectorToString(*cpp_vectors[list_i]));

@@ -1,8 +1,12 @@
-#include "mpi.h"
+
+#include "util.hpp"
+#include "scotch-util.hpp"
 #include "ptscotch.h"
 #include "scotch.h"
-#include "util.hpp"
+#include "mpi.h"
 #include <chrono>
+#include <cassert>
+#include <stdexcept>
 
 PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj,
                                       std::vector<uint64_t>& adjncy, uint64_t num_vertices_local,
@@ -26,7 +30,11 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
                        static_cast<SCOTCH_Num>(num_vertices_local), vertloctab.data(), NULL, NULL, NULL,
                        local_total_arcs, local_total_arcs, edgeloctab.data(), NULL, NULL);
     int graph_status = SCOTCH_dgraphCheck(&graph);
-    assert(graph_status == 0);
+    if (! (graph_status==0))
+    {
+        throw std::runtime_error("SOTCH error, graph is not consistent");
+    }
+    
     std::vector<SCOTCH_Num> partition_labels(num_vertices_local, 0);
     MPI_Barrier(comm);
     auto start = std::chrono::high_resolution_clock::now();
@@ -41,5 +49,5 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     SCOTCH_dgraphExit(&graph);
     SCOTCH_stratExit(&stradat);
     partition_labels_out.assign(partition_labels.begin(), partition_labels.end());
-    return {.return_code = return_code, .time_us = duration.count()};
+    return {.return_code = return_code, .time_us = static_cast<int>(duration.count())};
 }

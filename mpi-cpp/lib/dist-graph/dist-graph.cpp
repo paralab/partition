@@ -125,7 +125,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         this->local_degrees[current_ghost_element_local_index]++;
         
 
-        for (int boundary_edge_i =1; boundary_edge_i <boundary_connectivity_cpy.size(); boundary_edge_i++)
+        for (size_t boundary_edge_i =1; boundary_edge_i <boundary_connectivity_cpy.size(); boundary_edge_i++)
         {
             // since we sorted boundary edges by second element
             if (boundary_connectivity_cpy[boundary_edge_i].second.global_idx != boundary_connectivity_cpy[boundary_edge_i-1].second.global_idx)
@@ -185,7 +185,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             next_index[local_index_2]++;
         }
 
-        for (int boundary_edge_i =1; boundary_edge_i <boundary_connectivity_cpy.size(); boundary_edge_i++)
+        for (size_t boundary_edge_i =1; boundary_edge_i <boundary_connectivity_cpy.size(); boundary_edge_i++)
         {
             //since we sorted boundary edges by second element
             if (boundary_connectivity_cpy[boundary_edge_i].second.global_idx != boundary_connectivity_cpy[boundary_edge_i-1].second.global_idx)
@@ -256,7 +256,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         std::vector<ElementWithTag> send_elements;
 
         //sort each send elements per each process
-        for (size_t proc_i = 0; proc_i < procs_n; proc_i++)
+        for (int proc_i = 0; proc_i < procs_n; proc_i++)
         {
             if (send_elements_with_dups_counts[proc_i])
             {
@@ -554,7 +554,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
         partition_labels_out[local_i] = bfs_vector[local_i].label;
     }
 
-    return {.return_code = 0, .time_us = duration.count()};
+    return {.return_code = 0, .time_us = static_cast<int>(duration.count())};
 
 }
 
@@ -870,7 +870,6 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
 
-    int comm_count = 0;
     std::vector<int> updated_only_send_counts(procs_n,0);
     std::vector<int> updated_only_send_counts_scanned(procs_n,0);
     std::vector<GhostBFSValue> updated_only_send_buffer;
