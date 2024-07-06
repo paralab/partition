@@ -267,7 +267,29 @@ In \verb|BFS-Round()| given in Fig \ref{algo:bfs-par-outline} each \verb|while| 
 % \end{figure}
 
 \section{Experimental Results}
-We present the experimental results for two aspects of the partitioning algorithm, (1) partition quality and (2) performance. We compare our results with two commonly used partitioning algorithms, (1) SFC method and (2) parMETIS algorithm.
+We present experimental results for two aspects of the partitioning algorithm, (1) scalability and performance, and (2) partition quality. We compare our results with three other commonly used mesh partitioning schemes, (1) SFC method, (2) parMETIS algorithm and (3) PT-Scotch algorithm. We evaluate the three methods using a collection of mesh files. Elements (tet or hex) in each mesh first partitioned using the three different partitioning schemes. Further experiments on partition quality are performed on the new partition labels on elements.
+
+\subsection{Hardware Setup}
+
+\subsection{Input Files}
+We used 3D mesh file collection from \cite{meshes}. The collection contains both hexahedra meshes and tetrahedra meshes. We present experiment results for 50 meshes. Figures are presented for a selected 10 mesh files.
+
+\subsection{Scalability and Performance}
+Since BFS algorithm is a local operation, BFS partitioning is highly scalable in distributed memory environment. Furthermore, the number of rounds needed for BFS partitioning (until BFS global stability is reached) is observed to be nearly constant regardless of the number of required partitions. These two observations contribute to the near linear strong scalability of BFS partition method. All 3 methods: BFS, parMETIS and PT-Scotch require the mesh as a distributed graph structure. Initial distribution was obtained using SFC partitioning. Fig TODO shows strong scalability results with selected 10 mesh files. Graph setup time and subsequent re-distribution time are omitted since those values are similar across all three methods in the comparison. While both parMETIS and PT-Scotch fail to achieve reasonable scalability, BFS partition shows near linear scalability for sufficiently larger input meshes. Although BFS partition shows poor scalability for smaller meshes, performance is consistently better than partMETIS and PT-Scotch, factor of 10 and 100 respectively.
+
+\subsection{Partition Quality}
+We present the partition quality data using the following criteria
+\begin{itemize}
+    \item number of boundary elements in each partition 
+    \item $\lambda = $ ratio of total number of boundary elements to all elements
+    \item $\rho_{max}$ size of the largest partition size relative to ideal partition size
+\end{itemize}
+
+Fig. TODO shows the distribution of the boundary size of each partition. BFS partition boundary distribution is significantly better than SFC partitioning. Since BFS is a local operation, we can not expect the BFS partitioning to be better than parMETIS or PT-Scotch. However, the median boundary size of BFS partitioning is comparable with parMETIS and PT-Scotch. Fig. TODO shows $\lambda$ for the all four partitioning methods. BFS partitioning consistently maintains $\lambda$ close to parMETIS and PT-Scotch. Fig. TODO presents $\rho_{max}$ for all partitioning methods. Since BFS partitioning relies on graph distance for partition assignment, there is no explicit control or constraint of the partition sizes. Therefore, the partition size distribution of BFS is worse than all other three methods. However, $\rho_{max}$ in BFS is consistently within 2-2.5 range. This might appear as a bad size for partitioning. However, in most real-world very large scale scientific computations that involve distributed partitioning, improvements in the boundary size can compensate for a slight imbalance in partition size. When such computations are scaled up for very large number of distributed processes, network communication often hinders the strong scalability. Communication cost is directly proportional to the boundary size of the partitions. Therefore, any significant improvement in boundary quality can improve the strong scalability. In most cases improvement of the communication can compensate for the local extra work caused by a slight imbalance in the partitions. In the next section we present empirical data to support this claim.
+
+\subsection{Linear Solver test}
+We present a linear solver test on the next partitioning to show that BFS partitioning is truly useful in real-world scientific computations. Since we use mesh files as inputs, we use a linear solver on top of FEM like model on the input mesh. After partitioning the elements, nodes of each element is also assigned to a partition. If a node is shared by multiple elements, we define that the node is owned by the element with the lowest tag/index. Thus the node belongs to the partition of the owning element. After this node partitioning, elemental matrices are created with some dummy scalar values to generate the global sparse matrix. We use PETsc \cite{petsc-web-page} for global matrix assembly and linear solver. Fig. TODO shows the time taken for PETsc GMRES \cite{GMRES} iterative solver for the four partitioning results. This experiment shows that a significant improvement in partition boundary quality in the BFS partitioning can compensate for the slight imbalance in the partition sizes. When the linear solver is scaled-up to higher number of processes, BFS partitioning results in good strong scalability in the linear solver, close to parMETIS and PT-Scotch. 
+
 
 
 
