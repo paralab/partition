@@ -14,6 +14,12 @@
 \usepackage{textcomp}
 \usepackage{xcolor}
 
+\usepackage{hyperref}
+\usepackage{pgfplotstable}
+\usepackage{subcaption}
+
+\usepackage{array}
+
 % TODO: remove the following in the final
 \usepackage{lipsum}  
 
@@ -65,7 +71,7 @@ email address or ORCID}
 \maketitle
 
 \begin{abstract}
-    \lipsum[1-1]
+    \textcolor{red}{TODO}
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -73,30 +79,30 @@ keyword1, keyword2, keyword2
 \end{IEEEkeywords}
 
 \section{Introduction}
-\lipsum[1-1]
+\textcolor{red}{TODO}
 
 \section{Definitions}
-\lipsum[1-1]
+\textcolor{red}{TODO}
 
 \section{Related Work}
 
 \subsection{Work 1}
 
-\lipsum[1-1]
+\textcolor{red}{TODO}
 \cite{parmetis}
 
 \subsection{Work 2}
 
-\lipsum[1-1]
+\textcolor{red}{TODO}
 
 \section{Methodology}
 In this section we outline the data structures and key routines for BFS-partition.
 
 
 \subsection{Data Structures}
-Similar to other mesh partitioning algorithms based on graphs, BFS partition algorithm requires the mesh element connectivity to be presented as a graph data structure. We adhere to commonly used distributed CSR graph encoding as the graph input format to the algorithm. Apart from the graph adjacency structure, the only other data structures needed inside the BFS algorithm are, the \verb|bfs_vec| and the \verb|scatter_map|.
+Similar to other mesh partitioning algorithms based on graphs, BFS partition algorithm requires the mesh element connectivity to be presented as a distributed graph data structure. We adhere to commonly used distributed CSR graph encoding as the graph input format to the algorithm. Apart from the graph adjacency structure, the only other data structures needed inside the BFS algorithm are, the \verb|bfs_vec| and the \verb|scatter_map|.
 \par
-In each process, \verb|bfs_vec| is the vector to store the BFS status of each local vertex and each ghost vertex. \verb|bfs_vec| adheres to the initial indexing of the vertices provided by the user. Each entry in the \verb|bfs_vec| contains two fields: 
+In each process, \verb|bfs_vec| is the vector to store the BFS status of each local vertex and each ghost vertex. \verb|bfs_vec| follows to the initial indexing of the vertices provided by the user. Each entry in the \verb|bfs_vec| contains two fields: 
 \begin{enumerate}
     \item \verb|label| = Assigned new partition label
     \item \verb|distance| = Distance from the seed of the current partition
@@ -107,9 +113,11 @@ Initially \verb|label| is set as \verb|NO_LABEL| implying the vertex is not visi
 % TODO: add BFS vector illustration with ghost portion and scatter map
 
 \subsection{Algorithm}
-Given the data structures, high level outline of the BFS partition algorithm is given in Fig. \ref{algo:bfs-par-outline}. BFS partition algorithm requires some initial distribution of the graph across distributed processes. The initial distribution needs to have some locality in the graph vertices in each process. Therefore, SFC type partitioning of the input mesh is ideal for the initial distribution. If the graph needs to be partitioned to $p$ parts, we assume the graph is initially distributed across $p$ processes. In each process, a vertex is picked as the local BFS \emph{seed}. Since the mesh/graph is initially partitioned according to the SFC ordering, we take the \emph{middle} (in SFC order) vertex in each process as the \emph{seed} in that process. Each \emph{i}th \emph{seed} $(i \in [0, p-1])$ at process $i$ starts $i$th BFS exploring the graph structure in a BFS pattern. When exploring the graph, the BFS vector entry of each visited vertex is populated as \verb|label|=$i$ and \verb|distance|=\emph{graph distance from seed i}. If any $i$th BFS encounters an already visited vertex, the following takes place. If the current \verb|distance| value of the vertex is greater than the distance from $i$th seed, it is re-visited by $i$th BFS and updates its \verb|distance| and \verb|label| fields. Otherwise, that vertex is not re-visited by $i$th BFS. This process continues until there is no change to the BFS vector globally. In this way, each vertex gets their \verb|label| based on the closest seed. The \verb|label| field is the assignment in the final partitioning.
+Given the data structures, high level outline of the BFS partition algorithm is given in Fig. \ref{algo:bfs-par-outline}. BFS partition algorithm requires some initial distribution of the graph across distributed processes. The initial distribution in each process needs to have some spatial locality in the graph vertices. Therefore, a spatial ordering type (e.g. Space Filling Curve) partitioning of the input mesh is ideal for the initial distribution. In an adaptive mesh/graph scenario, the initial partitioning can also be the previous partitioning before the refinement. 
 \par
-The implementation is done using 2 main procedures. \verb|BFS-Round()| and \verb|Ghost-Update()| procedures are repeatedly applied until the global BFS state is stable across all processes. \verb|Ghost-Update()| uses the pre-computed \verb|scatter_map| to prepare the sending buffer. BFS vector is updated with the received ghost values accordingly. Subsequent element/graph redistribution is done by accessing the computed \verb|distance| field in the BFS vector.
+If the graph needs to be partitioned to $p$ parts, we assume the graph is initially distributed across $p$ processes. In each process, a vertex is picked as the local BFS \emph{seed}. Since the mesh/graph is initially partitioned according to some spatial ordering, we take the \emph{middle} (in the spatial order) vertex in each process as the \emph{seed} in that process. Each \emph{i}th \emph{seed} $(i \in [0, p-1])$ at process $i$ starts $i$th BFS exploring the graph structure in a BFS pattern. When exploring the graph, the BFS vector entry of each visited vertex is populated as \verb|label|=$i$ and \verb|distance|=\emph{graph distance from seed i}. If any $i$th BFS encounters an already visited vertex, the following takes place. If the current \verb|distance| value of the vertex is greater than the distance from $i$th seed, it is re-visited by $i$th BFS and updates its \verb|distance| and \verb|label| fields. Otherwise, that vertex is not re-visited by $i$th BFS. This process continues until there is no change to the BFS vector globally. In this way, each vertex gets their \verb|label| based on the closest seed. The \verb|label| field is the assignment in the final partitioning.
+\par
+The implementation is done using 2 main procedures. \textsc{BFS-Round()} and \textsc{Update-Ghost()} procedures are repeatedly applied until the global BFS state is stable across all processes. \textsc{Update-Ghost()} uses the pre-computed \verb|scatter_map| to prepare the sending buffer. BFS vector is updated with the received ghost values accordingly. Subsequent element/graph redistribution is done by accessing the computed \verb|distance| field in the BFS vector.
 
 \begin{figure}  
     \begin{algorithmic}[1]  
@@ -196,7 +204,7 @@ The implementation is done using 2 main procedures. \verb|BFS-Round()| and \verb
 \end{figure}
 
 \subsection{Optimizations}
-In \verb|BFS-Round()| procedure, each \verb|while| loop iteration evaluates all the vertices and their neighborhoods. Since BFS flows similar to a frontier in the graph, it is sufficient to check and update the neighborhoods of the last updated vertices. To implement this, \verb|Update-Ghost()| is modified to return the list of vertices that were updated in the last ghost value exchange. Thereafter, \verb|BFS-Round()| proceeds to check only the neighborhood vertices of the last updated vertices. Furthermore, \verb|Update-Ghost()| is optimized to compare the current send buffer with the last send buffer to send only the updated values.
+In \textsc{BFS-Round()} procedure, each \verb|while| loop iteration evaluates all the vertices and their neighborhoods. Since BFS flows similar to a frontier in the graph, it is sufficient to check and update the neighborhoods of the last updated vertices. To implement this, \textsc{Update-Ghost()} is modified to return the list of vertices that were updated in the last ghost value exchange. Thereafter, \textsc{BFS-Round()} proceeds to check only the neighborhood vertices of the last updated vertices. Furthermore, \textsc{Update-Ghost()} is optimized to compare the current send buffer with the previous send buffer to send only the updated values.
 
 % \subsection{A list}
 % \begin{itemize}
@@ -269,41 +277,73 @@ In \verb|BFS-Round()| procedure, each \verb|while| loop iteration evaluates all 
 % \end{figure}
 
 \section{Experimental Results}
-We present experimental results for two aspects of the partitioning algorithm, (1) scalability and performance, and (2) partition quality. We compare our results with three other commonly used mesh partitioning schemes, (1) SFC method, (2) parMETIS algorithm and (3) PT-Scotch algorithm. We evaluate the three methods using a collection of mesh files. Elements (tet or hex) in each mesh first partitioned using the three different partitioning schemes. Further experiments on partition quality are performed on the new partition labels on elements.
+We present experimental results for two aspects of the partitioning algorithm: (1) scalability and performance, and (2) partition quality. We compare our results with two other commonly used mesh partitioning schemes: parMETIS and PT-Scotch. We also consider the initial spatial ordered partitioning for evaluating the partition quality. All the tests are run on a collection of mesh files. Elements (tet or hex) in each mesh first are partitioned using the three different partitioning schemes. Further experiments on partition quality are performed on the new partition labels on elements.
 
-\subsection{Hardware Setup}
 
 \subsection{Input Files}
-We used 3D mesh file collection from \cite{meshes}. The collection contains both hexahedra meshes and tetrahedra meshes. We present experiment results for 50 meshes. Figures are presented for a selected 10 mesh files.
+We used 3D mesh file collection from \cite{meshes}. Each mesh file in the collection contains either hexahedra or tetrahedra elements. We present experiment results for 50 meshes. Figures are presented for a set of selected 10 mesh files.
 
+
+\subsection{Hardware Setup}
+\textcolor{red}{\textcolor{red}{TODO}: extracted from HyMV paper, rephrase if needed.}
+
+All experiments reported in this paper were performed on TACC's Frontera \cite{Frontera} supercomputer. Frontera is an Intel supercomputer at Texas Advanced Computing Center (TACC) with a total of 8,008 nodes, each consisting of a Xeon Platinum 8280 (“Cascade Lake”) processor, with a total of 448,448 cores. Each node has 192 GB of memory. The interconnect is based on Mellanox HDR technology with full HDR (200 Gb/s) connectivity between the switches and HDR100 (100 Gb/s) connectivity to compute nodes. In all algorithm we bind each MPI process to each CPU core. We do not use OpenMP parallelism in the experiments.
 
 \subsection{Scalability and Performance}
-Since BFS algorithm is a local operation, BFS partitioning is highly scalable in distributed memory environment. Furthermore, the number of rounds needed for BFS partitioning (until BFS global stability is reached) is observed to be nearly constant regardless of the number of required partitions. These two observations contribute to the near linear strong scalability of BFS partition method. All 3 methods: BFS, parMETIS and PT-Scotch require the mesh as a distributed graph structure. Initial distribution was obtained using SFC partitioning. Fig TODO shows strong scalability results with selected 10 mesh files. Graph setup time and subsequent re-distribution time are omitted since those values are similar across all three methods in the comparison. While both parMETIS and PT-Scotch fail to achieve reasonable scalability, BFS partition shows near linear scalability for sufficiently larger input meshes. Although BFS partition shows poor scalability for smaller meshes, performance is consistently better than partMETIS and PT-Scotch, factor of 10 and 100 respectively.
+Since BFS algorithm is a local operation, BFS partitioning is highly scalable in distributed memory environment. Furthermore, the number of rounds needed for BFS partitioning (until BFS global stability is reached) is observed to be nearly constant regardless of the number of required partitions. These two observations contribute to the scalability of BFS partition method. All 3 methods: BFS, parMETIS and PT-Scotch require the mesh as a distributed graph structure. Initial distribution was obtained using SFC partitioning. Fig \textcolor{red}{TODO} shows strong scalability results with selected 10 mesh files. Graph setup time and subsequent re-distribution time are omitted since those values are similar across all three methods in the comparison. While both parMETIS and PT-Scotch fail to achieve reasonable scalability, BFS partition shows near linear scalability for sufficiently larger input meshes. Although BFS partition shows poor scalability for smaller meshes, performance is consistently better than partMETIS and PT-Scotch, factor of 10 and 100 respectively.
 
 
 \subsection{Partition Quality}
-We present the partition quality data using the following criteria
+
+
+
+A high quality partitioning implies the partitions are balanced, and partition boundaries are minimal and \emph{smooth}. To provide a better intuition, we present a visualization of the partitioning. Fig. \ref{fig:tet-mesh-12} and \ref{fig:hex-mesh-4} show the partitioning view for two mesh files, partitioned into 10 and 20 parts respectively. It is evident that BFS partitioning produces reasonably high quality partitions with strong vertex locality, compared to a spatial order partitioning. BFS partitions contain a slight imbalance. However, in the next sections we show that this imbalance is negligible when used with a distributed numerical computation on the partitioned mesh.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/tet-mesh-12.png}
+    \caption{Tet mesh partition view}
+    \label{fig:tet-mesh-12}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/hex-mesh-4.png}
+    \caption{Hex mesh partition view}
+    \label{fig:hex-mesh-4}
+\end{figure}
+
+We further quantitatively compare the partition quality of the different methods using the following criteria
 \begin{itemize}
-    \item number of boundary elements in each partition 
+    \item number of boundary elements in each new partition 
     \item $\lambda = $ ratio of total number of boundary elements to all elements
-    \item $\rho_{max}$ size of the largest partition size relative to ideal partition size
+    \item $\rho_{max} = $ size of the largest partition size relative to ideal partition size
 \end{itemize}
 
-Fig. TODO shows the distribution of the boundary size of each partition. BFS partition boundary distribution is significantly better than SFC partitioning. Since BFS is a local operation, we can not expect the BFS partitioning to be better than parMETIS or PT-Scotch. However, the median boundary size of BFS partitioning is comparable with parMETIS and PT-Scotch. Fig. TODO shows $\lambda$ for the all four partitioning methods. BFS partitioning consistently maintains $\lambda$ close to parMETIS and PT-Scotch. Fig. TODO presents $\rho_{max}$ for all partitioning methods. Since BFS partitioning relies on graph distance for partition assignment, there is no explicit control or constraint of the partition sizes. Therefore, the partition size distribution of BFS is worse than all other three methods. However, $\rho_{max}$ in BFS is consistently within 2-2.5 range. This might appear as a bad size for partitioning. However, in most real-world very large scale scientific computations that involve distributed partitioning, improvements in the boundary size can compensate for a slight imbalance in partition size. When such computations are scaled up for very large number of distributed processes, network communication often hinders the strong scalability. Communication cost is directly proportional to the boundary size of the partitions. Therefore, any significant improvement in boundary quality can improve the strong scalability. In most cases improvement of the communication can compensate for the local extra work caused by a slight imbalance in the partitions. In the next section we present empirical data to support this claim.
-
-\subsection{Linear Solver test}
-We present a linear solver test on the new partitioning to show that BFS partitioning is truly useful in real-world scientific computations. Since we use mesh files as inputs, we use a linear solver on top of FEM like model on the nodes of the input mesh. After partitioning the 3D elements, nodes of each element are also assigned to a partition as follows. If a node is contained in only one element, node's partition is same as that element's partition. Otherwise, out of all the partitions of all the containing elements, the least numbered partition is considered as the node's partition. After node partitioning, elemental matrices are created with some dummy scalar values to generate the global sparse matrix. We use PETsc \cite{petsc-web-page} for global matrix assembly and linear solver. Fig. TODO shows the time taken for PETsc GMRES \cite{GMRES} iterative solver for the four partitioning results. This experiment shows that a significant improvement in partition boundary quality in the BFS partitioning can compensate for the slight imbalance in the partition sizes. When the linear solver is scaled-up to higher number of processes, BFS partitioning results in good strong scalability in the linear solver, close to parMETIS and PT-Scotch. 
 
 
+\begin{figure*}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figures/boundary-sizes.pdf}
+    \caption{Boundary Sizes Distribution}
+    \label{fig:bdry-sizes}
+\end{figure*}
+
+
+
+Fig. \textcolor{red}{TODO} shows the distribution of the boundary size of each partition. BFS partition boundary size distribution is significantly better than the initial SFC partitioning. Since BFS is a local operation, we do not expect the BFS partitioning to be better than parMETIS or PT-Scotch. However, the median boundary size of BFS partitioning is comparable with parMETIS and PT-Scotch. As observed in the Fig. \textcolor{red}{TODO}, it is possible to contain some high outliers in the boundary size distribution in BFS partitioning. However, in the next experiments we show that these outliers are negligible when the new partitioning is used with a large scale distributed computation on the mesh. Fig. \textcolor{red}{TODO} shows $\lambda$ for the all four partitioning methods. BFS partitioning consistently maintains $\lambda$ close to parMETIS and PT-Scotch. Fig. \textcolor{red}{TODO} presents $\rho$ for all partitioning methods. Since BFS partitioning relies on graph distance for partition assignment, there is no explicit control or constraint of the partition sizes. Therefore, the partition size distribution of BFS is worse than all other three methods. However, $\rho$ in BFS is consistently within 2-3 range. On a graph partitioning point of view, this imbalance is not optimal. However, in most very large scale numerical computations that involve distributed mesh partitioning, improvements in the boundary size can compensate for a slight imbalance in partition size. When such computations are scaled up for very large number of distributed processes, network communication often hinders the strong scalability. Communication cost is directly proportional to the boundary size of the partitions. Therefore, any significant improvement in boundary quality can improve the strong scalability. In most cases improvement of the communication can compensate for the local extra work caused by a slight imbalance in the partitions. In the next section we present empirical data to support this claim.
+
+
+\subsection{Linear Solver Test}
+We present a sparse linear solver test to show that the new partitions produced by BFS partitioning provide a significant performance benefit on subsequent distributed computations on partitioned mesh. Since we use mesh files as inputs, we use a linear solver on top of FEM like model on the nodes of the input mesh. After partitioning the 3D elements, nodes of each element are also assigned to partitions as follows. If a node is contained in only one element, node's partition is same as that element's partition. Otherwise, out of all the partitions of all the containing elements, the least numbered partition is considered as the node's partition. After node partitioning, elemental matrices are created with some dummy scalar values to assemble the global sparse matrix. We use PETsc \cite{petsc-web-page} for global matrix assembly and linear solver. Fig. \textcolor{red}{TODO} shows the time taken for PETsc GMRES \cite{GMRES} iterative solver with different partitioning schemes. Results show that the initial spatial ordering (SFC) partitioning is \emph{bad} and BFS partitioning gives a significant scalable performance in the numerical solver. This experiment shows that a significant improvement in partition boundary quality in the BFS partitioning can overcome the slight imbalance in the partition sizes. When the linear solver is scaled-up to higher number of processes, BFS partitioning results in good strong scalability in the linear solver, comparable to parMETIS and PT-Scotch. 
+
+\section{Conclusion}
+This work presents a scalable mesh partitioning method using BFS graph algorithm. BFS partitioning ideal for cases where the mesh has some initial partitioning (either from a spatial ordering of a previous partitioning before a mesh refinement). Since BFS partitioning mostly contain local computation and minimal point to point communication, it shows superior performance compared to two common partitioning schemes: parMETIS and PT-Scotch. Despite the considerable difference in performance, BFS produces reasonably high quality partitions, comparable to parMETIS and PT-Scotch. Although BFS partitioning produces slightly imbalanced partitions, we show that the improvement in partition boundaries compensates for the imbalance. The linear solver test show that partitions from the BFS algorithm enables subsequent numerical computations sustain extreme scalability with the new partitions, similar to parMETIS and PT-Scotch partitions. 
 
 
 \section*{Acknowledgment}
 
-The preferred spelling of the word ``acknowledgment'' in America is without 
-an ``e'' after the ``g''. Avoid the stilted expression ``one of us (R. B. 
-G.) thanks $\ldots$''. Instead, try ``R. B. G. thanks$\ldots$''. Put sponsor 
-acknowledgments in the unnumbered footnote on the first page.
-
+The authors acknowledge the Texas Advanced Computing Center (TACC) at The University of Texas at Austin for providing computational resources that have contributed to the research results reported within this paper. URL: \url{http://www.tacc.utexas.edu}
 % \section*{References}
 
 
@@ -311,8 +351,31 @@ acknowledgments in the unnumbered footnote on the first page.
 \bibliography{IEEEabrv,main-bib.bib}
 
 \vspace{12pt}
-\color{red}
-IEEE conference templates contain guidance text for composing and formatting conference papers. Please ensure that all template text is removed from your conference paper prior to submission to the conference. Failure to remove the template text from your paper may result in your paper not being published.
-\\
-TODO: remove \verb|\usepackage{lipsum}| in the final
+\textcolor{red}{IEEE conference templates contain guidance text for composing and formatting conference papers. Please ensure that all template text is removed from your conference paper prior to submission to the conference. Failure to remove the template text from your paper may result in your paper not being published.\\TODO: remove usepackage{lipsum} in the final}
+
+
+\begin{figure*}
+\pgfplotstabletypeset[
+    col sep=comma,
+    every head row/.style={
+        before row={
+        \hline 
+            &  &  & \multicolumn{2}{c}{SFC} & \multicolumn{2}{c}{BFS} & \multicolumn{2}{c}{parMETIS} & \multicolumn{2}{c}{PT-Scotch} \\ },
+            after row=\hline          
+        },
+    every column/.style={fixed, fixed zerofill, precision=2},
+    columns/mesh/.style={column name=Mesh, fixed, precision=0},
+    columns/n/.style={column name=$n$, precision=1, sci, precision=1},
+    columns/p/.style={column name=$p$, fixed, precision=0},
+    columns/sfc_lambda/.style={column name=$\lambda$},
+    columns/sfc_rho_max/.style={column name=$\rho$},
+    columns/bfs_lambda/.style={column name=$\lambda$},
+    columns/bfs_rho_max/.style={column name=$\rho$},
+    columns/parmetis_lambda/.style={column name=$\lambda$},
+    columns/parmetis_rho_max/.style={column name=$\rho$},
+    columns/ptscotch_lambda/.style={column name=$\lambda$},
+    columns/ptscotch_rho_max/.style={column name=$\rho$},
+    every last row/.style={after row=\hline}
+]{data/part-quality.csv}
+\end{figure*}
 \end{document}
