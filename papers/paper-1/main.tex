@@ -80,21 +80,16 @@ keyword1, keyword2, keyword2
 \end{IEEEkeywords}
 
 \section{Introduction}
+Mesh partitioning is an important preliminary step in large scale computations on distributed memory architectures. With the rise of new hardware on exascale computing, large scale computations are mostly implemented on supercomputers and server farms with distributed compute nodes. Optimal work distribution and load balancing of the mesh geometry is critical to achieve the best possible peak performance and scalability of such implementations. Mesh partitioning has been a well studied topic in the literature in the past decades. Mesh partitioning mainly focuses on optimizing two main objectives: (1) balanced number of elements/nodes in each partition, and (2) minimizing the number of boundary elements/nodes. One common method is to convert mesh element connectivity information into a graph data structure and employ a graph partitioning method to obtain mesh partitions. However, it is well known that the graph partitioning problem is an NP-Hard problem \cite{npcmpleteness}. This inherently makes obtaining optimal solution to mesh partitioning difficult. Therefore, most of the previous work on mesh partitioning rely on heuristics. On distributed architectures where the input mesh is already distributed, computing a new optimal mesh partitioning can be costly due to the communication overhead among distributed processes. If not carefully handled, parallel scalability of a distributed mesh partitioning algorithm can be significantly reduced due to communication and synchronization cost surpassing the local computations in the algorithm. 
+\par
+According to the used heuristics, mesh partitioning methods fall in to two main categories. (1) spatial mesh partitioning, and (2) non-spatial mesh partitioning. 
+\par
+\textbf{\emph{Spatial mesh partitioning}} methods mainly use the geometry coordinate information of mesh elements to obtain the partitioning. Recursive bisection methods [\textcolor{red}{TODO}] use the simplest form of heuristics: finding an optimal hyperplane in the mesh geometry to recursively partition the mesh. Oftentimes this procedure involves sorting the coordinates of elements in each spatial dimensions. Another commonly used method is to fit a Space Filling Curve (SFC) to obtain a global ordering of elements to get a partitioning along the order. Mesh data that involve quadtree or octree structures, commonly use Z-order curve to perform mesh partitioning. Creating the SFC order simplifies to a global sorting operation among the distributed processes. Since parallel-distributed sorting is well studied aspect, these spatial methods are adapted to their parallel versions for parallel distributed architectures [\textcolor{red}{TODO}]. Although spatial mesh partitioning methods are fast and scalable in distributed architectures, they do not explicitly consider the element connectivity information. Therefore, the partition quality of spatial partitioning is often worse than non-spatial methods. Especially when the mesh has a complex geometry with concave shapes, spatial partitioning methods produce partitions with very weak locality among elements inside each partition.
+
+
+\section{Preliminaries}
 \textcolor{red}{TODO}
 
-\section{Definitions}
-\textcolor{red}{TODO}
-
-\section{Related Work}
-
-\subsection{Work 1}
-
-\textcolor{red}{TODO}
-\cite{parmetis}
-
-\subsection{Work 2}
-
-\textcolor{red}{TODO}
 
 \section{Methodology}
 In this section we outline the data structures and key routines for \bfspart.
