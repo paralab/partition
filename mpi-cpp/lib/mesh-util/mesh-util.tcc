@@ -18,175 +18,165 @@
 #include <chrono>
 
 template <class T>
-void GetElementsWithFacesNodesCentroids(const std::string &part_file_prefix, std::vector<T> &elements_out,
+void GetInitialElementsDistribution(const std::string &mesh_file_path, std::vector<T> &local_elements_out,
                           ElementType element_type, MPI_Comm comm)
 {
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
 
-    std::string mesh_part_file_path = part_file_prefix + "_" + std::to_string(my_rank+1) + ".msh";
+    int local_element_count;
+    std::vector<int> proc_element_counts(procs_n);          // populated only at root
+    std::vector<int> proc_element_counts_scanned(procs_n);  // populated only at root
+    std::vector<T> all_elements;                            // populated only at root
 
-    // Initialize Gmsh
-    gmsh::initialize();
-    if (my_rank)
+    // root process will read the mesh and do a simple initial element scatter distribution
+    if(!my_rank)
     {
+
+        gmsh::initialize();
         gmsh::option::setNumber("General.Terminal", 0);
-    }
-    // Load the mesh file
-    gmsh::open(mesh_part_file_path);
+        gmsh::open(mesh_file_path);
 
-    // Get the number of nodes and elements
+        int gmsh_element_type;
+        int gmsh_face_type;
+        int faces_per_element;
+        int nodes_per_element;
+        int nodes_per_face;
 
-    int gmsh_element_type;
-    size_t faces_per_element;
-    size_t nodes_per_element;
-
-    switch (element_type)
-    {
-    case ElementType::TET: // linear tet
-    {
-        gmsh_element_type=4;
-        faces_per_element = 4;
-        nodes_per_element = 4;
-
-        break;
-    }
-    case 5: // linear hexahedra
-    {
-        gmsh_element_type=5;
-        faces_per_element = 6;
-        nodes_per_element = 8;
-
-        break;
-    }
-
-    default:
-    {
-        throw std::invalid_argument("unknown element type\t exiting...");
-        break;
-    }
-    }
-
-    std::vector<uint64_t> localElementNodeTags;
-    std::vector<uint64_t> local_elem_tags;
-
-
-    gmsh::model::mesh::getElementsByType(gmsh_element_type, local_elem_tags, localElementNodeTags, -1);
-
-    // print_log("[", my_rank, "] local_elem_tags:", VectorToString(local_elem_tags));
-
-  
-
-
-    // uint64_t local_start = (my_rank * global_element_count) / procs_n;
-    // uint64_t local_end = ((my_rank+1) * global_element_count) / procs_n;
-    // uint64_t local_element_count = local_end-lolocal_startcal_start;
-
-    size_t local_element_count = local_elem_tags.size();
-    assert(localElementNodeTags.size() == local_element_count*nodes_per_element);
-
-
-    std::vector<uint64_t> allNodeTags;
-    std::vector<double> allNodeCoords, allNodeParams;
-    
-    gmsh::model::mesh::getNodes(allNodeTags, allNodeCoords, allNodeParams,-1,-1,true,false);
-
-    std::unordered_map<uint64_t, uint64_t> node_tag_to_index; 
-    for (size_t node_i = 0; node_i < allNodeTags.size(); node_i++)
-    {
-        node_tag_to_index[allNodeTags[node_i]] = node_i;
-    }
-
-
-    std::vector<double> local_elem_coordinates(local_element_count* 3); // 3 for 3D - x,y,z
-
-    for (size_t element_i = 0; element_i < local_element_count; element_i++)
-    {
-        double x = 0;
-        double y = 0;
-        double z = 0;
-
-        for (size_t elem_node_i = 0; elem_node_i < nodes_per_element; elem_node_i++)
+        switch (element_type)
         {
-            size_t nodeTag = localElementNodeTags[element_i*nodes_per_element + elem_node_i];
+        case ElementType::TET: // linear tet
+        {
+            gmsh_element_type   = 4;
+            gmsh_face_type      = 3; // triangle
+            nodes_per_face      = 3;
+            faces_per_element   = 4;
+            nodes_per_element   = 4;
 
-            x += allNodeCoords[node_tag_to_index[nodeTag] * 3];
-            y += allNodeCoords[node_tag_to_index[nodeTag] * 3 + 1];
-            z += allNodeCoords[node_tag_to_index[nodeTag] * 3 + 2];
+            break;
         }
-        x = x / nodes_per_element;
-        y = y / nodes_per_element;
-        z = z / nodes_per_element;
-
-        local_elem_coordinates[element_i * 3] = x;
-        local_elem_coordinates[element_i * 3 + 1] = y;
-        local_elem_coordinates[element_i * 3 + 2] = z;
-    }
-
-    // now we load unique face tag information from partitioned .bin files
-
-    std::vector<uint64_t> elemTagsFromFile(local_element_count);
-    std::vector<uint64_t> faceTagsFromFile(local_element_count*faces_per_element);
-    std::unordered_map<uint64_t, uint64_t> fileElemToIdx;
-
-    std::string elemtags_part_file_path = part_file_prefix + "_" + std::to_string(my_rank + 1) + "elemTags.bin";
-    std::string facetags_part_file_path = part_file_prefix + "_" + std::to_string(my_rank + 1) + "faceTags.bin";
-
-    std::ifstream infile{elemtags_part_file_path, std::ios::binary};
-    infile.read(reinterpret_cast<char*>(elemTagsFromFile.data()), local_element_count * sizeof(uint64_t));
-    infile.close();
-
-    std::ifstream infile2{facetags_part_file_path, std::ios::binary};
-    infile2.read(reinterpret_cast<char*>(faceTagsFromFile.data()), local_element_count * faces_per_element * sizeof(uint64_t));
-    infile2.close();
-
-    // print_log("[", my_rank, "] elemTagsFromFile:", VectorToString(elemTagsFromFile));
-    // print_log("[", my_rank, "] faceTagsFromFile:", VectorToString(faceTagsFromFile));
-
-    
-    std::unordered_map<uint64_t, uint64_t> from_file_elem_tag_to_index; 
-    for (size_t elem_i = 0; elem_i < local_element_count; elem_i++)
-    {
-        from_file_elem_tag_to_index[elemTagsFromFile[elem_i]] = elem_i;
-    }
-
-
-    // print_log("[", my_rank, "] localFaceTags:", VectorToString(localFaceTags));
-
-
-    elements_out.resize(local_element_count);
-
-    for (size_t element_i = 0; element_i < local_element_count; element_i++)
-    {
-        elements_out[element_i].element_tag = local_elem_tags[element_i];
-        elements_out[element_i].x = local_elem_coordinates[element_i*3];
-        elements_out[element_i].y = local_elem_coordinates[element_i*3+1];
-        elements_out[element_i].z = local_elem_coordinates[element_i*3+2];
-
-        for (size_t elem_node_i = 0; elem_node_i < nodes_per_element; elem_node_i++)
+        case 5: // linear hexahedra
         {
-            size_t nodeTag = localElementNodeTags[element_i*nodes_per_element + elem_node_i];
-            elements_out[element_i].node_tags[elem_node_i] = nodeTag;
+            gmsh_element_type   = 5;
+            gmsh_face_type      = 4; // quadtriangle
+            nodes_per_face      = 4;
+            faces_per_element   = 6;
+            nodes_per_element   = 8;
+
+            break;
         }
 
-
-        size_t element_i_in_file = from_file_elem_tag_to_index[local_elem_tags[element_i]];
-
-        for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
+        default:
         {
-            elements_out[element_i].face_tags[elem_face_i] = faceTagsFromFile[element_i_in_file*faces_per_element + elem_face_i];
+            throw std::invalid_argument("unknown element type\t exiting...");
+            break;
         }
+        }
+
+        std::vector<uint64_t> element_node_tags;
+        std::vector<uint64_t> element_tags;
+
+
+        gmsh::model::mesh::getElementsByType(gmsh_element_type, element_tags, element_node_tags, -1);
+
+        // print_log("[", my_rank, "] element_tags:", VectorToString(element_tags));
+
+
+        size_t total_element_count = element_tags.size();
+        assert(element_node_tags.size() == total_element_count*nodes_per_element);
+
+
+        std::vector<uint64_t> allNodeTags;
+        std::vector<double> allNodeCoords, allNodeParams;
         
+        gmsh::model::mesh::getNodes(allNodeTags, allNodeCoords, allNodeParams,-1,-1,true,false);
+
+        std::unordered_map<uint64_t, uint64_t> node_tag_to_index; 
+        for (size_t node_i = 0; node_i < allNodeTags.size(); node_i++)
+        {
+            node_tag_to_index[allNodeTags[node_i]] = node_i;
+        }
 
 
-    }
+        std::vector<double> element_coordinates(total_element_count* 3); // 3 for 3D - x,y,z
+
+        for (size_t element_i = 0; element_i < total_element_count; element_i++)
+        {
+            double x = 0;
+            double y = 0;
+            double z = 0;
+
+            for (size_t elem_node_i = 0; elem_node_i < nodes_per_element; elem_node_i++)
+            {
+                size_t nodeTag = element_node_tags[element_i*nodes_per_element + elem_node_i];
+
+                x += allNodeCoords[node_tag_to_index[nodeTag] * 3];
+                y += allNodeCoords[node_tag_to_index[nodeTag] * 3 + 1];
+                z += allNodeCoords[node_tag_to_index[nodeTag] * 3 + 2];
+            }
+            x = x / nodes_per_element;
+            y = y / nodes_per_element;
+            z = z / nodes_per_element;
+
+            element_coordinates[element_i * 3       ] = x;
+            element_coordinates[element_i * 3 + 1   ] = y;
+            element_coordinates[element_i * 3 + 2   ] = z;
+        }
+
+        std::vector<std::size_t> faceNodes;
+        gmsh::model::mesh::getElementFaceNodes(gmsh_element_type, gmsh_face_type, faceNodes,-1,false);
+
+        assert(faceNodes.size() == total_element_count*faces_per_element*nodes_per_face);
+
+        gmsh::model::mesh::createFaces();
+
+        std::vector<std::size_t> faceTags;
+        std::vector<int> faceOrientations;
+        gmsh::model::mesh::getFaces(gmsh_face_type, faceNodes, faceTags, faceOrientations);
+        assert(faceTags.size() == (faces_per_element * total_element_count));
+        gmsh::finalize();
+
+        all_elements.resize(total_element_count);
+
+        for (size_t element_i = 0; element_i < total_element_count; element_i++)
+        {
+            all_elements[element_i].element_tag = element_tags[element_i];
+            all_elements[element_i].x = element_coordinates[element_i*3];
+            all_elements[element_i].y = element_coordinates[element_i*3+1];
+            all_elements[element_i].z = element_coordinates[element_i*3+2];
+
+            for (size_t elem_node_i = 0; elem_node_i < nodes_per_element; elem_node_i++)
+            {
+                size_t nodeTag = element_node_tags[element_i*nodes_per_element + elem_node_i];
+                all_elements[element_i].node_tags[elem_node_i] = nodeTag;
+            }
 
 
+            for (size_t elem_face_i = 0; elem_face_i < faces_per_element; elem_face_i++)
+            {
+                all_elements[element_i].face_tags[elem_face_i] = faceTags[element_i*faces_per_element + elem_face_i];
+            }    
+        }
+        std::fill(proc_element_counts.begin(), proc_element_counts.end(), total_element_count/procs_n);
 
-    gmsh::finalize();
+        // Distribute the remainder element counts
+        int rem = total_element_count % procs_n;
+        for (int proc_i = 0; proc_i < rem; proc_i++) {
+            proc_element_counts[proc_i]++;
+        }
+        omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],procs_n);
+        print_log("mesh reading done");
+    }   // mesh reading done
 
-    // print_log("[", my_rank, "] elements:", VectorToString(elements_out));
+    MPI_Scatter(proc_element_counts.data(), 1, MPI_INT, &local_element_count, 1, MPI_INT, 0, comm);
+    local_elements_out.resize(local_element_count);
+    MPI_Scatterv(all_elements.data(),
+        proc_element_counts.data(), proc_element_counts_scanned.data(), par::Mpi_datatype<T>::value(),
+        local_elements_out.data(),local_element_count,par::Mpi_datatype<T>::value(), 
+        0, comm);
+
+    // print_log("[", my_rank, "] elements:", VectorToString(local_elements_out));
 
     
 }
@@ -390,7 +380,7 @@ DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_
     std::vector<uint64_t> proc_element_counts(procs_n);
     std::vector<uint64_t> proc_element_counts_scanned(procs_n);
 
-    MPI_Allgather(&new_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,MPI_COMM_WORLD);
+    MPI_Allgather(&new_element_count, 1, MPI_UINT64_T,proc_element_counts.data(),1,MPI_UINT64_T,comm);
 
 
     omp_par::scan(&proc_element_counts[0],&proc_element_counts_scanned[0],procs_n);

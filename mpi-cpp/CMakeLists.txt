@@ -207,9 +207,7 @@ if(ENABLE_VTK_FEATURES)
     target_link_libraries(main-new PRIVATE ${VTK_LIBRARIES})
 endif()
 
-## helper to perform initial gmsh partitioning
-add_executable(gmsh_partition gmsh_partition.cpp)
-target_link_libraries(gmsh_partition PRIVATE ${GMSH_LIBRARIES})
+
 
 
 

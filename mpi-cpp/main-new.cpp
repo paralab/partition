@@ -29,7 +29,7 @@ struct SFCStatus
 };
 
 template <class T>
-SFCStatus ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm);
+SFCStatus ReadAndDistributeSFC(std::string mesh_file_path, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm);
 
 int main(int argc, char *argv[])
 {
@@ -53,20 +53,19 @@ int main(int argc, char *argv[])
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh");  //largest tet
     // const std::string file_path("/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh");  //largest hex
 
-    if (argc < 7) {
-        std::cerr << "Usage: " << argv[0] << " <original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+    if (argc < 6) {
+        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1; // indicating an error
     }
-    const std::string original_file_path = argv[1];
-    const std::string part_file_prefix = argv[2];
+    const std::string mesh_file_path = argv[1];
 
 
-    int file_idx = std::stoi(argv[3]);
-    int run_idx = std::stoi(argv[4]);
+    int file_idx = std::stoi(argv[2]);
+    int run_idx = std::stoi(argv[3]);
 
 
-    const std::string metrics_out_file_path = argv[5];
-    const std::string viz_flag_str = argv[6];
+    const std::string metrics_out_file_path = argv[4];
+    const std::string viz_flag_str = argv[5];
     bool viz_flag;
 
     if (viz_flag_str == "-viz")
@@ -78,7 +77,7 @@ int main(int argc, char *argv[])
     }else
     {
         std::cerr << "Invalid flag: " << viz_flag_str << std::endl;
-        std::cerr << "Usage: " << argv[0] << " <original file path> <part file prefix> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <mesh file path> <file index> <run index> <metrics out file path> <-viz or -no-viz>" << std::endl;
         return 1;
     }
     
@@ -89,10 +88,10 @@ int main(int argc, char *argv[])
 
     if(!taskid){
         print_log("running on", numtasks, "MPI processs");
-        print_log("partitioning: ", original_file_path);
+        print_log("partitioning: ", mesh_file_path);
     }
 
-    ElementType elementType = GetElementType(part_file_prefix, MPI_COMM_WORLD);
+    ElementType elementType = GetElementType(mesh_file_path, MPI_COMM_WORLD);
     // print_log("element type: ", elementType);
     uint64_t local_element_count;
     uint64_t global_element_count;
@@ -120,13 +119,13 @@ int main(int argc, char *argv[])
     {
     case ElementType::TET:
     {
-        sfc_status = ReadAndDistributeSFC(part_file_prefix, ElementType::TET, localElementsAllData_Tet, MPI_COMM_WORLD);
+        sfc_status = ReadAndDistributeSFC(mesh_file_path, ElementType::TET, localElementsAllData_Tet, MPI_COMM_WORLD);
         local_element_count = localElementsAllData_Tet.size();
         break;
     }
     case ElementType::HEX:
     {
-        sfc_status = ReadAndDistributeSFC(part_file_prefix, ElementType::HEX, localElementsAllData_Hex, MPI_COMM_WORLD);
+        sfc_status = ReadAndDistributeSFC(mesh_file_path, ElementType::HEX, localElementsAllData_Hex, MPI_COMM_WORLD);
         local_element_count = localElementsAllData_Hex.size();
         break;
     }
@@ -398,7 +397,7 @@ int main(int argc, char *argv[])
     if (! taskid)
     {   
 
-        ExportMetricsToPandasJson(original_file_path, file_idx, run_idx, numtasks, global_element_count,
+        ExportMetricsToPandasJson(mesh_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 graph_setup_duration.count(),
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
@@ -413,14 +412,14 @@ int main(int argc, char *argv[])
 }
 
 template <class T>
-SFCStatus ReadAndDistributeSFC(std::string part_file_prefix, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm){
+SFCStatus ReadAndDistributeSFC(std::string mesh_file_path, ElementType element_type, std::vector<T>& elements_out, MPI_Comm comm){
 
     int procs_n, my_rank;
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
 
     std::vector<T> initial_elements;        // before SFC
-    GetElementsWithFacesNodesCentroids<T>(part_file_prefix, initial_elements, element_type, MPI_COMM_WORLD);
+    GetInitialElementsDistribution<T>(mesh_file_path, initial_elements, element_type, MPI_COMM_WORLD);
     SetMortonEncoding(initial_elements,element_type,MPI_COMM_WORLD);
     elements_out.resize(initial_elements.size());
     if (! my_rank)

@@ -476,10 +476,10 @@ struct DistributionStatus
 
 // Graph GmshGetElementGraph(const std::string &mesh_file_path , std::vector<double>& elem_coordinates_out, std::vector<size_t>& elem_tags);
 
-ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm);
+ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm);
 
 template <class T>
-void GetElementsWithFacesNodesCentroids(const std::string &mesh_file_path, std::vector<T> &elements_out,
+void GetInitialElementsDistribution(const std::string &mesh_file_path, std::vector<T> &elements_out,
                           ElementType element_type, MPI_Comm comm);
 
 

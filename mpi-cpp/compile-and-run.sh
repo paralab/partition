@@ -62,17 +62,14 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 # mpirun -np 40 --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/10k_tet/67923_sf_hexa.mesh_2992_10000.obj.mesh 1 $metrics_file_path # small tet
 
-part_file_prefix="$dir/tmp/part"
 
 
 # for file_idx in "${!mesh_file_list[@]}"; do 
-#     for np in 10
+#     for np in 2 4
 #     do
-#         time ./build/gmsh_partition /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $np $part_file_prefix
 #         for run_idx in {0..2}; do
-#             mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $part_file_prefix $file_idx $run_idx $dir/test.json  -no-viz
+#             mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $dir/test.json  -no-viz
 #         done
-#         rm "${part_file_prefix}"*
 #     done
 # done
 
@@ -82,11 +79,8 @@ parts_n=20
 mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
 
 
-time ./build/gmsh_partition $mesh_file $parts_n $part_file_prefix
-mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file $part_file_prefix 0 0 $dir/test.json -viz
-rm "${part_file_prefix}"*
 
-
+mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/test.json -viz
 
 
 export SFC_morton="$PWD/out-sfc.vtk"

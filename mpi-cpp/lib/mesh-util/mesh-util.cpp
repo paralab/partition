@@ -204,53 +204,55 @@
 //     return element_connectivity_graph;
 // }
 
-ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm){
+ElementType GetElementType(const std::string &mesh_file_path, MPI_Comm comm){
     int  my_rank;
     MPI_Comm_rank(comm, &my_rank);
-    std::string mesh_part_file_path = part_file_prefix + "_" + std::to_string(my_rank+1) + ".msh";
-    // Initialize Gmsh
-    gmsh::initialize();
-    if (1)
+
+    int gmsh_element_type;
+
+    // only the root will check and read the mesh element type. no point of every process reading the file.
+    if (!my_rank)
     {
+        gmsh::initialize();
         gmsh::option::setNumber("General.Verbosity", 0);
+        gmsh::open(mesh_file_path);
+
+        std::vector<std::pair<int, int>> dimTags;
+        gmsh::model::getEntities(dimTags);
+
+        std::vector<int> elementTypes;
+        gmsh::model::mesh::getElementTypes(elementTypes, 3);
+
+        gmsh::finalize();
+
+        if (elementTypes.size() == 0)
+        {
+            throw std::invalid_argument("no 3D elements\t exiting...");
+        }
+
+        if (elementTypes.size() > 1)
+        {
+            throw std::invalid_argument("more than 1 element type\t exiting...");
+        }
+        gmsh_element_type = elementTypes[0];
     }
-    
 
-    // Load the mesh file
-    gmsh::open(mesh_part_file_path);
-
-    // Get the number of nodes and elements
-    std::vector<std::pair<int, int>> dimTags;
-    gmsh::model::getEntities(dimTags);
+    MPI_Bcast(&gmsh_element_type, 1, MPI_INT, 0, comm);
 
 
-
-    std::vector<int> elementTypes;
-    gmsh::model::mesh::getElementTypes(elementTypes, 3);
-
-    if (elementTypes.size() == 0)
-    {
-        throw std::invalid_argument("no 3D elements\t exiting...");
-    }
-
-    if (elementTypes.size() > 1)
-    {
-        throw std::invalid_argument("more than 1 element type\t exiting...");
-    }
-    int gmsh_element_type = elementTypes[0];
-    ElementType element_type_out;
+    ElementType element_type;
 
     switch (gmsh_element_type)
     {
     case 4: // linear tet
     {
-        element_type_out = ElementType::TET;
+        element_type = ElementType::TET;
         // std::cout << "linear tetrahedra mesh\n";
         break;
     }
     case 5: // linear hexahedra
     {
-        element_type_out = ElementType::HEX;
+        element_type = ElementType::HEX;
         // std::cout << "linear hexahedra mesh\n";
         break;
     }
@@ -262,9 +264,7 @@ ElementType GetElementType(const std::string &part_file_prefix, MPI_Comm comm){
     }
     }
 
-    gmsh::finalize();
-
-    return element_type_out;
+    return element_type;
 
 
 
