@@ -35,11 +35,12 @@ echo "====== complation done ==============="
 
 export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
-
-# python with pandas needed for metrics export in json format
-source ../.venv/bin/activate
 dir="$( dirname -- "$( readlink -f -- "$0"; )"; )"
-export PYTHONPATH=$PYTHONPATH:$dir
+
+# # python with pandas needed for metrics export in json format
+# source ../.venv/bin/activate
+# 
+# export PYTHONPATH=$PYTHONPATH:$dir
 
 metrics_file_path="$PWD/results/$(date +%Y-%m-%d__%H-%M-%S).json"
 
@@ -75,8 +76,8 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-parts_n=20
-mesh_file=/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh
+parts_n=8
+mesh_file=/home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh
 
 
 

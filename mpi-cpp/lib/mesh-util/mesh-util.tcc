@@ -35,7 +35,7 @@ void GetInitialElementsDistribution(const std::string &mesh_file_path, std::vect
     {
 
         gmsh::initialize();
-        gmsh::option::setNumber("General.Terminal", 0);
+        // gmsh::option::setNumber("General.Terminal", 0);
         gmsh::open(mesh_file_path);
 
         int gmsh_element_type;
@@ -211,9 +211,9 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
              elem_face_i++) {
             elements_with_faces.push_back(
                 // ElementWithFace(elements[element_i].element_tag)
-                {.element_tag = elements[element_i].element_tag,
-                 .global_idx = elements[element_i].global_idx,
-                 .face_tag = elements[element_i].face_tags[elem_face_i]});
+                {/* .element_tag = */ elements[element_i].element_tag,
+                 /* .global_idx = */ elements[element_i].global_idx,
+                 /* .face_tag = */ elements[element_i].face_tags[elem_face_i]});
         }
     }
         // std::vector<int> testvec = {456,34547,56,67,8967,956,85,6867,93,6,3452,3524};
@@ -241,12 +241,12 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
                     connected_element_pairs_out.push_back(
                         {
                             {
-                                .element_tag = elements_with_faces[elem_face_i-1].element_tag,
-                                .global_idx = elements_with_faces[elem_face_i-1].global_idx
+                                /* .element_tag = */ elements_with_faces[elem_face_i-1].element_tag,
+                                /* .global_idx = */ elements_with_faces[elem_face_i-1].global_idx
                             },
                             {
-                                .element_tag = elements_with_faces[elem_face_i].element_tag,
-                                .global_idx = elements_with_faces[elem_face_i].global_idx
+                                /* .element_tag = */ elements_with_faces[elem_face_i].element_tag,
+                                /* .global_idx = */ elements_with_faces[elem_face_i].global_idx
 
                             }   
                         }                     

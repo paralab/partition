@@ -8,28 +8,28 @@
 #include "metis-util.hpp"
 #include "../util/util.hpp"
 
-std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vector<uint64_t> &adjncy, int32_t num_vertices,
-                                         int32_t partition_count)
-{
-    std::vector<int32_t> xadj__(xadj.begin(), xadj.end());
-    std::vector<int32_t> adjncy__(adjncy.begin(), adjncy.end());
+// std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vector<uint64_t> &adjncy, int32_t num_vertices,
+//                                          int32_t partition_count)
+// {
+//     std::vector<int32_t> xadj__(xadj.begin(), xadj.end());
+//     std::vector<int32_t> adjncy__(adjncy.begin(), adjncy.end());
 
-    int options[METIS_NOPTIONS];
-    METIS_SetDefaultOptions(options);
-    int32_t edgecut;
-    std::vector<int32_t> partition_labels(num_vertices);
-    int32_t ncon=1;
-    auto start = std::chrono::high_resolution_clock::now();
-    auto result = METIS_PartGraphKway(&num_vertices, &ncon, xadj__.data(), adjncy__.data(), nullptr, nullptr, nullptr,
-                        &partition_count, nullptr, nullptr, options, &edgecut, partition_labels.data());
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    if(!(result == METIS_OK)) throw std::runtime_error("METIS partitioning error");
-    print_log("METIS time:\t", duration.count(), " us");
-    std::vector<uint64_t> partition_labels__(partition_labels.begin(), partition_labels.end());
+//     int options[METIS_NOPTIONS];
+//     METIS_SetDefaultOptions(options);
+//     int32_t edgecut;
+//     std::vector<int32_t> partition_labels(num_vertices);
+//     int32_t ncon=1;
+//     auto start = std::chrono::high_resolution_clock::now();
+//     auto result = METIS_PartGraphKway(&num_vertices, &ncon, xadj__.data(), adjncy__.data(), nullptr, nullptr, nullptr,
+//                         &partition_count, nullptr, nullptr, options, &edgecut, partition_labels.data());
+//     auto end = std::chrono::high_resolution_clock::now();
+//     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+//     if(!(result == METIS_OK)) throw std::runtime_error("METIS partitioning error");
+//     print_log("METIS time:\t", duration.count(), " us");
+//     std::vector<uint64_t> partition_labels__(partition_labels.begin(), partition_labels.end());
 
-    return partition_labels__;
-}
+//     return partition_labels__;
+// }
 
 PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
                           uint64_t num_vertices_local, int partition_count,

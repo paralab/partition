@@ -397,7 +397,7 @@ int main(int argc, char *argv[])
     if (! taskid)
     {   
 
-        ExportMetricsToPandasJson(mesh_file_path, file_idx, run_idx, numtasks, global_element_count,
+        ExportMetricsToJson(mesh_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 graph_setup_duration.count(),
                                 global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
                                 global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
