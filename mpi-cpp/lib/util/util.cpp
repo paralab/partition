@@ -98,7 +98,7 @@ void ExportMetricsToJson(
         {"np", partition_count},
         {"n", global_vertex_count},
 
-        {"SFC_morton_boundary_ratio", std::reduce(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end())/static_cast<float>(global_vertex_count)},
+        {"SFC_morton_boundary_ratio", std::accumulate(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
         {"SFC_morton_rho_max", static_cast<float>(*std::max_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"SFC_morton_rho_min", static_cast<float>(*std::min_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"SFC_morton_partition_sizes", sfc_partition_sizes},
@@ -112,7 +112,7 @@ void ExportMetricsToJson(
         {"graph_setup_time", graph_setup_time},
 
 
-        {"BFS_boundary_ratio", std::reduce(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end())/static_cast<float>(global_vertex_count)},
+        {"BFS_boundary_ratio", std::accumulate(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
         {"BFS_rho_max", static_cast<float>(*std::max_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"BFS_rho_min", static_cast<float>(*std::min_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"BFS_partition_sizes", bfs_partition_sizes},
@@ -122,7 +122,7 @@ void ExportMetricsToJson(
         {"BFS_labeling_time", bfs_labeling_time},
         {"BFS_redistribution_time", bfs_redistribution_time},
 
-        {"parMETIS_boundary_ratio", std::reduce(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end())/static_cast<float>(global_vertex_count)},
+        {"parMETIS_boundary_ratio", std::accumulate(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
         {"parMETIS_rho_max", static_cast<float>(*std::max_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"parMETIS_rho_min", static_cast<float>(*std::min_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"parMETIS_partition_sizes", parmetis_partition_sizes},
@@ -132,7 +132,7 @@ void ExportMetricsToJson(
         {"parMETIS_labeling_time", parmetis_labeling_time},
         {"parMETIS_redistribution_time", parmetis_redistribution_time},
 
-        {"ptscotch_boundary_ratio", std::reduce(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end())/static_cast<float>(global_vertex_count)},
+        {"ptscotch_boundary_ratio", std::accumulate(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
         {"ptscotch_rho_max", static_cast<float>(*std::max_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"ptscotch_rho_min", static_cast<float>(*std::min_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/(global_vertex_count/partition_count)},
         {"ptscotch_partition_sizes", ptscotch_partition_sizes},

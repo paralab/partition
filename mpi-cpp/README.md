@@ -52,7 +52,7 @@ Note: if there is an error related to PRIu64 set(CMAKE_C_STANDARD 99) in the CMa
 
 mkdir build && cd build 
 
-cmake -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc -DCMAKE_INSTALL_PREFIX=$WORK/partition-project/dependencies/scotch/build/install/ -DBUILD_SHARED_LIBS=ON -DMPI_HOME=$TACC_IMPI_DIR/ ..
+cmake -DINTSIZE:STRING=64 -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc -DCMAKE_INSTALL_PREFIX=$WORK/partition-project/dependencies/scotch/build/install/ -DBUILD_SHARED_LIBS=ON -DMPI_HOME=$TACC_IMPI_DIR/ ..
 
 make -j5 
 make install
