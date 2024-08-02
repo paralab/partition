@@ -238,8 +238,7 @@ private:
     void RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_indexing_t seed, bfs_label_t label);
     void CalculateDistanceFromUpdatedGhosts(std::vector<bool>& ghost_updated, std::vector<graph_indexing_t>& frontier_buffer,
         std::vector<bfs_distance_t>& distances_out);
-    bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool>& vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_updated_ghosts);
+    bool RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector);
     bool RunLocalMultiBFSToStable2(std::vector<BFSValue>& bfs_vector, std::vector<bool>& ghost_updated, 
         bfs_distance_t ghost_min_update);
     void ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_buffer,

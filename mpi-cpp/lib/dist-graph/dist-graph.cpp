@@ -10,6 +10,7 @@
 
 
 #include <chrono>
+#include <numeric>
 
 
 // Overloading the << operator for BFSValue
@@ -360,7 +361,8 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
 
     int BFS_stop_guess = std::min(procs_n, 7);      // TODO: this bound could be improved
-
+    const float partition_size_imbalance_additive_factor = 0.2;       // BFS will try to keep the paritition sizes in range [ideal_size-factor, ideal_size+factor]
+    assert( 0<= partition_size_imbalance_additive_factor && 1 > partition_size_imbalance_additive_factor);
     // // TODO: openmp can be used to populate
     // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
 
@@ -377,15 +379,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
 
 
-    // std::vector<bool> ghost_is_not_stable(this->ghost_count);
-
-
-
     bool is_not_stable_global = true;      // global BFS stability
     int round_counter = 0;
     MPI_Barrier(this->comm);
     auto com_duration = std::chrono::microseconds(0);
-    auto reduce_duration = std::chrono::microseconds(0);
 
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -396,16 +393,13 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     // when we receive ghost updates, keep track of the update with minimum value
     // then, in the next inner BFS, vertices can be filtered based on this value
-    bfs_distance_t ghost_min_update = 0;      
+    bfs_distance_t ghost_min_update = 0; 
+
+    int refinement_rounds = 0;   
+    int refinement_rounds_stop = 5;    
+
     if(procs_n > 1)
     {
-        // std::vector<bfs_distance_t> distance_from_updated_ghosts(bfs_vector.size());
-
-
-        //temp buffers to be used in each local iteration in BFS. (to minimize re-allocation overhead in each iteration)
-        // std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
-        // std::vector<bool> vector_diff(bfs_vector.size());
-        // std::vector<graph_indexing_t> tmp_frontier_buffer(bfs_vector.size());            // used for updated ghost distance calculation
         
         std::vector<BFSValue> ghost_send_buffer(this->send_count);
         std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
@@ -441,7 +435,6 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             
             if (round_counter > 1)      // first round is already handled by the "special first iteration"
             {   
-                // is_not_stable_local = this->RunLocalMultiBFSToStable(bfs_vector, bfs_vector_tmp, vector_diff, ghost_min_update, distance_from_updated_ghosts);
                 is_not_stable_local = this->RunLocalMultiBFSToStable2(bfs_vector, ghost_updated, ghost_min_update);
 
             }
@@ -474,8 +467,6 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
             auto com_end = std::chrono::high_resolution_clock::now();
             com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
-            // if(!my_rank) print_log("round", round_counter, "comm time: ", std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start).count(), "us");
-
 
             std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
 
@@ -488,39 +479,125 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             std::fill(ghost_updated.begin(), ghost_updated.end(), false);
             for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
             {
-                // ghost_is_not_stable[recv_i] = false;
                 auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
                 if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
                 {
                     bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
                     bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
-                    // is_not_stable_local = true;
-                    // ghost_is_not_stable[recv_i] = true;
+
                     ghost_any_is_not_stable = true;
                     ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
                     ghost_updated[recv_i] = true;
                 }            
             }
-            // this->CalculateDistanceFromUpdatedGhosts(ghost_updated, tmp_frontier_buffer,  distance_from_updated_ghosts);
-
-            
-            // #pragma omp parallel for reduction(||:ghost_any_is_not_stable)
-            // for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++) {
-            //     ghost_any_is_not_stable = ghost_any_is_not_stable|| ghost_is_not_stable[recv_i]; 
-            // }
-
             is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
 
             if(round_counter >= BFS_stop_guess){
-                auto reduce_com_start = std::chrono::high_resolution_clock::now();
-
+                auto start_ = std::chrono::high_resolution_clock::now();
                 MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
-                auto reduce_com_end = std::chrono::high_resolution_clock::now();
-                reduce_duration += std::chrono::duration_cast<std::chrono::microseconds>(reduce_com_end - reduce_com_start);
+                auto end_ = std::chrono::high_resolution_clock::now();
+                com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
             } else {
                 is_not_stable_global = true;
             }
             // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+
+
+            // partition refinement after reaching global stable status
+            if (!is_not_stable_global && refinement_rounds < refinement_rounds_stop)
+            {
+                refinement_rounds++;
+
+               
+                std::vector<uint32_t> local_partition_sizes(procs_n, 0);
+                for (size_t local_i = 0; local_i < this->local_count; local_i++) {
+                    local_partition_sizes[bfs_vector[local_i].label]++;
+                }
+                std::vector<uint32_t> global_partition_sizes(procs_n, 0);
+                
+                {
+                    auto start_ = std::chrono::high_resolution_clock::now();
+                    MPI_Allreduce(local_partition_sizes.data(),global_partition_sizes.data(),procs_n,MPI_UINT32_T,MPI_SUM,this->comm);
+                    auto end_ = std::chrono::high_resolution_clock::now();
+                    com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+                }
+                
+
+                uint32_t ideal_partition_size = this->global_count / procs_n;
+                
+                auto partition_size_cutoff_max = static_cast<uint32_t>(ideal_partition_size*(1.0 + partition_size_imbalance_additive_factor));   
+                auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor));   
+                
+
+                std::vector<int> part_needs_refine(procs_n,0);
+
+                for (int proc_i = 0; proc_i < procs_n; proc_i++)
+                {
+
+                    if (global_partition_sizes[proc_i] >= partition_size_cutoff_max)
+                    {
+                        part_needs_refine[proc_i] = 1;
+                    }else if (global_partition_sizes[proc_i] <= partition_size_cutoff_min)
+                    {
+                        part_needs_refine[proc_i] = -1;
+                    }
+                    
+                    
+                }
+                for (size_t vec_i = 0; vec_i < bfs_vector.size(); vec_i++)
+                {
+                    if (part_needs_refine[bfs_vector[vec_i].label] > 0)
+                    {
+                        bfs_vector[vec_i].distance += 1;
+                    }else if (part_needs_refine[bfs_vector[vec_i].label] < 0)
+                    {
+                        bfs_vector[vec_i].distance = bfs_vector[vec_i].distance >= 1 ? bfs_vector[vec_i].distance -1 : 0;   // unsigned underflow prevention
+                    }
+                    
+                    
+                }
+                round_counter++;
+
+                this->RunLocalMultiBFSToStable(bfs_vector);
+                
+                // one ghost exchange
+                for (size_t send_i = 0; send_i < this->send_count; send_i++)
+                {
+                    ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
+                }
+
+                {
+                    auto start_ = std::chrono::high_resolution_clock::now();
+                    // force all ghosts to be exchanged because we want to reset send buffers
+                    par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                            ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+                    auto end_ = std::chrono::high_resolution_clock::now();
+                    com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+                }
+
+
+                std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration             
+
+                ghost_min_update = DIST_GRAPH_BFS_INFINITY;
+                std::fill(ghost_updated.begin(), ghost_updated.end(), false);
+                for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
+                {
+                    auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
+                    if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+                    {
+                        bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
+                        bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
+
+                        ghost_any_is_not_stable = true;
+                        ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
+                        ghost_updated[recv_i] = true;
+                    }            
+                }
+
+
+                is_not_stable_global = true;
+            }
+            
 
             
         } 
@@ -539,9 +616,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     if (!my_rank)
     {
         print_log("BFS sync rounds: ", round_counter);
-        print_log("BFS comm (ghost exchange) time:\t", com_duration.count(), " us");
-        print_log("BFS comm (reduce) time:\t\t", reduce_duration.count(), " us");
-
+        print_log("BFS comm  time:\t\t\t", com_duration.count(), " us");
         print_log("BFS total time:\t\t\t", duration.count(), " us");
     }
 
@@ -595,6 +670,8 @@ void DistGraph::RunFirstBFSIteration(std::vector<BFSValue>& bfs_vector, graph_in
                  neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
             {
                 auto neighbor = local_adjncy[neighbor_i];
+
+                if(neighbor >= this->local_count) continue;      // we dont update the ghost vertices
 
                 if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL) {
                     // neighbor is not visited, visit it now
@@ -677,86 +754,74 @@ void DistGraph::CalculateDistanceFromUpdatedGhosts(std::vector<bool>& ghost_upda
 
 }
 
-bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector, std::vector<BFSValue>& bfs_vector_tmp, 
-        std::vector<bool>& vector_diff, bfs_distance_t ghost_min_update, std::vector<bfs_distance_t>& distance_from_updated_ghosts){
+bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
 
-    if(ghost_min_update == DIST_GRAPH_BFS_INFINITY){    // no change in ghost, dont have to run local BFS
-        return false;
-    }
 
     bool changed = false;       // to detect if the BFS incremented
 
-    bool is_not_stable = true; // to detect if the BFS incremented in each increment
-    // std::vector<BFSValue> bfs_vector_tmp(bfs_vector.size());
-    // std::vector<bool> vector_diff(bfs_vector.size());
-    // bool print_candidates = true;
-    while (is_not_stable)
+    std::vector<graph_indexing_t> frontier(bfs_vector.size());
+    std::iota(frontier.begin(), frontier.end(), 0);
+
+
+    std::vector<bool> added_to_next_updated(bfs_vector.size());
+
+    while (frontier.size() > 0)
     {
-        // print_log(VectorToString(multi_bfs_distances));
-        // size_t candidates = 0;
-        // size_t changed_count = 0;
-
-        is_not_stable = false;
-        #pragma omp parallel
-        {
-
-            #pragma omp for
-            for (graph_indexing_t v_i = 0; v_i < bfs_vector.size(); v_i++)
+        std::fill(added_to_next_updated.begin(), added_to_next_updated.end(), false);
+        std::vector<std::pair<graph_indexing_t, BFSValue>> next_updated;                 // next vertices for potential updates
+        for (auto& frontier_vertex : frontier) {
+            // looping neighbors, add to next_updated
+            for (graph_indexing_t neighbor_i = this->local_xdj[frontier_vertex];
+                    neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
             {
-                // bfs_status_new_temp[v_i] = NULL;
-                auto best_distance = bfs_vector[v_i].distance;
-                auto best_label = bfs_vector[v_i].label;
-                vector_diff[v_i] = false;
-                // print_log(best_distance, best_label);
-                if (ghost_min_update != DIST_GRAPH_BFS_INFINITY &&
-                    distance_from_updated_ghosts[v_i] != DIST_GRAPH_BFS_INFINITY && 
-                    best_distance > (ghost_min_update + distance_from_updated_ghosts[v_i]))
+                auto neighbor = local_adjncy[neighbor_i];
+                if(neighbor >= this->local_count) continue;      // we dont update the ghost vertices
+
+                if (!added_to_next_updated[neighbor])
                 {
-                    // candidates++;         
-                    for (graph_indexing_t neighbor_i = this->local_xdj[v_i]; neighbor_i < this->local_xdj[v_i+1];neighbor_i++)
-                    {
-                        auto neighbor = local_adjncy[neighbor_i];
-                        if (bfs_vector[neighbor].label == DIST_GRAPH_BFS_NO_LABEL)
-                        {
-                            continue;
-                        }
-                        // print_log(multi_bfs_labels[neighbor_i]);
-
-                        if (best_distance > (bfs_vector[neighbor].distance + 1))
-                        {
-                            best_distance = bfs_vector[neighbor].distance + 1;
-                            best_label = bfs_vector[neighbor].label;
-                            vector_diff[v_i] = true;
-
-
-                        }
-                    }
+                    next_updated.push_back({neighbor, bfs_vector[neighbor]});
+                    added_to_next_updated[neighbor] = true;
                 }
-                bfs_vector_tmp[v_i].distance = best_distance;
-                bfs_vector_tmp[v_i].label = best_label;
+                
+            }
+        }
 
-            }
-            #pragma omp for
-            for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++){
-                bfs_vector[v_i].distance = bfs_vector_tmp[v_i].distance;
-                bfs_vector[v_i].label = bfs_vector_tmp[v_i].label;
-                // if(vector_diff[v_i]) changed_count++;
-            }
-            #pragma omp for reduction(||:is_not_stable)
-            for (size_t v_i = 0; v_i < bfs_vector.size(); v_i++) {
-                is_not_stable = is_not_stable|| vector_diff[v_i]; // Perform logical OR operation
-            }
+        frontier.clear();
+    
+        // now considering only the nighborhoods of next potential updates
+        for (auto& it: next_updated) {
+            auto& vertex = it.first;
+            auto& curr_bfs_val = it.second;
+            bool value_changed = false;
 
-            changed = changed || is_not_stable;
+            for (graph_indexing_t neighbor_i = this->local_xdj[vertex];
+                 neighbor_i < this->local_xdj[vertex + 1]; neighbor_i++) 
+            {
+                auto neighbor = local_adjncy[neighbor_i];
+
+                if (bfs_vector[neighbor].label != DIST_GRAPH_BFS_NO_LABEL &&
+                    curr_bfs_val.distance > (bfs_vector[neighbor].distance + 1)) {
+
+                    curr_bfs_val.label = bfs_vector[neighbor].label;
+                    curr_bfs_val.distance = bfs_vector[neighbor].distance + 1;
+
+                    if(! value_changed) frontier.push_back(vertex);
+                    value_changed = true;
+                    changed = true;
+                    
+                }
+            }
+        }
+
+        // writing updated values to BFS vector
+        for (auto& it: next_updated){
+            bfs_vector[it.first].label = it.second.label;
+            bfs_vector[it.first].distance = it.second.distance;
 
         }
-        // if(print_candidates) print_log("[",my_rank, "] candidates/vector_size (%): ", 100* static_cast<float>(candidates)/bfs_vector.size(),"%");
-        // if(print_candidates) print_log("[",my_rank, "] changed_count/vector_size (%): ", 100* static_cast<float>(changed_count)/bfs_vector.size(),"%");
-        
-        // print_candidates = false;
     }
 
     return changed;
@@ -802,6 +867,7 @@ bool DistGraph::RunLocalMultiBFSToStable2(std::vector<BFSValue>& bfs_vector, std
                     neighbor_i < this->local_xdj[frontier_vertex + 1]; neighbor_i++) 
             {
                 auto neighbor = local_adjncy[neighbor_i];
+                if(neighbor >= this->local_count) continue;      // we dont update the ghost vertices
                 if (!added_to_next_updated[neighbor])
                 {
                     next_updated.push_back({neighbor, bfs_vector[neighbor]});

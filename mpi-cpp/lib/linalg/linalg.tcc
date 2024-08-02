@@ -4,7 +4,7 @@
 #include <chrono>
 #include <petscksp.h>
 #include <petscerror.h>
-
+#include "util.hpp"
 
 
 
@@ -50,7 +50,8 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     Vec             x, y;       
     Mat             A;        
     KSP             ksp; 
-    // PC              pc;
+
+    const int spmv_repititions = 200;
 
     // PetscFunctionBeginUser;
     PETSC_COMM_WORLD = comm;
@@ -93,7 +94,7 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
         }
     }
 
-    std::vector<PetscScalar> row_values(elements.size()*(nodes_per_element*nodes_per_element));     
+    std::vector<PetscScalar> mat_row_values(elements.size()*(nodes_per_element*nodes_per_element));     
     
     {
         uint64_t idx = 0;
@@ -105,12 +106,12 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
                 for (uint64_t node_y : local_element.node_tags)
                 {
                     auto node_y_global_idx = node_tag_to_global_idx_map[node_y];
-                    row_values[idx++] = sin(node_x_global_idx+node_y_global_idx);
+                    mat_row_values[idx++] = sin(node_x_global_idx+node_y_global_idx + 1);
                 }
             }
         }
     }    
-    PetscCallAbort(comm, MatSetValuesBatch(A,elements.size(),nodes_per_element,rows.data(),row_values.data()));
+    PetscCallAbort(comm, MatSetValuesBatch(A,elements.size(),nodes_per_element,rows.data(),mat_row_values.data()));
 
     // matrix assembly
     MPI_Barrier(comm);
@@ -140,17 +141,21 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
 
     // setup vectors for y = Ax
     PetscCallAbort(comm, MatCreateVecs(A, &x, &y));
-    for (auto & local_element : elements)
+    std::vector<PetscScalar> vec_row_values(elements.size()*nodes_per_element);
     {
-        for (uint64_t node : local_element.node_tags)
+        uint64_t idx = 0;
+        for (auto & local_element : elements)
         {
+            for (uint64_t node : local_element.node_tags)
+            {
 
-            PetscInt global_idx= static_cast<PetscInt>(node_tag_to_global_idx_map[node]);
-            PetscScalar val = static_cast<PetscScalar>(cos(global_idx));
-            PetscCallAbort(comm, VecSetValue(x, global_idx, val, ADD_VALUES));            
-        }     
+                PetscInt global_idx= static_cast<PetscInt>(node_tag_to_global_idx_map[node]);
+                PetscScalar val = static_cast<PetscScalar>(cos(global_idx));
+                vec_row_values[idx++] = val;         
+            }     
+        }
     }
-
+    PetscCallAbort(comm, VecSetValues(x, elements.size()*nodes_per_element, rows.data(), vec_row_values.data(), ADD_VALUES));
     // Assemble the vector x
     MPI_Barrier(comm);
     auto vecx_assemble_start = std::chrono::high_resolution_clock::now();
@@ -163,31 +168,38 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
 
 
     // PetscPrintf(PETSC_COMM_WORLD, "Vec x:\n");
-    // VecView(x, PETSC_VIEWER_STDOUT_WORLD);
+    // MatView(A, PETSC_VIEWER_STDOUT_WORLD);
 
     KSPCreate(PETSC_COMM_WORLD, &ksp);
     KSPSetOperators(ksp, A, A);
     KSPSetFromOptions(ksp);
 
-    // KSPGetPC(ksp, &pc);
-    // PCSetType(pc, PCLU);
 
     // Perform the matrix-vector multiplication
     MPI_Barrier(comm);
     auto matvec_start = std::chrono::high_resolution_clock::now();
-    // MatMult(A, x, y);
-    KSPSolve(ksp,x,y);
+    for (int i = 0; i < spmv_repititions; i++)
+    {
+        if(i%2)
+        {
+            MatMult(A, y, x);
+        }else
+        {
+            MatMult(A, x, y);
+        }
+        
+    }
     MPI_Barrier(comm);
     auto matvec_end = std::chrono::high_resolution_clock::now();
     auto matvec_duration = std::chrono::duration_cast<std::chrono::microseconds>(matvec_end - matvec_start);
     if(!my_rank) print_log("matvec time: \t\t", matvec_duration.count(), "us");
+  
 
     // View the result
     // PetscPrintf(PETSC_COMM_WORLD, "Vec y:\n");
     // VecView(y, PETSC_VIEWER_STDOUT_WORLD);
 
-    // Clean up
-    KSPDestroy(&ksp);
+
     VecDestroy(&x);
     VecDestroy(&y);
     MatDestroy(&A);
