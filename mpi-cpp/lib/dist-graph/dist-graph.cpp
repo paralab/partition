@@ -525,35 +525,75 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
                 uint32_t ideal_partition_size = this->global_count / procs_n;
                 
-                auto partition_size_cutoff_max = static_cast<uint32_t>(ideal_partition_size*(1.0 + partition_size_imbalance_additive_factor));   
-                auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor));   
+                // auto partition_size_cutoff_max = static_cast<uint32_t>(ideal_partition_size*(1.0 + partition_size_imbalance_additive_factor));   
+                // auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor)); 
+
+                auto cutoff_max_1 =   static_cast<uint32_t>(ideal_partition_size*1.2);
+                auto cutoff_max_2 =   static_cast<uint32_t>(ideal_partition_size*1.4);
+                auto cutoff_max_3 =   static_cast<uint32_t>(ideal_partition_size*1.6);
+                auto cutoff_max_4 =   static_cast<uint32_t>(ideal_partition_size*1.8);
+                auto cutoff_max_5 =   static_cast<uint32_t>(ideal_partition_size*2.0);
+                auto cutoff_max_6 =   static_cast<uint32_t>(ideal_partition_size*2.2);
+
+
+                auto cutoff_min_1 =   static_cast<uint32_t>(ideal_partition_size*0.8);
+                auto cutoff_min_2 =   static_cast<uint32_t>(ideal_partition_size*0.6);
+                auto cutoff_min_3 =   static_cast<uint32_t>(ideal_partition_size*0.4);
+                auto cutoff_min_4 =   static_cast<uint32_t>(ideal_partition_size*0.2);
                 
 
-                std::vector<int> part_needs_refine(procs_n,0);
+                std::vector<int> part_adjust(procs_n,0);
 
                 for (int proc_i = 0; proc_i < procs_n; proc_i++)
                 {
-
-                    if (global_partition_sizes[proc_i] >= partition_size_cutoff_max)
+                    if (global_partition_sizes[proc_i] >= cutoff_max_6)
                     {
-                        part_needs_refine[proc_i] = 1;
-                    }else if (global_partition_sizes[proc_i] <= partition_size_cutoff_min)
+                        part_adjust[proc_i] = 6;
+                    }else if (global_partition_sizes[proc_i] >= cutoff_max_5)
                     {
-                        part_needs_refine[proc_i] = -1;
+                        part_adjust[proc_i] = 5;
+                    }else if (global_partition_sizes[proc_i] >= cutoff_max_4)
+                    {
+                        part_adjust[proc_i] = 4;
+                    }else if (global_partition_sizes[proc_i] >= cutoff_max_3)
+                    {
+                        part_adjust[proc_i] = 3;
+                    }else if (global_partition_sizes[proc_i] >= cutoff_max_2)
+                    {
+                        part_adjust[proc_i] = 2;
+                    }else if (global_partition_sizes[proc_i] >= cutoff_max_1)
+                    {
+                        part_adjust[proc_i] = 1;
+                    }else if (global_partition_sizes[proc_i] <= cutoff_min_4)
+                    {
+                        part_adjust[proc_i] = -4;
+                    }else if (global_partition_sizes[proc_i] <= cutoff_min_3)
+                    {
+                        part_adjust[proc_i] = -3;
+                    }else if (global_partition_sizes[proc_i] <= cutoff_min_2)
+                    {
+                        part_adjust[proc_i] = -2;
+                    }else if (global_partition_sizes[proc_i] <= cutoff_min_1)
+                    {
+                        part_adjust[proc_i] = -1;
                     }
                     
                     
                 }
+
+                // if(! my_rank) print_log(VectorToString(global_partition_sizes));
+                // if(! my_rank) print_log(VectorToString(part_adjust));
+
                 for (size_t vec_i = 0; vec_i < bfs_vector.size(); vec_i++)
                 {
-                    if (part_needs_refine[bfs_vector[vec_i].label] > 0)
+                    auto adjust_val = part_adjust[bfs_vector[vec_i].label];
+                    if (adjust_val > 0)
                     {
-                        bfs_vector[vec_i].distance += 1;
-                    }else if (part_needs_refine[bfs_vector[vec_i].label] < 0)
+                        bfs_vector[vec_i].distance += adjust_val;
+                    }else if (adjust_val < 0)
                     {
-                        bfs_vector[vec_i].distance = bfs_vector[vec_i].distance >= 1 ? bfs_vector[vec_i].distance -1 : 0;   // unsigned underflow prevention
-                    }
-                    
+                        bfs_vector[vec_i].distance = bfs_vector[vec_i].distance >= std::abs(adjust_val) ? bfs_vector[vec_i].distance - std::abs(adjust_val) : 0;   // unsigned underflow prevention
+                    }                    
                     
                 }
                 round_counter++;
