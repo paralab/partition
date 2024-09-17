@@ -280,6 +280,273 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
 
 
 /**
+ * Creates element connectivity pairs based on node sharing logic
+ */
+template <class T>
+void ResolveElementConnectivityByNodes(const std::vector<T> &elements, ElementType element_type,
+                                std::vector<uint64_t>& proc_element_counts,
+                                std::vector<uint64_t>& proc_element_counts_scanned,
+                                std::vector<std::pair<ElementWithTag, ElementWithTag>> &local_connected_element_pairs_out,
+                                std::vector<std::pair<ElementWithTag, ElementWithTag>> &boundary_connected_element_pairs_out,
+                                MPI_Comm comm)
+{
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+
+    uint64_t nodes_per_element;
+    switch (element_type)
+    {
+    case ElementType::TET:
+    {
+        nodes_per_element = 4;
+        break;
+    }
+    case ElementType::HEX:
+    {
+        nodes_per_element = 8;
+        break;
+    }
+    default:
+    {
+        throw std::invalid_argument("unknown element type");
+        break;
+    }
+    }
+    std::vector<ElementWithNode> elements_with_nodes;
+    for (size_t element_i = 0; element_i < elements.size(); element_i++) {
+        for (size_t elem_node_i = 0; elem_node_i < nodes_per_element;
+             elem_node_i++) {
+            elements_with_nodes.push_back(
+                {/* .element_tag = */ elements[element_i].element_tag,
+                 /* .global_idx = */ elements[element_i].global_idx,
+                 /* .node_tag = */ elements[element_i].node_tags[elem_node_i]});
+        }
+    }
+
+
+    std::vector<ElementWithNode> elements_with_nodes_sorted;
+    MPI_Barrier(comm);
+
+    par::sampleSort<ElementWithNode>(elements_with_nodes,elements_with_nodes_sorted,comm);
+    MPI_Barrier(comm);
+
+    std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_element_pairs;
+
+
+    {
+        size_t current_node;
+        size_t current_node_start_i = 0;
+        size_t current_node_end_i   = 0;
+        size_t elem_node_i = 0;
+
+        while (elem_node_i < elements_with_nodes_sorted.size())
+        {
+            current_node = elements_with_nodes_sorted[elem_node_i].node_tag;
+            current_node_start_i = elem_node_i;
+            elem_node_i++;
+            
+
+            while (elem_node_i < elements_with_nodes_sorted.size() &&
+                    (elements_with_nodes_sorted[elem_node_i].node_tag == elements_with_nodes_sorted[elem_node_i-1].node_tag))
+            {
+                elem_node_i++;
+            }
+
+            current_node_end_i = elem_node_i;
+
+            // nested loop in all elements sharing a node. this nested loop will create pairs for connectivity.
+            // this will generate both pairs (a,b) and (b,a) if elements 'a' and 'b' are connected
+            for (size_t elem_node_j = current_node_start_i; elem_node_j < current_node_end_i; elem_node_j++)
+            {
+                for (size_t elem_node_k = current_node_start_i; elem_node_k < current_node_end_i; elem_node_k++)
+                {
+                    if (elem_node_j == elem_node_k)
+                    {
+                        continue;
+                    }
+                    
+                    connected_element_pairs.push_back(
+                        {
+                            {
+                                .element_tag = elements_with_nodes_sorted[elem_node_j].element_tag,
+                                .global_idx = elements_with_nodes_sorted[elem_node_j].global_idx
+                            },
+                            {
+                                .element_tag = elements_with_nodes_sorted[elem_node_k].element_tag,
+                                .global_idx = elements_with_nodes_sorted[elem_node_k].global_idx                            
+                            }       
+                        }                 
+                    );
+                }
+            }              
+        }
+        
+    }
+
+    // now sort the pairs by the first element
+    omp_par::merge_sort(&connected_element_pairs[0],
+                        &connected_element_pairs[connected_element_pairs.size()],
+                        [](const auto& a, const auto& b) { 
+                            return a.first.global_idx < b.first.global_idx; 
+                                
+                        });
+
+    // now send pairs to respective processes.
+    // if elements 'a' anb 'b' are connected, pair (a,b) will be sent to the owning process of 'a' and the pair (b,a) will be sent to the owning process of 'b'
+    // note: since the connectivity is defined by node sharing logic, potentially there can be multiples of the same pair
+    //       in a subsequent step, we get remove these duplicates
+
+    std::vector<int> send_counts(procs_n);
+    {
+        uint64_t current_proc = 0;
+        for (size_t pair_i = 0; pair_i < connected_element_pairs.size(); pair_i++)
+        {
+            if (connected_element_pairs[pair_i].first.global_idx >= proc_element_counts_scanned[current_proc] &&
+                connected_element_pairs[pair_i].first.global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+            {
+                send_counts[current_proc]++;
+            } else
+            {
+                while (1)
+                {
+                    current_proc++;
+                    if (connected_element_pairs[pair_i].first.global_idx >= proc_element_counts_scanned[current_proc] &&
+                        connected_element_pairs[pair_i].first.global_idx < (proc_element_counts_scanned[current_proc] + proc_element_counts[current_proc]))
+                    {
+                        send_counts[current_proc]++;
+                        break;
+                    }                    
+                }
+                
+            }   
+        }       
+
+    }
+    // print_log("[", my_rank, "]: send_counts", VectorToString(send_counts));
+
+    std::vector<int> recev_counts(procs_n);
+
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT, recev_counts.data(), 1, MPI_INT, comm);
+
+    // print_log("[", my_rank, "]: recev_counts", VectorToString(recev_counts));
+
+    std::vector<int> send_displs(procs_n);
+    omp_par::scan(&send_counts[0],&send_displs[0],procs_n);
+    // print_log("[", my_rank, "]: send_displs", VectorToString(send_displs));
+
+
+
+    std::vector<int> recv_displs(procs_n);
+    omp_par::scan(&recev_counts[0],&recv_displs[0],procs_n);
+    // print_log("[", my_rank, "]: recv_displs", VectorToString(recv_displs));
+
+    int total_receive_count = recev_counts[procs_n-1]+recv_displs[procs_n-1];
+
+
+    // this will contain element connectvity for both local-local and local-ghost
+    std::vector<std::pair<ElementWithTag, ElementWithTag>> connected_element_pairs_local_and_ghost(total_receive_count);
+
+    
+    MPI_Alltoallv(connected_element_pairs.data(),
+                  send_counts.data(), send_displs.data(), par::Mpi_pairtype<ElementWithTag,ElementWithTag>::value(), 
+                  connected_element_pairs_local_and_ghost.data(), recev_counts.data(), recv_displs.data(),
+                  par::Mpi_pairtype<ElementWithTag,ElementWithTag>::value(), comm);
+
+    // now we have to remove duplicates in pairs.
+    // if a,b are connected there can be multiple copies of (a,b) and (b,a) and maybe multiples of both.
+    // however if a pair (a,b) corresponds to a ghost edge, it is guranteed that we do not have (b,a) in connected_element_pairs_local_and_ghost
+
+    // preprocess step: if both a,b in a pair (a,b) or (b,a) are owned locally, rearrange the pair s.t. first.global_idx < second.global_idx
+    
+    auto local_start = proc_element_counts_scanned[my_rank];
+    auto local_end = proc_element_counts_scanned[my_rank] + proc_element_counts[my_rank];
+
+    for (size_t pair_i = 0; pair_i < connected_element_pairs_local_and_ghost.size(); pair_i++)
+    {
+        if (    connected_element_pairs_local_and_ghost[pair_i].first.global_idx >= local_start &&
+                connected_element_pairs_local_and_ghost[pair_i].first.global_idx < local_end    &&
+                connected_element_pairs_local_and_ghost[pair_i].second.global_idx >= local_start &&
+                connected_element_pairs_local_and_ghost[pair_i].second.global_idx < local_end)
+        {
+            if (connected_element_pairs_local_and_ghost[pair_i].second.global_idx < connected_element_pairs_local_and_ghost[pair_i].first.global_idx ) 
+            {
+                std::swap(connected_element_pairs_local_and_ghost[pair_i].first, connected_element_pairs_local_and_ghost[pair_i].second);
+            }
+        }         
+    }
+    
+
+    // normal sort by second element
+    std::sort(  connected_element_pairs_local_and_ghost.begin(), 
+                connected_element_pairs_local_and_ghost.end(),
+                [](const auto& a, const auto& b) { 
+                    return a.second.global_idx < b.second.global_idx; 
+                                
+                });
+    
+
+    // stable sort by first element
+    std::stable_sort(   connected_element_pairs_local_and_ghost.begin(), 
+                        connected_element_pairs_local_and_ghost.end(),
+                        [](const auto& a, const auto& b) { 
+                            return a.first.global_idx < b.first.global_idx; 
+                                
+                        });
+
+    // now duplicates are in contigous range
+
+
+    local_connected_element_pairs_out.clear();
+    boundary_connected_element_pairs_out.clear();
+
+    if (connected_element_pairs_local_and_ghost.size() == 0)
+    {
+        return;
+    }
+
+    if (connected_element_pairs_local_and_ghost[0].second.global_idx >= local_start &&
+        connected_element_pairs_local_and_ghost[0].second.global_idx < local_end)
+    {
+        local_connected_element_pairs_out.push_back(connected_element_pairs_local_and_ghost[0]);
+    }else
+    {
+        boundary_connected_element_pairs_out.push_back(connected_element_pairs_local_and_ghost[0]);
+    }
+
+    for (size_t pair_i = 1; pair_i < connected_element_pairs_local_and_ghost.size(); pair_i++)
+    {
+
+        if (connected_element_pairs_local_and_ghost[pair_i].first.global_idx == connected_element_pairs_local_and_ghost[pair_i-1].first.global_idx &&
+            connected_element_pairs_local_and_ghost[pair_i].second.global_idx == connected_element_pairs_local_and_ghost[pair_i-1].second.global_idx)
+        {
+            // duplicate detected, skipping
+            continue;
+        }
+        if (connected_element_pairs_local_and_ghost[pair_i].second.global_idx >= local_start &&
+            connected_element_pairs_local_and_ghost[pair_i].second.global_idx < local_end)
+        {
+            local_connected_element_pairs_out.push_back(connected_element_pairs_local_and_ghost[pair_i]);
+        }else
+        {
+            boundary_connected_element_pairs_out.push_back(connected_element_pairs_local_and_ghost[pair_i]);
+        }
+        
+    }   
+    // if (!my_rank)
+    // {
+    //     print_log("[", my_rank, "]: local_connected_element_pairs", VectorToString(local_connected_element_pairs_out));
+    //     print_log("[", my_rank, "]: boundary_connected_element_pairs", VectorToString(boundary_connected_element_pairs_out));
+    // }
+    
+
+
+
+    
+}
+
+
+/**
  * Given a new labeling (i.e. a new partitioning) this function redistributes elements_in.
  * Output is in elements_out
  * Final local elements are further sorted according to morton encoding

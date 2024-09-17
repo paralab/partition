@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
             local_elements[local_elem_i].z = localElementsAllData_Tet[local_elem_i].z;
 
         }
+        // ResolveElementConnectivityByNodes(localElementsAllData_Tet,ElementType::TET,proc_element_counts,proc_element_counts_scanned,local_connected_element_pairs,boundary_connected_element_pairs, MPI_COMM_WORLD);
         ResolveLocalElementConnectivity(localElementsAllData_Tet,ElementType::TET,local_connected_element_pairs,local_unconnected_elements_faces);
         break;
     }
@@ -185,6 +186,7 @@ int main(int argc, char *argv[])
             local_elements[local_elem_i].z = localElementsAllData_Hex[local_elem_i].z;
 
         }
+        // ResolveElementConnectivityByNodes(localElementsAllData_Hex,ElementType::HEX,proc_element_counts,proc_element_counts_scanned,local_connected_element_pairs,boundary_connected_element_pairs, MPI_COMM_WORLD);
         ResolveLocalElementConnectivity(localElementsAllData_Hex,ElementType::HEX,local_connected_element_pairs,local_unconnected_elements_faces);
         break;
     }

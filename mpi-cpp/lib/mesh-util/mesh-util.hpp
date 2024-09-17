@@ -69,7 +69,9 @@ struct HexElementWithFacesNodes {
 std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj);
 
 
-
+/**
+ * Used for creating the element conenctivity graph with face connectivity logic
+ */
 struct ElementWithFace
 {
     uint64_t element_tag;
@@ -93,6 +95,36 @@ struct ElementWithFace
 };
 
 std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj);
+
+
+
+/**
+ * Used for creating the element conenctivity graph with node connectivity logic
+ */
+struct ElementWithNode
+{
+    uint64_t element_tag;
+    uint64_t global_idx;
+    uint64_t node_tag;
+    bool operator==(const ElementWithNode& other) const {
+        return node_tag == other.node_tag;
+    }
+    bool operator<(const ElementWithNode& other) const {
+        return node_tag < other.node_tag;
+    }
+    bool operator<=(const ElementWithNode& other) const {
+        return node_tag <= other.node_tag;
+    }
+    bool operator>=(const ElementWithNode& other) const {
+        return node_tag >= other.node_tag;
+    }
+    bool operator>(const ElementWithNode& other) const {
+        return node_tag > other.node_tag;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const ElementWithNode& obj);
+
 
 struct ElementWithCoord
 {
@@ -283,6 +315,38 @@ namespace par
                 offsets[0] = offsetof(ElementWithFace, element_tag);
                 offsets[1] = offsetof(ElementWithFace, global_idx);
                 offsets[2] = offsetof(ElementWithFace, face_tag);
+
+
+                MPI_Type_create_struct(3, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<ElementWithNode> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "ElementWithNode"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[3] = {1, 1, 1};
+                MPI_Datatype types[3] = {MPI_UINT64_T, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[3];
+                offsets[0] = offsetof(ElementWithNode, element_tag);
+                offsets[1] = offsetof(ElementWithNode, global_idx);
+                offsets[2] = offsetof(ElementWithNode, node_tag);
 
 
                 MPI_Type_create_struct(3, block_lengths, offsets, types, &custom_mpi_type);
@@ -488,6 +552,13 @@ void ResolveLocalElementConnectivity(const std::vector<T> &elements, ElementType
                                 std::vector<std::pair<ElementWithTag, ElementWithTag>> &connected_element_pairs_out,
                                 std::vector<ElementWithFace> &unconnected_elements_faces_out);
 
+template <class T>
+void ResolveElementConnectivityByNodes(const std::vector<T> &elements, ElementType element_type,
+                                std::vector<uint64_t>& proc_element_counts,
+                                std::vector<uint64_t>& proc_element_counts_scanned,
+                                std::vector<std::pair<ElementWithTag, ElementWithTag>> &local_connected_element_pairs_out,
+                                std::vector<std::pair<ElementWithTag, ElementWithTag>> &boundary_connected_element_pairs_out,
+                                MPI_Comm comm);
 
 void ResolveBoundaryElementConnectivity(std::vector<ElementWithFace> &unpaired_element_faces,
                                         std::vector<uint64_t> &proc_element_counts,

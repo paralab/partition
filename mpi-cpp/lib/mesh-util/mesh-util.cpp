@@ -318,6 +318,13 @@ std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj) {
     return os;
 }
 
+// Overloading the << operator for ElementWithNode
+std::ostream& operator<<(std::ostream& os, const ElementWithNode& obj) {
+    os << "(" << obj.element_tag << "," << obj.global_idx << "," << obj.node_tag << ")";
+    
+    return os;
+}
+
 // Overloading the << operator for ElementWithCoord
 std::ostream& operator<<(std::ostream& os, const ElementWithCoord& obj) {
     os << "(" << obj.element_tag << "," << obj.global_idx  << ",[" << obj.x <<", "<< obj.y << ", " << obj.z << "])";
