@@ -207,6 +207,8 @@ if(ENABLE_VTK_FEATURES)
     target_link_libraries(main-new PRIVATE ${VTK_LIBRARIES})
 endif()
 
+add_executable(process_count process_count.cpp )
+target_link_libraries(process_count PRIVATE ${GMSH_LIBRARIES})
 
 
 

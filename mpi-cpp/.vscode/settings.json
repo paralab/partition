@@ -1,10 +1,10 @@
 {
     "files.associations": {
+        "*.tcc": "cpp",
         "iostream": "cpp",
         "array": "cpp",
         "atomic": "cpp",
         "bit": "cpp",
-        "*.tcc": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -78,7 +78,10 @@
         "variant": "cpp",
         "*.ipp": "cpp",
         "*.in": "cpp",
-        "*.txx": "cpp"
+        "*.txx": "cpp",
+        "forward_list": "cpp",
+        "ranges": "cpp",
+        "span": "cpp"
     },
     "cmake.configureSettings": { 
         "GMSH_SDK_PATH": "/home/budvin/bin/gmsh-4.13.0-source/build/install",
@@ -89,10 +92,14 @@
         "PETSC_INSTALL_DIR_PATH": "/home/budvin/bin/petsc/build/install",
         "SCOTCH_INSTALL_DIR_PATH": "/home/budvin/bin/scotch/build/install",
         "ENABLE_VTK_FEATURES": "ON",
-        "ENABLE_PETSC_DRAW_FEATURES": "ON",
+        "ENABLE_PETSC_DRAW_FEATURES": "OFF",
         "GRAPH_INDEXING_TYPE": "32",
         "BFS_DISTANCE_TYPE": "32",
         "BFS_LABEL_TYPE": "16"
 
-    }
+    },
+    "cmake.configureArgs": [
+        "-G Ninja",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
+    ]
 }

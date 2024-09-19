@@ -76,13 +76,30 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-parts_n=8
-mesh_file=/home/budvin/research/Partitioning/mesh_generator/hex-box-23x23x23.msh
-
+parts_n=20
+# mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-60x60x2.msh"
+# mesh_file="/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/51508_sf_hexa.mesh"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh"  #octopus
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh"  #smallest tet
 
 
 mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/test.json -viz
 
+# grain_sizes=( 5000 10000 20000 )
+# for file_idx in "${!mesh_file_list[@]}"; do 
+#     file_path=/home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]}
+    
+#     for g in "${grain_sizes[@]}"
+#     do
+#         np=$(./build/process_count $file_path $g)
+#         echo "[$file_idx]  partitioning $file_path for grain size $g with $np processes"
+#         for run_idx in {0..2}; do
+#             mpirun -np $np --oversubscribe ./build/main-new $file_path $file_idx $run_idx $dir/test_grain_tet_$g.json  -no-viz
+#         done
+#     done
+# done
 
 export SFC_morton="$PWD/out-sfc.vtk"
 export parMETIS="$PWD/out-parmetis.vtk"
