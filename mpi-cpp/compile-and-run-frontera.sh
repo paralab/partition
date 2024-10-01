@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -t 0:20:00
-#SBATCH -n 1280
-#SBATCH -N 23
+#SBATCH -t 2:00:00
+#SBATCH -n 320
+#SBATCH -N 6
 #SBATCH -o /work2/10000/budvin/frontera/partition-project/paralab-partition-repo/mpi-cpp/output.txt
 #SBATCH -e /work2/10000/budvin/frontera/partition-project/paralab-partition-repo/mpi-cpp/error.txt
 
@@ -20,10 +20,10 @@ set -e
 module load cmake/3.24.2
 
 
-module load intel/19.1.1
-module load impi/19.0.9
-module load python3/3.9.2
-module load petsc/3.19
+module load intel/23.1.0
+module load impi/21.9.0
+# module load python3/3.9.2
+module load petsc/3.21
 module load fftw3/3.3.10
 
 
@@ -71,14 +71,16 @@ dir=$PWD
 # source "$dir/.venv/bin/activate"
 # export PYTHONPATH=$PYTHONPATH:$dir
 
-metrics_file_path="$dir/results/frontera-scaling-front_bfs___$(date +%Y-%m-%d__%H-%M-%S).json"
+# metrics_file_path="$dir/results/frontera-scaling-front_bfs-200spmv-largetet-5rfnrnds___$(date +%Y-%m-%d__%H-%M-%S).json"
 
 # metrics_file_path="$dir/results/test.json"
 
-echo "exporting metrics to file $metrics_file_path"
+# echo "exporting metrics to file $metrics_file_path"
 
 # File containing list of mesh files
-file_list_file="$dir/mesh_file_list_scaling.txt"
+# file_list_file="$dir/mesh_files_list.txt"
+file_list_file="$dir/connected_hex.txt"
+
 
 # file_list_file="$dir/largest_hex_files.txt"
 
@@ -90,33 +92,56 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-for file_idx in "${!mesh_file_list[@]}"; do 
-    for np in 10 20 40 80 160 320 640 1280
-    do
-        for run_idx in {0..2}; do
-            set +e
-            time ibrun -np $np ./build/main-new $WORK/datasets/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz < /dev/null
-            set -e
-            sleep 2s
-        done
-    done
-done
+# for file_idx in "${!mesh_file_list[@]}"; do 
+#     for np in 10 20 40 80 160 320 640 1280 2240
+#     do
+#         for run_idx in {0..2}; do
+#             set +e
+#             time ibrun -np $np ./build/main-new $SCRATCH/meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz < /dev/null
+#             set -e
+#             sleep 2s
+#         done
+#     done
+# done
 
 
 
 
-# test_mesh_file=$WORK/datasets/Meshes/10k_hex/103211_sf_hexa.mesh
+# test_mesh_file=$SCRATCH/meshes/10k_tet/75651_sf_hexa.mesh_78608_298692.obj.mesh
 
-# for np in 10 20 40
+
+# for np in 10 20 40 80 160 320 640 1280 2240
 # do
 #     for run_idx in {0..2}; do
 #         set +e
-#         time ibrun -np $np ./build/main-new $test_mesh_file 0 $run_idx $dir/test-intelmpi.json -no-viz < /dev/null
+#         time ibrun -np $np ./build/main-new $test_mesh_file 0 $run_idx $dir/test-new-sort.json -no-viz < /dev/null
 #         set -e
 #         sleep 2s
 #     done 
 # done
 
+out_prefix="$(date +%Y-%m-%d__%H-%M-%S)_1rnds_test_grain_hex"
+# out_prefix="2024-09-20__01-40-56_5rnds_test_grain_tet"
+echo "out_prefix: $out_prefix"
+grain_sizes=( 800 1200 1600 )
+for file_idx in "${!mesh_file_list[@]}"; do 
+# for file_idx in {0..4}; do 
+# for ((file_idx=57; file_idx<${#mesh_file_list[@]}; file_idx++)); do 
+
+    file_path=$SCRATCH/meshes/${mesh_file_list[$file_idx]}
+    
+    for g in "${grain_sizes[@]}"
+    do
+        np=$(./build/process_count $file_path $g)
+        echo "[$file_idx]  partitioning $file_path for grain size $g with $np processes"
+        for run_idx in {0..2}; do
+            set +e
+            time ibrun -np $np ./build/main-new $file_path $file_idx $run_idx $dir/results/${out_prefix}_$g.json  -no-viz < /dev/null
+            set -e
+            sleep 2s
+        done
+    done
+done
 
 
 echo "=====done======"
