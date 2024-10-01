@@ -4,6 +4,8 @@
 #include <chrono>
 #include <petscksp.h>
 #include <petscerror.h>
+#include <petscsys.h>
+#include "petscviewer.h"
 #include "util.hpp"
 
 
@@ -49,7 +51,7 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     uint64_t        local_count = local_node_idx_end - local_node_idx_start;
     Vec             x, y;       
     Mat             A;        
-    KSP             ksp; 
+    // KSP             ksp; 
 
     const int spmv_repititions = 200;
 
@@ -170,13 +172,17 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     // PetscPrintf(PETSC_COMM_WORLD, "Vec x:\n");
     // MatView(A, PETSC_VIEWER_STDOUT_WORLD);
 
-    KSPCreate(PETSC_COMM_WORLD, &ksp);
-    KSPSetOperators(ksp, A, A);
-    KSPSetFromOptions(ksp);
+    // KSPCreate(PETSC_COMM_WORLD, &ksp);
+    // KSPSetOperators(ksp, A, A);
+    // KSPSetFromOptions(ksp);
 
+    // warmup?
+    MatMult(A, y, x);
+    MatMult(A, x, y);
 
     // Perform the matrix-vector multiplication
     MPI_Barrier(comm);
+    // PetscLogDefaultBegin();
     auto matvec_start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < spmv_repititions; i++)
     {
@@ -193,7 +199,19 @@ SpMVStatus TestSpMV(const std::vector<T> &elements, ElementType element_type, bo
     auto matvec_end = std::chrono::high_resolution_clock::now();
     auto matvec_duration = std::chrono::duration_cast<std::chrono::microseconds>(matvec_end - matvec_start);
     if(!my_rank) print_log("matvec time: \t\t", matvec_duration.count(), "us");
-  
+    
+    
+    // PetscViewer viewer;
+    // const char* file_name = "profiling.txt";
+    // PetscViewerCreate(PETSC_COMM_WORLD, &viewer);
+    // PetscViewerSetType(viewer, PETSCVIEWERASCII);
+    // PetscViewerFileSetMode(viewer, FILE_MODE_APPEND);
+    // PetscViewerFileSetName(viewer, file_name);
+    // PetscCallAbort(comm, PetscLogView(viewer));
+    // PetscViewerDestroy(&viewer);
+
+
+    // PetscLogView(PETSC_VIEWER_STDOUT_WORLD);
 
     // View the result
     // PetscPrintf(PETSC_COMM_WORLD, "Vec y:\n");

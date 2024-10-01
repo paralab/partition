@@ -40,7 +40,8 @@ make install
 
 
 gmsh
-add -DENABLE_FLTK=0 on server environments without displays
+    add -DENABLE_FLTK=0 on server environments without displays
+    opt(UNTANGLE "Enable 2D and 3D UNTANGLER" OFF) on CMakeLists.txt
 cd build
 cmake -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc -DENABLE_FLTK=0 -DENABLE_BUILD_DYNAMIC=1 -DCMAKE_INSTALL_PREFIX=/work2/10000/budvin/frontera/partition-project/dependencies/gmsh-repo/build/install  ..
 make -j 4
@@ -49,10 +50,12 @@ make install
 
 PtScotch
 Note: if there is an error related to PRIu64 set(CMAKE_C_STANDARD 99) in the CMake file in scotch root dir, and add -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" to cmake
-
+in cmake file add
+    add_definitions(-DSCOTCH_MPI_ASYNC_COLL)
+    turn OFF threads and MPI threads
 mkdir build && cd build 
 
-cmake -DINTSIZE:STRING=64 -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc -DCMAKE_INSTALL_PREFIX=$WORK/partition-project/dependencies/scotch/build/install/ -DBUILD_SHARED_LIBS=ON -DMPI_HOME=$TACC_IMPI_DIR/ ..
+cmake -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc -DCMAKE_INSTALL_PREFIX=$WORK/partition-project/dependencies/scotch/build/install/ -DBUILD_SHARED_LIBS=ON -DMPI_HOME=$TACC_IMPI_DIR/ -DSCOTCH_MPI_ASYNC_COLL=ON ..
 
 make -j5 
 make install

@@ -311,6 +311,12 @@ std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj) 
     return os;
 }
 
+// Overloading the << operator for SortingElement
+std::ostream& operator<<(std::ostream& os, const SortingElement& obj){
+    os << "(" << obj.global_idx << "," << obj.morton_encoding << ")";
+    return os;
+}
+
 // Overloading the << operator for ElementWithFace
 std::ostream& operator<<(std::ostream& os, const ElementWithFace& obj) {
     os << "(" << obj.element_tag << "," << obj.global_idx << "," << obj.face_tag << ")";

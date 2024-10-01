@@ -68,6 +68,29 @@ struct HexElementWithFacesNodes {
 // Overloading the << operator for HexElementWithFacesNodes
 std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj);
 
+//used as a helper object when sorting elements.
+struct SortingElement
+{
+    uint64_t global_idx;
+    uint64_t morton_encoding;
+    bool operator==(const SortingElement& other) const {
+        return morton_encoding == other.morton_encoding;
+    }
+    bool operator<(const SortingElement& other) const {
+        return morton_encoding < other.morton_encoding;
+    }
+    bool operator<=(const SortingElement& other) const {
+        return morton_encoding <= other.morton_encoding;
+    }
+    bool operator>=(const SortingElement& other) const {
+        return morton_encoding >= other.morton_encoding;
+    }
+    bool operator>(const SortingElement& other) const {
+        return morton_encoding > other.morton_encoding;
+    }
+};
+// Overloading the << operator for SortingElement
+std::ostream& operator<<(std::ostream& os, const SortingElement& obj);
 
 /**
  * Used for creating the element conenctivity graph with face connectivity logic
@@ -286,6 +309,37 @@ namespace par
 
 
                 MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<SortingElement> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "SortingElement"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[2] = {1, 1};
+                MPI_Datatype types[2] = {MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[2];
+                offsets[0] = offsetof(SortingElement, global_idx);
+                offsets[1] = offsetof(SortingElement, morton_encoding);
+
+
+                MPI_Type_create_struct(2, block_lengths, offsets, types, &custom_mpi_type);
                 MPI_Type_commit(&custom_mpi_type);
             }       
 
@@ -572,6 +626,10 @@ void ExtractGhostElements(std::vector<std::pair<ElementWithTag, ElementWithTag>>
                           std::vector<ElementWithTag>& ghost_elements_out, std::vector<int>& ghost_element_counts_out,
                           MPI_Comm comm);
 
+
+
+template <class T>
+void SampleSortMorton(std::vector<T> &elements_in, std::vector<T> &elements_out, MPI_Comm comm);
 
 
 template <class T>

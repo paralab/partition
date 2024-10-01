@@ -7,7 +7,7 @@ set(CMAKE_COLOR_MAKEFILE ON)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20) 
-
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 # indexing data type for graph encoding
@@ -158,6 +158,12 @@ set(PETSC_INCLUDE_DIR "${PETSC_INSTALL_DIR_PATH}/include")
 set(PETSC_LIBRARY "${PETSC_INSTALL_DIR_PATH}/lib/libpetsc.so")
 
 include_directories(${PETSC_INCLUDE_DIR})
+
+# # set(PETSC_INCLUDE_DIR "${PETSC_INSTALL_DIR_PATH}/include")
+# set(PETSC_LIBRARY "${PETSC_INSTALL_DIR_PATH}/clx/lib/libpetsc.so")
+
+# include_directories(${PETSC_INSTALL_DIR_PATH}/include ${PETSC_INSTALL_DIR_PATH}/clx/include)
+
 
 
 if(ENABLE_PETSC_DRAW_FEATURES)

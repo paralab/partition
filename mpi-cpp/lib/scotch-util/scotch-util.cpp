@@ -36,6 +36,11 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     }
     
     std::vector<SCOTCH_Num> partition_labels(num_vertices_local, 0);
+
+    //warmup?
+    MPI_Barrier(comm);
+    SCOTCH_dgraphPart(&graph, static_cast<SCOTCH_Num>(partition_count), &stradat, partition_labels.data());
+
     MPI_Barrier(comm);
     auto start = std::chrono::high_resolution_clock::now();
     int return_code =

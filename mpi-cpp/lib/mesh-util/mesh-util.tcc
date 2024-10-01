@@ -545,6 +545,183 @@ void ResolveElementConnectivityByNodes(const std::vector<T> &elements, ElementTy
     
 }
 
+/**
+ * Performs sample sort on TET or HEX elements on morton_encoding field, using lightweight proxy objects for distributed sorting step.
+ */
+template <class T>
+void SampleSortMorton(std::vector<T> &elements_in, std::vector<T> &elements_out, MPI_Comm comm){
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+    if(!my_rank) print_log("using new sample sort");
+
+    /**
+     * gather all pre-sort local count information
+     */
+
+    int pre_sort_local_count = elements_in.size();
+
+    std::vector<int> pre_sort_all_local_counts(procs_n);
+    std::vector<int> pre_sort_all_local_counts_scanned(procs_n);
+
+    MPI_Allgather(&pre_sort_local_count, 1, MPI_INT,pre_sort_all_local_counts.data(),1,MPI_INT,comm);
+
+    omp_par::scan(&pre_sort_all_local_counts[0],&pre_sort_all_local_counts_scanned[0],procs_n);
+
+    /**
+     * form a new aux array with (global_idx, morton_encoding information)
+     */
+    std::vector<SortingElement> aux_array_to_sort(pre_sort_local_count);
+    for (int i = 0; i < pre_sort_local_count; i++)
+    {
+        aux_array_to_sort[i].morton_encoding = elements_in[i].morton_encoding;
+        aux_array_to_sort[i].global_idx = pre_sort_all_local_counts_scanned[my_rank] + i;        // global contiguous indexing before sorting
+    }
+    
+    /**
+     * global sample sort the aux array by morton_encoding
+    */
+    std::vector<SortingElement> aux_array_sorted;
+    MPI_Barrier(comm);
+    par::sampleSort<SortingElement>(aux_array_to_sort,aux_array_sorted,comm);
+
+
+    int sorted_local_count = aux_array_sorted.size();
+
+    std::vector<int> sorted_local_counts(procs_n);
+    std::vector<int> sorted_local_counts_scanned(procs_n);
+
+    MPI_Allgather(&sorted_local_count, 1, MPI_INT,sorted_local_counts.data(),1,MPI_INT,comm);
+
+    omp_par::scan(&sorted_local_counts[0],&sorted_local_counts_scanned[0],procs_n);
+
+    /**
+     * temp array to store pairs<original global index, sorted local index>
+     */
+    std::vector<std::pair<uint64_t, uint64_t>> indices(sorted_local_count);
+    for (int i = 0; i < sorted_local_count; i++)
+    {
+        indices[i].first = aux_array_sorted[i].global_idx;
+        indices[i].second = i;
+    }
+
+    /**
+     * sort by original global index
+     */
+    std::sort(indices.begin(), indices.end(), 
+        [](auto &left, auto &right) {
+            return left.first < right.first;
+        }
+    );
+
+    /**
+     * now send the global indices to owner processes to request the actual data objects
+     */
+    
+    std::vector<int> idx_send_counts(procs_n,0);
+    {
+        uint64_t current_proc = 0;
+        for (uint64_t i = 0; i < indices.size(); i++)
+        {
+            if (indices[i].first < static_cast<uint64_t>(pre_sort_all_local_counts[current_proc] + pre_sort_all_local_counts_scanned[current_proc]))
+            {
+                idx_send_counts[current_proc]++;
+            } else
+            {
+                while (1)
+                {
+                    current_proc++;
+                    if (indices[i].first < static_cast<uint64_t>(pre_sort_all_local_counts[current_proc] + pre_sort_all_local_counts_scanned[current_proc]))
+                    {
+                        idx_send_counts[current_proc]++;
+                        break;
+                    }                    
+                }
+                
+            }   
+        }       
+
+    }
+
+    std::vector<int> idx_send_displs(procs_n);
+    omp_par::scan(&idx_send_counts[0],&idx_send_displs[0],procs_n);
+
+
+    std::vector<int> idx_recev_counts(procs_n);
+    MPI_Alltoall(idx_send_counts.data(), 1, MPI_INT, idx_recev_counts.data(), 1, MPI_INT, comm);
+
+    std::vector<int> idx_recv_displs(procs_n);
+    omp_par::scan(&idx_recev_counts[0],&idx_recv_displs[0],procs_n);
+
+    /**
+     * prepare buffer to send indices
+     */
+    std::vector<uint64_t> sending_indices(sorted_local_count);
+    for (int i = 0; i < sorted_local_count; i++)
+    {
+        sending_indices[i] = indices[i].first;
+
+    }
+
+    int idx_recev_total_count = idx_recev_counts[procs_n-1]+idx_recv_displs[procs_n-1];
+
+
+    assert(idx_recev_total_count == pre_sort_local_count);
+
+    std::vector<uint64_t> recev_indices(idx_recev_total_count);
+    
+
+    MPI_Alltoallv(sending_indices.data(),
+                  idx_send_counts.data(), idx_send_displs.data(), MPI_UINT64_T, 
+                  recev_indices.data(), idx_recev_counts.data(), idx_recv_displs.data(),
+                  MPI_UINT64_T, comm);
+
+    /**
+     * now each process have the requested global indices.
+     * rearrange the elements according to this index order and prepare for sending
+     */
+
+    std::vector<T> sending_elements(pre_sort_local_count);
+
+    for (int i = 0; i < pre_sort_local_count; i++)
+    {
+        //recev_indices contains the pre-sort global indices. to get the local pre sort local index, we have to offset the scanned pre sort count
+        sending_elements[i] = elements_in[recev_indices[i] - pre_sort_all_local_counts_scanned[my_rank]];
+    }
+
+    /**
+     * now when determining element send recev counts, it is essentially the flipped version of idx send recv counts
+     */
+
+    std::vector<int> elem_send_counts = idx_recev_counts;
+    std::vector<int> elem_send_displas = idx_recv_displs;
+
+    std::vector<int> elem_recv_counts = idx_send_counts;
+    std::vector<int> elem_recv_displs = idx_send_displs;
+
+    std::vector<T> recv_elements(sorted_local_count);
+
+
+    MPI_Alltoallv(sending_elements.data(),
+                  elem_send_counts.data(), elem_send_displas.data(), par::Mpi_datatype<T>::value(), 
+                  recv_elements.data(), elem_recv_counts.data(), elem_recv_displs.data(),
+                  par::Mpi_datatype<T>::value(), comm);
+
+    /**
+     * now we have received the elements, rearrange them to the morton sorted order
+     */
+
+    elements_out.resize(sorted_local_count);
+
+    for (int i = 0; i < sorted_local_count; i++)
+    {
+        elements_out[indices[i].second] = recv_elements[i];
+    }
+
+    
+    
+}
+
 
 /**
  * Given a new labeling (i.e. a new partitioning) this function redistributes elements_in.

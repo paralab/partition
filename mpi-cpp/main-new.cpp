@@ -428,9 +428,16 @@ SFCStatus ReadAndDistributeSFC(std::string mesh_file_path, ElementType element_t
     {
         print_log("starting sfc sort");
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    std::vector<T> initial_elements_cpy(initial_elements);
+    // par::sampleSort<T>(initial_elements_cpy,elements_out,MPI_COMM_WORLD);       //warmup?
+    SampleSortMorton(initial_elements_cpy,elements_out,MPI_COMM_WORLD);     // warmup
+
     MPI_Barrier(MPI_COMM_WORLD);
     auto start = std::chrono::high_resolution_clock::now();
-    par::sampleSort<T>(initial_elements,elements_out,MPI_COMM_WORLD);
+    // par::sampleSort<T>(initial_elements,elements_out,MPI_COMM_WORLD);
+    SampleSortMorton(initial_elements,elements_out,MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

@@ -56,6 +56,12 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
 
     std::vector<real_t> ubvec = {1.05};
 
+    //warmup?
+    MPI_Barrier(comm);
+    ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], NULL, NULL, &zero, &zero,
+                                            &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
+                                            &partitions_labels[0], &comm);
+
     MPI_Barrier(comm);
     auto start = std::chrono::high_resolution_clock::now();
 

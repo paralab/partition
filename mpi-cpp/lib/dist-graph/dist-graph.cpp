@@ -396,7 +396,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     bfs_distance_t ghost_min_update = 0; 
 
     int refinement_rounds = 0;   
-    int refinement_rounds_stop = 5;    
+    int refinement_rounds_stop = 1;    
 
     if(procs_n > 1)
     {
