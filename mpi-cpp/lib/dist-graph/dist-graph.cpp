@@ -396,7 +396,9 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     bfs_distance_t ghost_min_update = 0; 
 
     int refinement_rounds = 0;   
-    int refinement_rounds_stop = 1;    
+    int refinement_rounds_stop = 1; 
+
+    int guess_counter = 0;   
 
     if(procs_n > 1)
     {
@@ -421,6 +423,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             //     print_log("BFS round: ", ++round_counter);
             // }
             round_counter++;
+            guess_counter++;
             
             is_not_stable_global = false;
             bool is_not_stable_local = true;
@@ -492,7 +495,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             }
             is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
 
-            if(round_counter >= BFS_stop_guess){
+            if(guess_counter >= BFS_stop_guess){
                 auto start_ = std::chrono::high_resolution_clock::now();
                 MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
                 auto end_ = std::chrono::high_resolution_clock::now();
@@ -529,11 +532,11 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                 // auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor)); 
 
                 auto cutoff_max_1 =   static_cast<uint32_t>(ideal_partition_size*1.2);
-                auto cutoff_max_2 =   static_cast<uint32_t>(ideal_partition_size*1.4);
-                auto cutoff_max_3 =   static_cast<uint32_t>(ideal_partition_size*1.6);
-                auto cutoff_max_4 =   static_cast<uint32_t>(ideal_partition_size*1.8);
-                auto cutoff_max_5 =   static_cast<uint32_t>(ideal_partition_size*2.0);
-                auto cutoff_max_6 =   static_cast<uint32_t>(ideal_partition_size*2.2);
+                auto cutoff_max_2 =   static_cast<uint32_t>(ideal_partition_size*1.5);
+                auto cutoff_max_3 =   static_cast<uint32_t>(ideal_partition_size*1.7);
+                auto cutoff_max_4 =   static_cast<uint32_t>(ideal_partition_size*2.0);
+                auto cutoff_max_5 =   static_cast<uint32_t>(ideal_partition_size*2.5);
+                auto cutoff_max_6 =   static_cast<uint32_t>(ideal_partition_size*3.2);
 
 
                 auto cutoff_min_1 =   static_cast<uint32_t>(ideal_partition_size*0.8);
@@ -597,6 +600,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                     
                 }
                 round_counter++;
+                guess_counter = 0;
 
                 this->RunLocalMultiBFSToStable(bfs_vector);
                 
@@ -819,6 +823,8 @@ bool DistGraph::RunLocalMultiBFSToStable(std::vector<BFSValue>& bfs_vector){
             {
                 auto neighbor = local_adjncy[neighbor_i];
                 if(neighbor >= this->local_count) continue;      // we dont update the ghost vertices
+
+                if(bfs_vector[neighbor].distance == 0) continue;    // 0 distance vertices will not get updated anyway
 
                 if (!added_to_next_updated[neighbor])
                 {
