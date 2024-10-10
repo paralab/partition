@@ -5,3 +5,4 @@
 # list(APPEND MAIN_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
 # include_directories(${MAIN_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 target_sources(${MAIN_TARGET_NAME} PRIVATE binUtils.cpp parUtils.cpp sort_profiler.cpp)
+target_sources(${OCTREE_TARGET_NAME} PRIVATE binUtils.cpp parUtils.cpp sort_profiler.cpp)

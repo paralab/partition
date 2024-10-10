@@ -202,15 +202,25 @@ include_directories(${SCOTCH_INCLUDE_DIR})
 set(MAIN_TARGET_NAME "main-new")
 
 add_executable(${MAIN_TARGET_NAME} main-new.cpp )
+
+set(OCTREE_TARGET_NAME "main-octree")
+
+add_executable(${OCTREE_TARGET_NAME} main-octree.cpp )
+
 add_subdirectory(lib)
 
 include_directories(lib/util lib/mesh-util lib/metis-util lib/sfc lib/usort lib/dist-graph lib/linalg contrib/nlohmann-json)
 
 target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
+target_link_libraries(main-octree PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
+
+
 if(ENABLE_VTK_FEATURES)
     include_directories(lib/vtk-util)
     target_link_libraries(main-new PRIVATE ${VTK_LIBRARIES})
+    target_link_libraries(main-octree PRIVATE ${VTK_LIBRARIES})
+
 endif()
 
 add_executable(process_count process_count.cpp )

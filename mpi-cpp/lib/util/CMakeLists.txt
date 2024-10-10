@@ -4,5 +4,7 @@
 # target_link_libraries(util PUBLIC graph mesh-util ${GMSH_LIBRARIES})
 # include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 target_sources(${MAIN_TARGET_NAME} PRIVATE util.cpp)
+target_sources(${OCTREE_TARGET_NAME} PRIVATE util.cpp)
+
 # list(APPEND MAIN_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
 # include_directories(${MAIN_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})

@@ -311,6 +311,19 @@ std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj) 
     return os;
 }
 
+// Overloading the << operator for OctreeElementWithNeigh
+std::ostream& operator<<(std::ostream& os, const OctreeElementWithNeigh& obj) {
+    os << "(" << obj.element_tag << "," << obj.global_idx << ",[" <<  obj.x<< "," << obj.y<< "," << obj.z << "], " << obj.morton_encoding << ", neigh[";
+    for (size_t i = 0; i < 6; i++)
+    {
+        os << (i?",": " ") << obj.neigh[i] ;
+    
+    }
+    os << "])";
+    
+    return os;
+}
+
 // Overloading the << operator for SortingElement
 std::ostream& operator<<(std::ostream& os, const SortingElement& obj){
     os << "(" << obj.global_idx << "," << obj.morton_encoding << ")";

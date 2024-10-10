@@ -32,6 +32,7 @@ ninja -C ./build
 
 echo "====== complation done ==============="
 
+# exit 0
 
 export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
@@ -76,16 +77,31 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-parts_n=20
+parts_n=23
 # mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-60x60x2.msh"
 # mesh_file="/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1601763_sf_hexa.mesh_60614_240204.obj.mesh"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/98714_sf_hexa.mesh_35708_133376.obj.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/75651_sf_hexa.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/51508_sf_hexa.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh"  #octopus
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh"  #smallest tet
 
+# mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
+mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
 
-mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/test.json -viz
+# mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
+mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz
+
+
+# for np in 2 4 8 16
+# do
+#     for run_idx in {0..1}; do
+#         mpirun -np $np --oversubscribe ./build/main-octree $mesh_file 0 $run_idx $dir/tmp.json -no-viz
+#         # mpirun -np $np --oversubscribe ./build/main-new /home/budvin/research/Partitioning/Meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $dir/test.json  -no-viz
+#     done
+# done
 
 # grain_sizes=( 5000 10000 20000 )
 # for file_idx in "${!mesh_file_list[@]}"; do 
@@ -103,7 +119,7 @@ mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/test.js
 
 export SFC_morton="$PWD/out-sfc.vtk"
 export parMETIS="$PWD/out-parmetis.vtk"
-export BFS="$PWD/out-bfs.vtk"
+export fastPart="$PWD/out-fastPart.vtk"
 export ptscotch="$PWD/out-ptscotch.vtk"
 
 /home/budvin/bin/ParaView-5.11.2-MPI-Linux-Python3.9-x86_64/bin/paraview ./paraview_script.py

@@ -11,7 +11,7 @@ paraview.simple._DisableFirstRenderCameraReset()
 
 
 
-method_names = ['SFC_morton','parMETIS','BFS','ptscotch']
+method_names = ['SFC_morton','parMETIS','fastPart','ptscotch']
 
 
 file_names = [os.environ[method_name] for method_name in method_names]

@@ -68,6 +68,35 @@ struct HexElementWithFacesNodes {
 // Overloading the << operator for HexElementWithFacesNodes
 std::ostream& operator<<(std::ostream& os, const HexElementWithFacesNodes& obj);
 
+
+struct OctreeElementWithNeigh {
+    uint64_t element_tag;
+    uint64_t global_idx;
+    double x;
+    double y;
+    double z;
+    uint64_t morton_encoding;
+    uint64_t neigh[6];
+    bool operator==(const OctreeElementWithNeigh& other) const {
+        return morton_encoding == other.morton_encoding;
+    }
+    bool operator<(const OctreeElementWithNeigh& other) const {
+        return morton_encoding < other.morton_encoding;
+    }
+    bool operator<=(const OctreeElementWithNeigh& other) const {
+        return morton_encoding <= other.morton_encoding;
+    }
+    bool operator>=(const OctreeElementWithNeigh& other) const {
+        return morton_encoding >= other.morton_encoding;
+    }
+    bool operator>(const OctreeElementWithNeigh& other) const {
+        return morton_encoding > other.morton_encoding;
+    }
+};
+
+// Overloading the << operator for OctreeElementWithNeigh
+std::ostream& operator<<(std::ostream& os, const OctreeElementWithNeigh& obj);
+
 //used as a helper object when sorting elements.
 struct SortingElement
 {
@@ -309,6 +338,43 @@ namespace par
 
 
                 MPI_Type_create_struct(8, block_lengths, offsets, types, &custom_mpi_type);
+                MPI_Type_commit(&custom_mpi_type);
+            }       
+
+
+
+            return custom_mpi_type;
+        }
+    };
+
+    template <>
+    class Mpi_datatype<OctreeElementWithNeigh> {
+
+	  /** 
+          @return the MPI_Datatype for the C++ datatype "OctreeElementWithNeigh"
+         **/
+        public:
+        static MPI_Datatype value() {
+            static bool         first = true;
+            static MPI_Datatype custom_mpi_type;
+
+            if (first)
+            {
+                first = false;
+                int block_lengths[7] = {1, 1, 1, 1, 1, 1, 6};
+                MPI_Datatype types[7] = {MPI_UINT64_T, MPI_UINT64_T, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_UINT64_T, MPI_UINT64_T};
+                MPI_Aint offsets[7];
+                offsets[0] = offsetof(OctreeElementWithNeigh, element_tag);
+                offsets[1] = offsetof(OctreeElementWithNeigh, global_idx);
+                offsets[2] = offsetof(OctreeElementWithNeigh, x);
+                offsets[3] = offsetof(OctreeElementWithNeigh, y);
+                offsets[4] = offsetof(OctreeElementWithNeigh, z);
+                offsets[5] = offsetof(OctreeElementWithNeigh, morton_encoding);
+                offsets[6] = offsetof(OctreeElementWithNeigh, neigh);
+
+
+
+                MPI_Type_create_struct(7, block_lengths, offsets, types, &custom_mpi_type);
                 MPI_Type_commit(&custom_mpi_type);
             }       
 
