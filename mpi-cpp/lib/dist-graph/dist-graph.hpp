@@ -250,7 +250,9 @@ private:
 
     bool RunLocalMultiPageRankToStable(std::vector<PageRankValue>& pagerank_vector,
                 std::vector<graph_indexing_t> vertex_degrees, const float min_relative_change);
-
+    template <typename T>
+    void DistGraph::AllToAllvSparseNieghbors(T* sendbuf, int* sendcnts, int* sdispls, 
+        T* recvbuf, int* recvcnts, int* rdispls, MPI_Comm comm);
     void GetVertexDegrees(std::vector<graph_indexing_t>& degrees_out);
 
 

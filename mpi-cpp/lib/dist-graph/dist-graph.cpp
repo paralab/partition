@@ -462,8 +462,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
             }else
             {
                 // MPI_Barrier(this->comm);
-                par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
                         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+                // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
 
                 // MPI_Barrier(this->comm);
             }    
@@ -613,8 +615,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
                 {
                     auto start_ = std::chrono::high_resolution_clock::now();
                     // force all ghosts to be exchanged because we want to reset send buffers
-                    par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                    this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
                             ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+                    // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+                    //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
                     auto end_ = std::chrono::high_resolution_clock::now();
                     com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
                 }
@@ -1023,7 +1027,9 @@ void DistGraph::ExchangeUpdatedOnlyBFSGhost(std::vector<BFSValue>& ghost_send_bu
 
 
     // MPI_Barrier(this->comm);
-    par::Mpi_Alltoallv_sparse(updated_only_send_buffer.data(), updated_only_send_counts.data(), updated_only_send_counts_scanned.data(), 
+    // par::Mpi_Alltoallv_sparse(updated_only_send_buffer.data(), updated_only_send_counts.data(), updated_only_send_counts_scanned.data(), 
+    //         updated_only_recv_buffer.data(), updated_only_recv_counts.data(), updated_only_recv_counts_scanned.data(), comm);
+    this->AllToAllvSparseNieghbors(updated_only_send_buffer.data(), updated_only_send_counts.data(), updated_only_send_counts_scanned.data(), 
             updated_only_recv_buffer.data(), updated_only_recv_counts.data(), updated_only_recv_counts_scanned.data(), comm);
     // MPI_Barrier(this->comm);
 
@@ -1157,6 +1163,54 @@ void DistGraph::EndExchangingUpdatedOnlyGhostCounts(std::vector<int>& updated_on
     // exchange my own count (this is not actually needed since there are no ghost or sending vertices to self)
     updated_only_recv_counts_out[my_rank] = updated_only_send_counts[my_rank];
 
+}
+
+
+template <typename T>
+void DistGraph::AllToAllvSparseNieghbors(T* sendbuf, int* sendcnts, int* sdispls, 
+        T* recvbuf, int* recvcnts, int* rdispls, MPI_Comm comm)
+{
+      int npes, rank;
+      MPI_Comm_size(comm, &npes);
+      MPI_Comm_rank(comm, &rank);
+
+      int commCnt = this->send_procs.size() + this->ghost_procs.size();
+
+
+      MPI_Request* requests = new MPI_Request[commCnt];
+      assert(requests);
+
+      MPI_Status* statuses = new MPI_Status[commCnt];
+      assert(statuses);
+
+      commCnt = 0;
+
+      //First place all recv requests.
+      for (auto recv_i : this->ghost_procs)
+      {
+          par::Mpi_Irecv<T>( &(recvbuf[rdispls[recv_i]]) , recvcnts[recv_i], recv_i, 1,
+              comm, &(requests[commCnt]) );
+          commCnt++;
+      }
+      
+
+      //Next send the messages. 
+      for(auto send_i : this->send_procs) {
+        par::Mpi_Isend<T>( &(sendbuf[sdispls[send_i]]), sendcnts[send_i], send_i, 1,
+            comm, &(requests[commCnt]) );
+        commCnt++;
+      }
+
+
+
+
+      
+      MPI_Waitall(commCnt, requests, statuses);
+
+      delete [] requests;
+      delete [] statuses;
+
+      return ;
 }
 
 /**
