@@ -90,9 +90,10 @@ parts_n=23
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
 mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
+mesh_file="/home/budvin/research/Partitioning/siam-cut-cell-presentation/mpi-cpp/cut-cell-meshes/embedded_mesh_3.msh"
 
-# mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
-mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz
+mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
+# mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz
 
 
 # for np in 2 4 8 16

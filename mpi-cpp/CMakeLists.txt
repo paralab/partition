@@ -227,6 +227,9 @@ add_executable(process_count process_count.cpp )
 target_link_libraries(process_count PRIVATE ${GMSH_LIBRARIES})
 
 
+add_executable(embed_mesh embed_mesh.cpp)
+target_link_libraries(embed_mesh PRIVATE ${GMSH_LIBRARIES})
+
 
 
 
