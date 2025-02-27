@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <numeric>
+#include "fastpart.h"
 
 
 // Overloading the << operator for BFSValue
@@ -352,10 +353,39 @@ std::string DistGraph::PrintDist(){
 }
 
 
-PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out){
+PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_out, bool use_diffusion){
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
+
+
+
+    std::vector<fastpart_int_t> xadj__(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
+
+    std::vector<fastpart_int_t> vtxdist__(this->vtx_dist.begin(), this->vtx_dist.end());
+    std::vector<fastpart_int_t> adjncy__(this->dist_adjncy.begin(), this->dist_adjncy.end());
+    std::vector<fastpart_int_t> partitions_labels(this->local_count);
+
+
+    fastpart_ctrl ctrl;
+    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), NULL, 0, &(this->comm));
+    MPI_Barrier(comm);
+    auto start__ = std::chrono::high_resolution_clock::now();
+    fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 1);
+    MPI_Barrier(comm);
+    auto end__ = std::chrono::high_resolution_clock::now();
+    auto duration__ = std::chrono::duration_cast<std::chrono::microseconds>(end__ - start__);
+    fastpart_destroy(&ctrl);
+
+    if (!my_rank) {
+        print_log("BFS total time:\t\t\t", duration__.count(), " us");
+    }
+
+
+    partition_labels_out.assign(partitions_labels.begin(), partitions_labels.end());
+
+    return {.return_code = 0, .time_us = static_cast<int>(duration__.count())};
+
     std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1);
 
     BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};

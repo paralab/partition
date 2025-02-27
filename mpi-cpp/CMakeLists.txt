@@ -150,6 +150,16 @@ set(PARMETIS_LIBRARY "${PARMETIS_INSTALL_DIR_PATH}/lib/libparmetis.so")
 include_directories(${PARMETIS_INCLUDE_DIR})
 
 
+if(NOT FASTPART_INSTALL_DIR_PATH)
+    message(FATAL_ERROR "The FASTPART_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DFASTPART_INSTALL_DIR_PATH=/path/to/fastpart/build.")
+endif()
+
+set(FASTPART_INCLUDE_DIR "${FASTPART_INSTALL_DIR_PATH}/include")
+set(FASTPART_LIBRARY "${FASTPART_INSTALL_DIR_PATH}/lib/libfastpart.so")
+
+include_directories(${FASTPART_INCLUDE_DIR})
+
+
 if(NOT PETSC_INSTALL_DIR_PATH)
     message(FATAL_ERROR "The PETSC_INSTALL_DIR_PATH option is not provided. Please specify the path to the library using -DPETSC_INSTALL_DIR_PATH=/path/to/petsc/build ")
 endif()
@@ -211,9 +221,9 @@ add_subdirectory(lib)
 
 include_directories(lib/util lib/mesh-util lib/metis-util lib/sfc lib/usort lib/dist-graph lib/linalg contrib/nlohmann-json)
 
-target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
+target_link_libraries(main-new PRIVATE ${GMSH_LIBRARIES} ${FASTPART_LIBRARY} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
-target_link_libraries(main-octree PRIVATE ${GMSH_LIBRARIES} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
+target_link_libraries(main-octree PRIVATE ${GMSH_LIBRARIES} ${FASTPART_LIBRARY} ${PARMETIS_LIBRARY} ${METIS_LIBRARY} ${GKLIB_LIBRARY} ${MPI_CXX_LIBRARIES} ${PETSC_LIBRARY} ${SCOTCH_LIBRARY} ${SCOTCHERR_LIBRARY} ${PTSCOTCH_LIBRARY} ${PTSCOTCHERR_LIBRARY})
 
 
 if(ENABLE_VTK_FEATURES)

@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("starting BFS partitioning");
     std::vector<uint16_t> local_bfs_partition_labels(local_element_count);      // TODO: make the label type consistent with bfs_label_t or int32
-    auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels);
+    auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels, true);
     if(!taskid) print_log("BFS partitioning done");
 
     if(!taskid) print_log("starting parmetis");

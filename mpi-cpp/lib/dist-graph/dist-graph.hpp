@@ -268,7 +268,7 @@ public:
     std::string PrintDist();
 
     void Erase();
-    PartitionStatus PartitionBFS(std::vector<uint16_t>& partition_labels_out);
+    PartitionStatus PartitionBFS(std::vector<uint16_t>& partition_labels_out, bool use_diffusion);
     void PartitionPageRank(std::vector<uint16_t>& partition_labels_out);
     PartitionStatus PartitionParmetis(std::vector<uint16_t>& partition_labels_out);
     PartitionStatus PartitionPtScotch(std::vector<uint16_t>& partition_labels_out);
