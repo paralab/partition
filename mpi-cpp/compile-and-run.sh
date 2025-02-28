@@ -1,5 +1,13 @@
 set -e
 
+root_dir=$PWD
+
+cd /home/budvin/research/Partitioning/fastpart
+
+bash compile.sh
+
+cd $root_dir
+
 export OMP_NUM_THREADS=1
 
 # export OMP_PROC_BIND=true 
@@ -79,8 +87,8 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-parts_n=8
-# mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-60x60x2.msh"
+parts_n=14
+mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-60x60x2.msh"
 # mesh_file="/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1601763_sf_hexa.mesh_60614_240204.obj.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/98714_sf_hexa.mesh_35708_133376.obj.mesh"
@@ -90,9 +98,10 @@ parts_n=8
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh"  #smallest tet
 
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
-mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
-mesh_file="/home/budvin/research/Partitioning/siam-cut-cell-presentation/mpi-cpp/cut-cell-meshes/embedded_mesh_0.msh"
+# mesh_file="/home/budvin/research/Partitioning/siam-cut-cell-presentation/mpi-cpp/cut-cell-meshes/embedded_mesh_1.msh"
+# mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-5x5x2-renamed.msh"
 
 mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
 # mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz

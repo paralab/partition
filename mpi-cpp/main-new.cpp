@@ -327,84 +327,84 @@ int main(int argc, char *argv[])
 
     #endif
     
-    DistributionStatus bfs_distribution_status;
-    DistributionStatus parmetis_distribution_status;
-    DistributionStatus ptscotch_distribution_status;
+    // DistributionStatus bfs_distribution_status;
+    // DistributionStatus parmetis_distribution_status;
+    // DistributionStatus ptscotch_distribution_status;
 
 
-    SpMVStatus sfc_spmv_status;
-    SpMVStatus bfs_spmv_status;
-    SpMVStatus parmetis_spmv_status;
-    SpMVStatus ptscotch_spmv_status;
+    // SpMVStatus sfc_spmv_status;
+    // SpMVStatus bfs_spmv_status;
+    // SpMVStatus parmetis_spmv_status;
+    // SpMVStatus ptscotch_spmv_status;
 
 
 
 
-    switch (elementType)
-    {
-    case ElementType::TET:
-    {
-        if(!taskid) print_log("testing SFC partitioning");
-        sfc_spmv_status = TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
+    // switch (elementType)
+    // {
+    // case ElementType::TET:
+    // {
+    //     if(!taskid) print_log("testing SFC partitioning");
+    //     sfc_spmv_status = TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
 
-        if(!taskid) print_log("testing BFS partitioning");
-        std::vector<TetElementWithFacesNodes> localElementsAllData_Tet_2;
-        bfs_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        bfs_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
-
-
-        if(!taskid) print_log("testing parMETIS partitioning");
-        localElementsAllData_Tet_2.clear();
-        parmetis_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        parmetis_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
-
-        if(!taskid) print_log("testing ptscotch partitioning");
-        localElementsAllData_Tet_2.clear();
-        ptscotch_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_ptscotch_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        ptscotch_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
+    //     if(!taskid) print_log("testing BFS partitioning");
+    //     std::vector<TetElementWithFacesNodes> localElementsAllData_Tet_2;
+    //     bfs_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+    //     bfs_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
 
 
-        break;
-    }
-    case ElementType::HEX:
-    {
-        if(!taskid) print_log("testing SFC partitioning");
-        sfc_spmv_status = TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+    //     if(!taskid) print_log("testing parMETIS partitioning");
+    //     localElementsAllData_Tet_2.clear();
+    //     parmetis_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+    //     parmetis_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
-        if(!taskid) print_log("testing BFS partitioning");
-        std::vector<HexElementWithFacesNodes> localElementsAllData_Hex_2;
-        bfs_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        bfs_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+    //     if(!taskid) print_log("testing ptscotch partitioning");
+    //     localElementsAllData_Tet_2.clear();
+    //     ptscotch_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_ptscotch_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
+    //     ptscotch_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
 
-        if(!taskid) print_log("testing parMETIS partitioning");
-        localElementsAllData_Hex_2.clear();
-        parmetis_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        parmetis_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+    //     break;
+    // }
+    // case ElementType::HEX:
+    // {
+    //     if(!taskid) print_log("testing SFC partitioning");
+    //     sfc_spmv_status = TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
-        if(!taskid) print_log("testing ptscotch partitioning");
-        localElementsAllData_Hex_2.clear();
-        ptscotch_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_ptscotch_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        ptscotch_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
-        break;
-    }
+    //     if(!taskid) print_log("testing BFS partitioning");
+    //     std::vector<HexElementWithFacesNodes> localElementsAllData_Hex_2;
+    //     bfs_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+    //     bfs_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+
+
+    //     if(!taskid) print_log("testing parMETIS partitioning");
+    //     localElementsAllData_Hex_2.clear();
+    //     parmetis_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+    //     parmetis_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+
+    //     if(!taskid) print_log("testing ptscotch partitioning");
+    //     localElementsAllData_Hex_2.clear();
+    //     ptscotch_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_ptscotch_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
+    //     ptscotch_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
+    //     break;
+    // }
     
-    default:
-    {
-        throw std::runtime_error("Unknown element type");
-        break;
-    }
+    // default:
+    // {
+    //     throw std::runtime_error("Unknown element type");
+    //     break;
+    // }
         
-    }
+    // }
     if (! taskid)
     {   
 
         ExportMetricsToJson(mesh_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 graph_setup_duration.count(),
-                                global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, sfc_spmv_status.mat_assembly_time_us, sfc_spmv_status.matvec_time_us,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, bfs_spmv_status.mat_assembly_time_us, bfs_spmv_status.matvec_time_us,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, parmetis_distribution_status.time_us, parmetis_spmv_status.mat_assembly_time_us, parmetis_spmv_status.matvec_time_us,
-                                global_ptscotch_partition_sizes,global_ptscotch_partition_boundaries, ptscotch_status.time_us, ptscotch_distribution_status.time_us, ptscotch_spmv_status.mat_assembly_time_us, ptscotch_spmv_status.matvec_time_us,
+                                global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, 0, 0,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, 0, 0, 0,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, 0, 0, 0,
+                                global_ptscotch_partition_sizes,global_ptscotch_partition_boundaries, ptscotch_status.time_us, 0, 0, 0,
                                 metrics_out_file_path);
 
     }

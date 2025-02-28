@@ -89,6 +89,9 @@ void ExportMetricsToJson(
     std::vector<uint32_t>& ptscotch_partition_sizes, std::vector<uint32_t>& ptscotch_partition_boundaries, int ptscotch_labeling_time, int ptscotch_redistribution_time, int ptscotch_mat_assembly_time, int ptscotch_matvec_time,
     std::string metrics_out_file_path)
 {
+
+    uint32_t total_weight_sum = std::accumulate(sfc_partition_sizes.begin(), sfc_partition_sizes.end(), (uint32_t)0);
+    uint32_t ideal_partition_weight = total_weight_sum / partition_count;
     
     nlohmann::json output_json = 
     {
@@ -97,10 +100,10 @@ void ExportMetricsToJson(
         {"mesh_file", mesh_file},
         {"np", partition_count},
         {"n", global_vertex_count},
-
+        {"total_weight_sum", total_weight_sum},
         {"SFC_morton_boundary_ratio", std::accumulate(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
-        {"SFC_morton_rho_max", static_cast<float>(*std::max_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/(global_vertex_count/partition_count)},
-        {"SFC_morton_rho_min", static_cast<float>(*std::min_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/(global_vertex_count/partition_count)},
+        {"SFC_morton_rho_max", static_cast<float>(*std::max_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/ideal_partition_weight},
+        {"SFC_morton_rho_min", static_cast<float>(*std::min_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/ideal_partition_weight},
         {"SFC_morton_partition_sizes", sfc_partition_sizes},
         {"SFC_morton_partition_boundaries", sfc_partition_boundaries},
         {"SFC_morton_mat_assembly_time", sfc_mat_assembly_time},
@@ -113,8 +116,8 @@ void ExportMetricsToJson(
 
 
         {"BFS_boundary_ratio", std::accumulate(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
-        {"BFS_rho_max", static_cast<float>(*std::max_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/(global_vertex_count/partition_count)},
-        {"BFS_rho_min", static_cast<float>(*std::min_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/(global_vertex_count/partition_count)},
+        {"BFS_rho_max", static_cast<float>(*std::max_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/ideal_partition_weight},
+        {"BFS_rho_min", static_cast<float>(*std::min_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/ideal_partition_weight},
         {"BFS_partition_sizes", bfs_partition_sizes},
         {"BFS_partition_boundaries", bfs_partition_boundaries},
         {"BFS_mat_assembly_time", bfs_mat_assembly_time},
@@ -123,8 +126,8 @@ void ExportMetricsToJson(
         {"BFS_redistribution_time", bfs_redistribution_time},
 
         {"parMETIS_boundary_ratio", std::accumulate(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
-        {"parMETIS_rho_max", static_cast<float>(*std::max_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/(global_vertex_count/partition_count)},
-        {"parMETIS_rho_min", static_cast<float>(*std::min_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/(global_vertex_count/partition_count)},
+        {"parMETIS_rho_max", static_cast<float>(*std::max_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/ideal_partition_weight},
+        {"parMETIS_rho_min", static_cast<float>(*std::min_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/ideal_partition_weight},
         {"parMETIS_partition_sizes", parmetis_partition_sizes},
         {"parMETIS_partition_boundaries", parmetis_partition_boundaries},
         {"parMETIS_mat_assembly_time", parmetis_mat_assembly_time},
@@ -133,8 +136,8 @@ void ExportMetricsToJson(
         {"parMETIS_redistribution_time", parmetis_redistribution_time},
 
         {"ptscotch_boundary_ratio", std::accumulate(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
-        {"ptscotch_rho_max", static_cast<float>(*std::max_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/(global_vertex_count/partition_count)},
-        {"ptscotch_rho_min", static_cast<float>(*std::min_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/(global_vertex_count/partition_count)},
+        {"ptscotch_rho_max", static_cast<float>(*std::max_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/ideal_partition_weight},
+        {"ptscotch_rho_min", static_cast<float>(*std::min_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/ideal_partition_weight},
         {"ptscotch_partition_sizes", ptscotch_partition_sizes},
         {"ptscotch_partition_boundaries", ptscotch_partition_boundaries},
         {"ptscotch_mat_assembly_time", ptscotch_mat_assembly_time},

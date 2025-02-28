@@ -9,7 +9,8 @@
 #include <stdexcept>
 
 PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj,
-                                      std::vector<uint64_t>& adjncy, uint64_t num_vertices_local,
+                                      std::vector<uint64_t>& adjncy, std::vector<uint32_t>& vertex_wgts,
+                                      uint64_t num_vertices_local,
                                       uint64_t num_vertices_global, int partition_count,
                                       std::vector<uint16_t>& partition_labels_out, MPI_Comm comm) {
     int procs_n, my_rank;
@@ -23,11 +24,13 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
 
     SCOTCH_Num local_total_arcs = static_cast<SCOTCH_Num>(edgeloctab.size()); // including arcs to/from ghosts
 
+    std::vector<SCOTCH_Num> vertex_wgts__(vertex_wgts.begin(), vertex_wgts.end());
+
     SCOTCH_stratInit(&stradat); /* Default strategy will be used */
     SCOTCH_dgraphInit(&graph, comm);
 
     SCOTCH_dgraphBuild(&graph, 0, static_cast<SCOTCH_Num>(num_vertices_local),
-                       static_cast<SCOTCH_Num>(num_vertices_local), vertloctab.data(), NULL, NULL, NULL,
+                       static_cast<SCOTCH_Num>(num_vertices_local), vertloctab.data(), NULL, vertex_wgts__.data(), NULL,
                        local_total_arcs, local_total_arcs, edgeloctab.data(), NULL, NULL);
     int graph_status = SCOTCH_dgraphCheck(&graph);
     if (! (graph_status==0))

@@ -208,6 +208,8 @@ private:
     //CSR column offsets
     std::vector<graph_indexing_t> local_adjncy;
 
+    std::vector<uint32_t> local_vertex_wgts;
+
     std::vector<uint64_t> dist_adjncy;
 
     std::vector<uint64_t> vtx_dist;

@@ -12,6 +12,7 @@
 #include <chrono>
 #include <numeric>
 #include "fastpart.h"
+#include <random>
 
 
 // Overloading the << operator for BFSValue
@@ -306,7 +307,29 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
 
     }
 
+    /**
+     * setting up local vertices weights
+     * for the cut-cell demo, all boundary vertices will be assigned random weights 2-10
+     * other vertices will have weight 1
+     * boundary vertex is defines as any vertex with degree < 6 (assumes hex elements for the demo)
+     * 
+     */
+    this->local_vertex_wgts.resize(this->local_count);
+    std::srand(my_rank);
+    for (size_t vertex_i = 0; vertex_i < this->local_count; vertex_i++)
+    {
+        if ((this->local_xdj[vertex_i+1] - this->local_xdj[vertex_i]) == 6 )
+        {
+            // not a boundary vertex
+            this->local_vertex_wgts[vertex_i] = 1;
+        }else
+        {
+            // is a boundary vertex
+            this->local_vertex_wgts[vertex_i] = std::rand() % 10 + 2;
+        }
+        
 
+    }
     
 
 }
@@ -365,10 +388,10 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     std::vector<fastpart_int_t> vtxdist__(this->vtx_dist.begin(), this->vtx_dist.end());
     std::vector<fastpart_int_t> adjncy__(this->dist_adjncy.begin(), this->dist_adjncy.end());
     std::vector<fastpart_int_t> partitions_labels(this->local_count);
-
+    std::vector<fastpart_int_t> local_vertex_wgts__(this->local_vertex_wgts.begin(), this->local_vertex_wgts.end());
 
     fastpart_ctrl ctrl;
-    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), NULL, 0, &(this->comm));
+    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), FASTPART_VTX_WEIGHTED, &(this->comm));
     MPI_Barrier(comm);
     auto start__ = std::chrono::high_resolution_clock::now();
     fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 1);
@@ -386,328 +409,328 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
     return {.return_code = 0, .time_us = static_cast<int>(duration__.count())};
 
-    std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1);
+    // std::vector<BFSValue> bfs_vector(this->local_xdj.size()-1);
 
-    BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
+    // BFSValue bfs_init_value = {.label = DIST_GRAPH_BFS_NO_LABEL, .distance =  DIST_GRAPH_BFS_INFINITY};
 
-    int BFS_stop_guess = std::min(procs_n, 7);      // TODO: this bound could be improved
-    const float partition_size_imbalance_additive_factor = 0.2;       // BFS will try to keep the paritition sizes in range [ideal_size-factor, ideal_size+factor]
-    assert( 0<= partition_size_imbalance_additive_factor && 1 > partition_size_imbalance_additive_factor);
-    // // TODO: openmp can be used to populate
-    // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
+    // int BFS_stop_guess = std::min(procs_n, 7);      // TODO: this bound could be improved
+    // const float partition_size_imbalance_additive_factor = 0.2;       // BFS will try to keep the paritition sizes in range [ideal_size-factor, ideal_size+factor]
+    // assert( 0<= partition_size_imbalance_additive_factor && 1 > partition_size_imbalance_additive_factor);
+    // // // TODO: openmp can be used to populate
+    // // std::fill(bfs_vector.begin(),bfs_vector.end(), init_value);
 
-    /**
-     * using sfc seeds
-     * elements are already ordered to morton SFC
-     * get the 'middle' local element as seed
-     * TODO: oversampling can be implemented here
-    */
-    graph_indexing_t seed = static_cast<graph_indexing_t>(this->local_count/2);
+    // /**
+    //  * using sfc seeds
+    //  * elements are already ordered to morton SFC
+    //  * get the 'middle' local element as seed
+    //  * TODO: oversampling can be implemented here
+    // */
+    // graph_indexing_t seed = static_cast<graph_indexing_t>(this->local_count/2);
 
-    // bfs_vector[seed].distance = 0;
-    // bfs_vector[seed].label = my_rank;
-
-
-
-    bool is_not_stable_global = true;      // global BFS stability
-    int round_counter = 0;
-    MPI_Barrier(this->comm);
-    auto com_duration = std::chrono::microseconds(0);
-
-    auto start = std::chrono::high_resolution_clock::now();
+    // // bfs_vector[seed].distance = 0;
+    // // bfs_vector[seed].label = my_rank;
 
 
 
-    //special first iteration using standard BFS frontier method with a queue
-    this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
+    // bool is_not_stable_global = true;      // global BFS stability
+    // int round_counter = 0;
+    // MPI_Barrier(this->comm);
+    // auto com_duration = std::chrono::microseconds(0);
 
-    // when we receive ghost updates, keep track of the update with minimum value
-    // then, in the next inner BFS, vertices can be filtered based on this value
-    bfs_distance_t ghost_min_update = 0; 
+    // auto start = std::chrono::high_resolution_clock::now();
 
-    int refinement_rounds = 0;   
-    int refinement_rounds_stop = 1; 
 
-    int guess_counter = 0;   
 
-    if(procs_n > 1)
-    {
+    // //special first iteration using standard BFS frontier method with a queue
+    // this->RunFirstBFSIteration(bfs_vector, seed, my_rank);
+
+    // // when we receive ghost updates, keep track of the update with minimum value
+    // // then, in the next inner BFS, vertices can be filtered based on this value
+    // bfs_distance_t ghost_min_update = 0; 
+
+    // int refinement_rounds = 0;   
+    // int refinement_rounds_stop = 1; 
+
+    // int guess_counter = 0;   
+
+    // if(procs_n > 1)
+    // {
         
-        std::vector<BFSValue> ghost_send_buffer(this->send_count);
-        std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
+    //     std::vector<BFSValue> ghost_send_buffer(this->send_count);
+    //     std::vector<BFSValue> ghost_send_buffer_prev(this->send_count, bfs_init_value);
 
-        std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
+    //     std::vector<BFSValue> ghost_recv_buffer(this->ghost_count, bfs_init_value);
 
-        std::vector<bool> ghost_updated(this->ghost_count,false);
+    //     std::vector<bool> ghost_updated(this->ghost_count,false);
 
-        this->ghost_count_requests = new MPI_Request[this->ghost_procs.size() + this->send_procs.size()];
-        this->ghost_count_statuses = new MPI_Status[this->ghost_procs.size() + this->send_procs.size()];
-        this->updated_only_recv_counts.resize(procs_n);
+    //     this->ghost_count_requests = new MPI_Request[this->ghost_procs.size() + this->send_procs.size()];
+    //     this->ghost_count_statuses = new MPI_Status[this->ghost_procs.size() + this->send_procs.size()];
+    //     this->updated_only_recv_counts.resize(procs_n);
 
         
         
-        while (is_not_stable_global)
-        {
-            // if (!my_rank)
-            // {
-            //     print_log("BFS round: ", ++round_counter);
-            // }
-            round_counter++;
-            guess_counter++;
+    //     while (is_not_stable_global)
+    //     {
+    //         // if (!my_rank)
+    //         // {
+    //         //     print_log("BFS round: ", ++round_counter);
+    //         // }
+    //         round_counter++;
+    //         guess_counter++;
             
-            is_not_stable_global = false;
-            bool is_not_stable_local = true;
+    //         is_not_stable_global = false;
+    //         bool is_not_stable_local = true;
 
-            if (round_counter > 1)
-            {
-                auto start_ = std::chrono::high_resolution_clock::now();
-                this->StartReceivingUpdatedOnlyGhostCounts();
-                auto end_ = std::chrono::high_resolution_clock::now();
-                com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
-            }
+    //         if (round_counter > 1)
+    //         {
+    //             auto start_ = std::chrono::high_resolution_clock::now();
+    //             this->StartReceivingUpdatedOnlyGhostCounts();
+    //             auto end_ = std::chrono::high_resolution_clock::now();
+    //             com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+    //         }
             
-            if (round_counter > 1)      // first round is already handled by the "special first iteration"
-            {   
-                is_not_stable_local = this->RunLocalMultiBFSToStable2(bfs_vector, ghost_updated, ghost_min_update);
+    //         if (round_counter > 1)      // first round is already handled by the "special first iteration"
+    //         {   
+    //             is_not_stable_local = this->RunLocalMultiBFSToStable2(bfs_vector, ghost_updated, ghost_min_update);
 
-            }
+    //         }
             
-            // print_log("[", my_rank, "]: BFS iteration done");
+    //         // print_log("[", my_rank, "]: BFS iteration done");
 
-            #pragma omp parallel for
-            for (size_t send_i = 0; send_i < this->send_count; send_i++)
-            {
-                ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
-            }
-            auto com_start = std::chrono::high_resolution_clock::now();
+    //         #pragma omp parallel for
+    //         for (size_t send_i = 0; send_i < this->send_count; send_i++)
+    //         {
+    //             ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
+    //         }
+    //         auto com_start = std::chrono::high_resolution_clock::now();
             
             
-            /**
-             * ghost exchange
-            */
-            if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
-            {
-                this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
+    //         /**
+    //          * ghost exchange
+    //         */
+    //         if (round_counter > 1)          // after the first round, exchanging updated only ghosts is better for communication
+    //         {
+    //             this->ExchangeUpdatedOnlyBFSGhost(ghost_send_buffer,ghost_send_buffer_prev,ghost_recv_buffer);
                 
-            }else
-            {
-                // MPI_Barrier(this->comm);
-                this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                        ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
-                // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+    //         }else
+    //         {
+    //             // MPI_Barrier(this->comm);
+    //             this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+    //                     ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+    //             // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+    //             //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
 
-                // MPI_Barrier(this->comm);
-            }    
+    //             // MPI_Barrier(this->comm);
+    //         }    
 
-            auto com_end = std::chrono::high_resolution_clock::now();
-            com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
+    //         auto com_end = std::chrono::high_resolution_clock::now();
+    //         com_duration += std::chrono::duration_cast<std::chrono::microseconds>(com_end - com_start);
 
-            std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
+    //         std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration
 
-            /**
-             * ghost update using received values
-            */
-            bool ghost_any_is_not_stable = false;
+    //         /**
+    //          * ghost update using received values
+    //         */
+    //         bool ghost_any_is_not_stable = false;
 
-            ghost_min_update = DIST_GRAPH_BFS_INFINITY;
-            std::fill(ghost_updated.begin(), ghost_updated.end(), false);
-            for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
-            {
-                auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
-                if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
-                {
-                    bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
-                    bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
+    //         ghost_min_update = DIST_GRAPH_BFS_INFINITY;
+    //         std::fill(ghost_updated.begin(), ghost_updated.end(), false);
+    //         for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
+    //         {
+    //             auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
+    //             if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+    //             {
+    //                 bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
+    //                 bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
 
-                    ghost_any_is_not_stable = true;
-                    ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
-                    ghost_updated[recv_i] = true;
-                }            
-            }
-            is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
+    //                 ghost_any_is_not_stable = true;
+    //                 ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
+    //                 ghost_updated[recv_i] = true;
+    //             }            
+    //         }
+    //         is_not_stable_local = is_not_stable_local || ghost_any_is_not_stable;
 
-            if(guess_counter >= BFS_stop_guess){
-                auto start_ = std::chrono::high_resolution_clock::now();
-                MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
-                auto end_ = std::chrono::high_resolution_clock::now();
-                com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
-            } else {
-                is_not_stable_global = true;
-            }
-            // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+    //         if(guess_counter >= BFS_stop_guess){
+    //             auto start_ = std::chrono::high_resolution_clock::now();
+    //             MPI_Allreduce(&is_not_stable_local,&is_not_stable_global,1,MPI_CXX_BOOL,MPI_LOR,this->comm);
+    //             auto end_ = std::chrono::high_resolution_clock::now();
+    //             com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+    //         } else {
+    //             is_not_stable_global = true;
+    //         }
+    //         // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
 
 
-            // partition refinement after reaching global stable status
-            if (!is_not_stable_global && refinement_rounds < refinement_rounds_stop)
-            {
-                refinement_rounds++;
+    //         // partition refinement after reaching global stable status
+    //         if (!is_not_stable_global && refinement_rounds < refinement_rounds_stop)
+    //         {
+    //             refinement_rounds++;
 
                
-                std::vector<uint32_t> local_partition_sizes(procs_n, 0);
-                for (size_t local_i = 0; local_i < this->local_count; local_i++) {
-                    local_partition_sizes[bfs_vector[local_i].label]++;
-                }
-                std::vector<uint32_t> global_partition_sizes(procs_n, 0);
+    //             std::vector<uint32_t> local_partition_sizes(procs_n, 0);
+    //             for (size_t local_i = 0; local_i < this->local_count; local_i++) {
+    //                 local_partition_sizes[bfs_vector[local_i].label]++;
+    //             }
+    //             std::vector<uint32_t> global_partition_sizes(procs_n, 0);
                 
-                {
-                    auto start_ = std::chrono::high_resolution_clock::now();
-                    MPI_Allreduce(local_partition_sizes.data(),global_partition_sizes.data(),procs_n,MPI_UINT32_T,MPI_SUM,this->comm);
-                    auto end_ = std::chrono::high_resolution_clock::now();
-                    com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
-                }
-                
-
-                uint32_t ideal_partition_size = this->global_count / procs_n;
-                
-                // auto partition_size_cutoff_max = static_cast<uint32_t>(ideal_partition_size*(1.0 + partition_size_imbalance_additive_factor));   
-                // auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor)); 
-
-                auto cutoff_max_1 =   static_cast<uint32_t>(ideal_partition_size*1.2);
-                auto cutoff_max_2 =   static_cast<uint32_t>(ideal_partition_size*1.5);
-                auto cutoff_max_3 =   static_cast<uint32_t>(ideal_partition_size*1.7);
-                auto cutoff_max_4 =   static_cast<uint32_t>(ideal_partition_size*2.0);
-                auto cutoff_max_5 =   static_cast<uint32_t>(ideal_partition_size*2.5);
-                auto cutoff_max_6 =   static_cast<uint32_t>(ideal_partition_size*3.2);
-
-
-                auto cutoff_min_1 =   static_cast<uint32_t>(ideal_partition_size*0.8);
-                auto cutoff_min_2 =   static_cast<uint32_t>(ideal_partition_size*0.6);
-                auto cutoff_min_3 =   static_cast<uint32_t>(ideal_partition_size*0.4);
-                auto cutoff_min_4 =   static_cast<uint32_t>(ideal_partition_size*0.2);
+    //             {
+    //                 auto start_ = std::chrono::high_resolution_clock::now();
+    //                 MPI_Allreduce(local_partition_sizes.data(),global_partition_sizes.data(),procs_n,MPI_UINT32_T,MPI_SUM,this->comm);
+    //                 auto end_ = std::chrono::high_resolution_clock::now();
+    //                 com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+    //             }
                 
 
-                std::vector<int> part_adjust(procs_n,0);
+    //             uint32_t ideal_partition_size = this->global_count / procs_n;
+                
+    //             // auto partition_size_cutoff_max = static_cast<uint32_t>(ideal_partition_size*(1.0 + partition_size_imbalance_additive_factor));   
+    //             // auto partition_size_cutoff_min = static_cast<uint32_t>(ideal_partition_size*(1.0 - partition_size_imbalance_additive_factor)); 
 
-                for (int proc_i = 0; proc_i < procs_n; proc_i++)
-                {
-                    if (global_partition_sizes[proc_i] >= cutoff_max_6)
-                    {
-                        part_adjust[proc_i] = 6;
-                    }else if (global_partition_sizes[proc_i] >= cutoff_max_5)
-                    {
-                        part_adjust[proc_i] = 5;
-                    }else if (global_partition_sizes[proc_i] >= cutoff_max_4)
-                    {
-                        part_adjust[proc_i] = 4;
-                    }else if (global_partition_sizes[proc_i] >= cutoff_max_3)
-                    {
-                        part_adjust[proc_i] = 3;
-                    }else if (global_partition_sizes[proc_i] >= cutoff_max_2)
-                    {
-                        part_adjust[proc_i] = 2;
-                    }else if (global_partition_sizes[proc_i] >= cutoff_max_1)
-                    {
-                        part_adjust[proc_i] = 1;
-                    }else if (global_partition_sizes[proc_i] <= cutoff_min_4)
-                    {
-                        part_adjust[proc_i] = -4;
-                    }else if (global_partition_sizes[proc_i] <= cutoff_min_3)
-                    {
-                        part_adjust[proc_i] = -3;
-                    }else if (global_partition_sizes[proc_i] <= cutoff_min_2)
-                    {
-                        part_adjust[proc_i] = -2;
-                    }else if (global_partition_sizes[proc_i] <= cutoff_min_1)
-                    {
-                        part_adjust[proc_i] = -1;
-                    }
+    //             auto cutoff_max_1 =   static_cast<uint32_t>(ideal_partition_size*1.2);
+    //             auto cutoff_max_2 =   static_cast<uint32_t>(ideal_partition_size*1.5);
+    //             auto cutoff_max_3 =   static_cast<uint32_t>(ideal_partition_size*1.7);
+    //             auto cutoff_max_4 =   static_cast<uint32_t>(ideal_partition_size*2.0);
+    //             auto cutoff_max_5 =   static_cast<uint32_t>(ideal_partition_size*2.5);
+    //             auto cutoff_max_6 =   static_cast<uint32_t>(ideal_partition_size*3.2);
+
+
+    //             auto cutoff_min_1 =   static_cast<uint32_t>(ideal_partition_size*0.8);
+    //             auto cutoff_min_2 =   static_cast<uint32_t>(ideal_partition_size*0.6);
+    //             auto cutoff_min_3 =   static_cast<uint32_t>(ideal_partition_size*0.4);
+    //             auto cutoff_min_4 =   static_cast<uint32_t>(ideal_partition_size*0.2);
+                
+
+    //             std::vector<int> part_adjust(procs_n,0);
+
+    //             for (int proc_i = 0; proc_i < procs_n; proc_i++)
+    //             {
+    //                 if (global_partition_sizes[proc_i] >= cutoff_max_6)
+    //                 {
+    //                     part_adjust[proc_i] = 6;
+    //                 }else if (global_partition_sizes[proc_i] >= cutoff_max_5)
+    //                 {
+    //                     part_adjust[proc_i] = 5;
+    //                 }else if (global_partition_sizes[proc_i] >= cutoff_max_4)
+    //                 {
+    //                     part_adjust[proc_i] = 4;
+    //                 }else if (global_partition_sizes[proc_i] >= cutoff_max_3)
+    //                 {
+    //                     part_adjust[proc_i] = 3;
+    //                 }else if (global_partition_sizes[proc_i] >= cutoff_max_2)
+    //                 {
+    //                     part_adjust[proc_i] = 2;
+    //                 }else if (global_partition_sizes[proc_i] >= cutoff_max_1)
+    //                 {
+    //                     part_adjust[proc_i] = 1;
+    //                 }else if (global_partition_sizes[proc_i] <= cutoff_min_4)
+    //                 {
+    //                     part_adjust[proc_i] = -4;
+    //                 }else if (global_partition_sizes[proc_i] <= cutoff_min_3)
+    //                 {
+    //                     part_adjust[proc_i] = -3;
+    //                 }else if (global_partition_sizes[proc_i] <= cutoff_min_2)
+    //                 {
+    //                     part_adjust[proc_i] = -2;
+    //                 }else if (global_partition_sizes[proc_i] <= cutoff_min_1)
+    //                 {
+    //                     part_adjust[proc_i] = -1;
+    //                 }
                     
                     
-                }
+    //             }
 
-                // if(! my_rank) print_log(VectorToString(global_partition_sizes));
-                // if(! my_rank) print_log(VectorToString(part_adjust));
+    //             // if(! my_rank) print_log(VectorToString(global_partition_sizes));
+    //             // if(! my_rank) print_log(VectorToString(part_adjust));
 
-                for (size_t vec_i = 0; vec_i < bfs_vector.size(); vec_i++)
-                {
-                    auto adjust_val = part_adjust[bfs_vector[vec_i].label];
-                    if (adjust_val > 0)
-                    {
-                        bfs_vector[vec_i].distance += adjust_val;
-                    }else if (adjust_val < 0)
-                    {
-                        bfs_vector[vec_i].distance = bfs_vector[vec_i].distance >= std::abs(adjust_val) ? bfs_vector[vec_i].distance - std::abs(adjust_val) : 0;   // unsigned underflow prevention
-                    }                    
+    //             for (size_t vec_i = 0; vec_i < bfs_vector.size(); vec_i++)
+    //             {
+    //                 auto adjust_val = part_adjust[bfs_vector[vec_i].label];
+    //                 if (adjust_val > 0)
+    //                 {
+    //                     bfs_vector[vec_i].distance += adjust_val;
+    //                 }else if (adjust_val < 0)
+    //                 {
+    //                     bfs_vector[vec_i].distance = bfs_vector[vec_i].distance >= std::abs(adjust_val) ? bfs_vector[vec_i].distance - std::abs(adjust_val) : 0;   // unsigned underflow prevention
+    //                 }                    
                     
-                }
-                round_counter++;
-                guess_counter = 0;
+    //             }
+    //             round_counter++;
+    //             guess_counter = 0;
 
-                this->RunLocalMultiBFSToStable(bfs_vector);
+    //             this->RunLocalMultiBFSToStable(bfs_vector);
                 
-                // one ghost exchange
-                for (size_t send_i = 0; send_i < this->send_count; send_i++)
-                {
-                    ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
-                }
+    //             // one ghost exchange
+    //             for (size_t send_i = 0; send_i < this->send_count; send_i++)
+    //             {
+    //                 ghost_send_buffer[send_i] = bfs_vector[this->sending_scatter_map[send_i]];
+    //             }
 
-                {
-                    auto start_ = std::chrono::high_resolution_clock::now();
-                    // force all ghosts to be exchanged because we want to reset send buffers
-                    this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                            ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
-                    // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
-                    //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
-                    auto end_ = std::chrono::high_resolution_clock::now();
-                    com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
-                }
-
-
-                std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration             
-
-                ghost_min_update = DIST_GRAPH_BFS_INFINITY;
-                std::fill(ghost_updated.begin(), ghost_updated.end(), false);
-                for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
-                {
-                    auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
-                    if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
-                    {
-                        bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
-                        bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
-
-                        ghost_any_is_not_stable = true;
-                        ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
-                        ghost_updated[recv_i] = true;
-                    }            
-                }
+    //             {
+    //                 auto start_ = std::chrono::high_resolution_clock::now();
+    //                 // force all ghosts to be exchanged because we want to reset send buffers
+    //                 this->AllToAllvSparseNieghbors(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+    //                         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+    //                 // par::Mpi_Alltoallv_sparse(ghost_send_buffer.data(), this->send_counts.data(), this->send_counts_scanned.data(), 
+    //                 //         ghost_recv_buffer.data(), this->ghost_counts.data(), this->ghost_counts_scanned.data(), comm);
+    //                 auto end_ = std::chrono::high_resolution_clock::now();
+    //                 com_duration += std::chrono::duration_cast<std::chrono::microseconds>(end_ - start_);
+    //             }
 
 
-                is_not_stable_global = true;
-            }
+    //             std::copy(ghost_send_buffer.begin(), ghost_send_buffer.end(), ghost_send_buffer_prev.begin());      // for the next iteration             
+
+    //             ghost_min_update = DIST_GRAPH_BFS_INFINITY;
+    //             std::fill(ghost_updated.begin(), ghost_updated.end(), false);
+    //             for (size_t recv_i = 0; recv_i < this->ghost_count; recv_i++)
+    //             {
+    //                 auto offset = this->local_count;        // ghost elements are in the last section of the vector, in sorted order
+    //                 if (bfs_vector[offset+recv_i].distance > ghost_recv_buffer[recv_i].distance)
+    //                 {
+    //                     bfs_vector[offset+recv_i].distance = ghost_recv_buffer[recv_i].distance;
+    //                     bfs_vector[offset+recv_i].label = ghost_recv_buffer[recv_i].label;
+
+    //                     ghost_any_is_not_stable = true;
+    //                     ghost_min_update = std::min(ghost_min_update, ghost_recv_buffer[recv_i].distance);
+    //                     ghost_updated[recv_i] = true;
+    //                 }            
+    //             }
+
+
+    //             is_not_stable_global = true;
+    //         }
             
 
             
-        } 
+    //     } 
 
-        delete[] this->ghost_count_requests;
-        delete[] this->ghost_count_statuses;
+    //     delete[] this->ghost_count_requests;
+    //     delete[] this->ghost_count_statuses;
 
-    }
+    // }
 
-    // print_log("[", my_rank, "]: BFS done");
-    // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
+    // // print_log("[", my_rank, "]: BFS done");
+    // // print_log("[", my_rank, "]: BFS vector", VectorToString(bfs_vector));
 
-    MPI_Barrier(this->comm);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    if (!my_rank)
-    {
-        print_log("BFS sync rounds: ", round_counter);
-        print_log("BFS comm  time:\t\t\t", com_duration.count(), " us");
-        print_log("BFS total time:\t\t\t", duration.count(), " us");
-    }
+    // MPI_Barrier(this->comm);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // if (!my_rank)
+    // {
+    //     print_log("BFS sync rounds: ", round_counter);
+    //     print_log("BFS comm  time:\t\t\t", com_duration.count(), " us");
+    //     print_log("BFS total time:\t\t\t", duration.count(), " us");
+    // }
 
-    partition_labels_out.resize(this->local_count);
+    // partition_labels_out.resize(this->local_count);
 
 
-    #pragma omp parallel for
-    for (size_t local_i = 0; local_i < this->local_count; local_i++)
-    {
-        partition_labels_out[local_i] = bfs_vector[local_i].label;
-    }
+    // #pragma omp parallel for
+    // for (size_t local_i = 0; local_i < this->local_count; local_i++)
+    // {
+    //     partition_labels_out[local_i] = bfs_vector[local_i].label;
+    // }
 
-    return {.return_code = 0, .time_us = static_cast<int>(duration.count())};
+    // return {.return_code = 0, .time_us = static_cast<int>(duration.count())};
 
 }
 
@@ -1507,14 +1530,14 @@ PartitionStatus DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_la
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
-    return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_count,procs_n,partition_labels_out,this->comm);
+    return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_vertex_wgts,this->local_count,procs_n,partition_labels_out,this->comm);
 }
 
 PartitionStatus DistGraph::PartitionPtScotch(std::vector<uint16_t>& partition_labels_out) {
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin() + (this->local_count + 1));
-    return GetPtScotchPartitions(this->vtx_dist, dist_xadj, this->dist_adjncy, this->local_count, this->global_count,
+    return GetPtScotchPartitions(this->vtx_dist, dist_xadj, this->dist_adjncy,this->local_vertex_wgts, this->local_count, this->global_count,
                                  procs_n, partition_labels_out, this-> comm);
 }
 
@@ -1532,7 +1555,9 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
 
     std::vector<uint32_t> local_partition_sizes(procs_n, 0);
     for (size_t local_i = 0; local_i < this->local_count; local_i++) {
-        local_partition_sizes[local_partition_labels[local_i]]++;
+        // local_partition_sizes[local_partition_labels[local_i]]++;
+        local_partition_sizes[local_partition_labels[local_i]] += this->local_vertex_wgts[local_i];     // accounting for vertex weights now
+
     }
 
     /**
