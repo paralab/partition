@@ -394,7 +394,7 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), FASTPART_VTX_WEIGHTED, &(this->comm));
     MPI_Barrier(comm);
     auto start__ = std::chrono::high_resolution_clock::now();
-    fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 1);
+    fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 0);
     MPI_Barrier(comm);
     auto end__ = std::chrono::high_resolution_clock::now();
     auto duration__ = std::chrono::duration_cast<std::chrono::microseconds>(end__ - start__);
