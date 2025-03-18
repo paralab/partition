@@ -1,5 +1,15 @@
 set -e
 
+root_dir=$PWD
+
+cd /home/budvin/research/Partitioning/fastpart
+
+bash compile.sh
+
+cd $root_dir
+
+
+
 export OMP_NUM_THREADS=1
 
 # export OMP_PROC_BIND=true 
@@ -13,6 +23,7 @@ GKLIB_INSTALL_DIR_PATH=/home/budvin/bin/GKlib-master/build/Linux-x86_64/build
 PARMETIS_INSTALL_DIR_PATH=/home/budvin/bin/ParMETIS/build/Linux-x86_64/build
 PETSC_INSTALL_DIR_PATH=/home/budvin/bin/petsc/build/install
 SCOTCH_INSTALL_DIR_PATH=/home/budvin/bin/scotch/build/install
+FASTPART_INSTALL_DIR_PATH=/home/budvin/research/Partitioning/fastpart/build/install
 
 
 mkdir -p build
@@ -26,6 +37,7 @@ cmake -G Ninja -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DGMSH_SDK_PAT
     -DPARMETIS_INSTALL_DIR_PATH=${PARMETIS_INSTALL_DIR_PATH} \
     -DPETSC_INSTALL_DIR_PATH=${PETSC_INSTALL_DIR_PATH} \
     -DSCOTCH_INSTALL_DIR_PATH=${SCOTCH_INSTALL_DIR_PATH} \
+    -DFASTPART_INSTALL_DIR_PATH=${FASTPART_INSTALL_DIR_PATH} \
     -DGRAPH_INDEXING_TYPE=32 -DBFS_DISTANCE_TYPE=32 -DBFS_LABEL_TYPE=16
 
 ninja -C ./build
@@ -34,7 +46,7 @@ echo "====== complation done ==============="
 
 # exit 0
 
-export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${FASTPART_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
 dir="$( dirname -- "$( readlink -f -- "$0"; )"; )"
 
@@ -77,7 +89,7 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-parts_n=23
+parts_n=21
 # mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-60x60x2.msh"
 # mesh_file="/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1601763_sf_hexa.mesh_60614_240204.obj.mesh"
@@ -88,11 +100,14 @@ parts_n=23
 # mesh_file="/home/budvin/research/Partitioning/Meshes/10k_tet/1582380_sf_hexa.mesh_2368_8512.obj.mesh"  #smallest tet
 
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
-mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
+# mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_23843.oct"
 # mesh_file="/home/budvin/research/Partitioning/Meshes/dendro/dgr_grids/dgr_tree_connectivity_graph_204415.oct"
 
-# mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
-mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz
+mesh_file="/home/budvin/research/Partitioning/mesh_generator/generated_tet_100x100x2.mesh"
+# mesh_file="/home/budvin/research/Partitioning/mesh_generator/hex-box-8x8x8.msh"
+
+mpirun -np $parts_n --oversubscribe ./build/main-new $mesh_file 0 0 $dir/tmp.json -viz
+# mpirun -np $parts_n --oversubscribe ./build/main-octree $mesh_file 0 0 $dir/tmp.json -viz
 
 
 # for np in 2 4 8 16

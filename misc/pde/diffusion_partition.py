@@ -113,7 +113,7 @@ def refine_by_diffusion(G: nx.Graph , partition_mapping_: typing.Dict[int,int], 
     vertex_to_val = {}
     for v in G.nodes:
         vertex_to_val[v] = 1.0
-    max_diffusion_rounds = 50
+    max_diffusion_rounds = 30
     max_imbalance = 1.2
 
     # while max(part_sizes) > max_part_size:
@@ -121,35 +121,40 @@ def refine_by_diffusion(G: nx.Graph , partition_mapping_: typing.Dict[int,int], 
 
         vertex_to_val = diffuse_one_round(G, partition_mapping, partition_count,vertex_to_val)
         part_sizes = get_part_sizes(partition_mapping, partition_count)
+        part_diffusion_rates = get_diffusion_rates(part_sizes, partition_count, G.number_of_nodes())
 
         vertex_to_val_new_copy = copy.deepcopy(vertex_to_val)
         partition_mapping_new_copy = copy.deepcopy(partition_mapping)
-        changed_v_set = set()
-        changed_v_set_neigh_ = set()
+        # changed_v_set = set()
+        # changed_v_set_neigh_ = set()
         for v in G.nodes:
             if (vertex_to_val[v] < 0.5):
                 neighborhood = {}       
+                incoming_flux = 0
                 for neigh in G.neighbors(v):
                     neigh_label = partition_mapping[neigh]
                     if not neigh_label in neighborhood:
                         neighborhood[neigh_label] = 0
                     neighborhood[neigh_label]+=1
-                    changed_v_set_neigh_.add(neigh)
-                min_part = min(neighborhood, key=lambda k: part_sizes[k])
-                vertex_to_val_new_copy[v] = 1
+                    incoming_flux += vertex_to_val[neigh]*part_diffusion_rates[partition_mapping[neigh]]
+                    # changed_v_set_neigh_.add(neigh)
+                min_part = min(neighborhood, key=lambda k: part_diffusion_rates[k])
+                vertex_to_val_new_copy[v] = incoming_flux /(G.degree(v)*part_diffusion_rates[min_part])
+                vertex_to_val_new_copy[v] = max(min(1.0, vertex_to_val_new_copy[v]), 0)
                 partition_mapping_new_copy[v] =  min_part
-                changed_v_set.add(v)
+                print(vertex_to_val[v], vertex_to_val_new_copy[v])
+                # changed_v_set.add(v)
         vertex_to_val = vertex_to_val_new_copy
         partition_mapping = partition_mapping_new_copy
 
-        changed_v_set_neigh = changed_v_set_neigh_.difference(changed_v_set)
-        changed_v_set_neigh_neigh_ = set()
-        for neigh in changed_v_set_neigh:
-            for neigh_neigh in G.neighbors(neigh):
-                changed_v_set_neigh_neigh_.add(neigh_neigh)
-        changed_v_set_neigh_neigh = changed_v_set_neigh_neigh_.difference(changed_v_set_neigh).difference(changed_v_set)
-        vertex_to_val = diffuse_2_level_compact(G, partition_mapping, partition_count, vertex_to_val, 
-                                                list(changed_v_set), list(changed_v_set_neigh), list(changed_v_set_neigh_neigh))
+        # changed_v_set_neigh = changed_v_set_neigh_.difference(changed_v_set)
+        # changed_v_set_neigh_neigh_ = set()
+        # for neigh in changed_v_set_neigh:
+        #     for neigh_neigh in G.neighbors(neigh):
+        #         changed_v_set_neigh_neigh_.add(neigh_neigh)
+        # changed_v_set_neigh_neigh = changed_v_set_neigh_neigh_.difference(changed_v_set_neigh).difference(changed_v_set)
+        # vertex_to_val = diffuse_2_level_compact(G, partition_mapping, partition_count, vertex_to_val, 
+        #                                         list(changed_v_set), list(changed_v_set_neigh), list(changed_v_set_neigh_neigh))
         # for _ in range(5):
         #     vertex_to_val = diffuse_one_round(G, partition_mapping, partition_count,vertex_to_val)
 

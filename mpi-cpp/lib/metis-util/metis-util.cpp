@@ -32,6 +32,7 @@
 // }
 
 PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
+                            std::vector<uint32_t>& vertex_wgts,
                           uint64_t num_vertices_local, int partition_count,
                           std::vector<uint16_t>& partition_labels_out, MPI_Comm comm) {
 
@@ -42,6 +43,8 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     std::vector<idx_t> vtxdist__(vtxdist.begin(), vtxdist.end());
     std::vector<idx_t> xadj__(xadj.begin(), xadj.end());
     std::vector<idx_t> adjncy__(adjncy.begin(), adjncy.end());
+    std::vector<idx_t> vertex_wgts__(vertex_wgts.begin(), vertex_wgts.end());
+
     idx_t ncon = 1;
     idx_t partition_count__ = static_cast<idx_t>(partition_count);
 
@@ -51,6 +54,7 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     std::vector<idx_t> partitions_labels(num_vertices_local);
 
     idx_t zero = 0;
+    idx_t two = 2;
 
     std::vector<real_t> tpwgts(partition_count,1/(static_cast<real_t>(partition_count)));
 
@@ -58,16 +62,16 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
 
     //warmup?
     MPI_Barrier(comm);
-    ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], NULL, NULL, &zero, &zero,
+    ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], NULL, &two, &zero,
                                             &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
                                             &partitions_labels[0], &comm);
 
     MPI_Barrier(comm);
     auto start = std::chrono::high_resolution_clock::now();
 
-    int return_code = ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], NULL, NULL, &zero, &zero,
-                                           &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
-                                           &partitions_labels[0], &comm);
+    int return_code = ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], NULL, &two, &zero,
+                                            &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
+                                            &partitions_labels[0], &comm);
     MPI_Barrier(comm);
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);

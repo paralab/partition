@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
 
     if(!taskid) print_log("starting BFS partitioning");
     std::vector<uint16_t> local_bfs_partition_labels(local_element_count);      // TODO: make the label type consistent with bfs_label_t or int32
-    auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels);
+    auto bfs_status = dist_graph.PartitionBFS(local_bfs_partition_labels, true);
     if(!taskid) print_log("BFS partitioning done");
 
     if(!taskid) print_log("starting parmetis");
@@ -236,6 +236,7 @@ int main(int argc, char *argv[])
     if(!taskid) print_log("starting ptscotch");
     std::vector<uint16_t> local_ptscotch_partition_labels(local_element_count);
     auto ptscotch_status = dist_graph.PartitionPtScotch(local_ptscotch_partition_labels);
+
     if(!taskid) print_log("ptscotch done");
 
 
@@ -344,48 +345,38 @@ int main(int argc, char *argv[])
     {
     case ElementType::TET:
     {
-        if(!taskid) print_log("testing SFC partitioning");
-        sfc_spmv_status = TestSpMV(localElementsAllData_Tet, ElementType::TET, viz_flag ,MPI_COMM_WORLD);
 
-        if(!taskid) print_log("testing BFS partitioning");
+        if(!taskid) print_log("redistriubute BFS partitioning");
         std::vector<TetElementWithFacesNodes> localElementsAllData_Tet_2;
         bfs_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_bfs_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        bfs_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);
 
 
-        if(!taskid) print_log("testing parMETIS partitioning");
+        if(!taskid) print_log("redistriubute parMETIS partitioning");
         localElementsAllData_Tet_2.clear();
         parmetis_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_parmetis_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        parmetis_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
         if(!taskid) print_log("testing ptscotch partitioning");
         localElementsAllData_Tet_2.clear();
         ptscotch_distribution_status = Redistribute<TetElementWithFacesNodes>(localElementsAllData_Tet,local_ptscotch_partition_labels,localElementsAllData_Tet_2, MPI_COMM_WORLD);
-        ptscotch_spmv_status = TestSpMV(localElementsAllData_Tet_2, ElementType::TET,viz_flag,MPI_COMM_WORLD);   
 
 
         break;
     }
     case ElementType::HEX:
     {
-        if(!taskid) print_log("testing SFC partitioning");
-        sfc_spmv_status = TestSpMV(localElementsAllData_Hex, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
-        if(!taskid) print_log("testing BFS partitioning");
+        if(!taskid) print_log("redistriubute BFS partitioning");
         std::vector<HexElementWithFacesNodes> localElementsAllData_Hex_2;
         bfs_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_bfs_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        bfs_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
 
-        if(!taskid) print_log("testing parMETIS partitioning");
+        if(!taskid) print_log("redistriubute parMETIS partitioning");
         localElementsAllData_Hex_2.clear();
         parmetis_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_parmetis_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        parmetis_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
 
-        if(!taskid) print_log("testing ptscotch partitioning");
+        if(!taskid) print_log("redistriubute ptscotch partitioning");
         localElementsAllData_Hex_2.clear();
         ptscotch_distribution_status = Redistribute<HexElementWithFacesNodes>(localElementsAllData_Hex,local_ptscotch_partition_labels,localElementsAllData_Hex_2, MPI_COMM_WORLD);
-        ptscotch_spmv_status = TestSpMV(localElementsAllData_Hex_2, ElementType::HEX,viz_flag,MPI_COMM_WORLD);
         break;
     }
     
