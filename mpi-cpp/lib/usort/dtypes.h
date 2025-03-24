@@ -117,7 +117,7 @@ to this user-defined datatype.
 								MPI_Datatype type[2];
 			
 								block[0] = 1;
-								block[0] = 1;
+								block[1] = 1;
 								type[0] = Mpi_datatype<T1>::value(); 
 								type[1] = Mpi_datatype<T2>::value(); 
 								disp[0] = 0; 

@@ -1,6 +1,10 @@
 import typing
 import networkx as nx
 import copy
+import numpy as np
+import math
+
+MAX_IMBALANCE = 1.2
 
 def get_diffusion_partitions_from_seeds(G: nx.Graph ,seeds: list[int],partition_count: int) -> typing.Dict[int,int]:
 
@@ -46,10 +50,25 @@ def get_diffusion_rates(part_sizes: list[int], partition_count: int, vertex_coun
     DIFFUSION_MAX = 1
 
     # normalize = lambda data: [DIFFUSION_MIN + (DIFFUSION_MAX - DIFFUSION_MIN) * (x - min(data)) / (max(data) - min(data)) if max(data) > min(data) else 0.055 for x in data]
-    relative_part_sizes = [(size/ideal_size)/5 for size in part_sizes]
+    # rates = [(size/ideal_size)/5 for size in part_sizes]
+
+    # rates_ = [math.exp((size/ideal_size)**3) for size in part_sizes]
+    # max_rate = max(rates_)
+    # rates = [r/max_rate for r in rates_]
+    rates = []
+
+    for p in part_sizes:
+        if p < 0.5*ideal_size:
+            rates.append(0.01)
+        elif p <= MAX_IMBALANCE*ideal_size:
+            rates.append(0.2)
+        else:
+            rates.append(0.8)
+
+    print(rates)
 
     # part_diffusion_rates = normalize(relative_part_sizes)
-    return relative_part_sizes
+    return rates
 
 def diffuse_from_partitions(G: nx.Graph , partition_mapping: typing.Dict[int,int], partition_count: int) -> typing.Dict[int,int]:
 
@@ -114,13 +133,14 @@ def refine_by_diffusion(G: nx.Graph , partition_mapping_: typing.Dict[int,int], 
     for v in G.nodes:
         vertex_to_val[v] = 1.0
     max_diffusion_rounds = 30
-    max_imbalance = 1.2
 
     # while max(part_sizes) > max_part_size:
     for d_i in range(max_diffusion_rounds):
 
         vertex_to_val = diffuse_one_round(G, partition_mapping, partition_count,vertex_to_val)
         part_sizes = get_part_sizes(partition_mapping, partition_count)
+        if(max(part_sizes)/(G.number_of_nodes()/partition_count) < MAX_IMBALANCE):
+            break
         part_diffusion_rates = get_diffusion_rates(part_sizes, partition_count, G.number_of_nodes())
 
         vertex_to_val_new_copy = copy.deepcopy(vertex_to_val)
@@ -142,7 +162,7 @@ def refine_by_diffusion(G: nx.Graph , partition_mapping_: typing.Dict[int,int], 
                 vertex_to_val_new_copy[v] = incoming_flux /(G.degree(v)*part_diffusion_rates[min_part])
                 vertex_to_val_new_copy[v] = max(min(1.0, vertex_to_val_new_copy[v]), 0)
                 partition_mapping_new_copy[v] =  min_part
-                print(vertex_to_val[v], vertex_to_val_new_copy[v])
+                # print(vertex_to_val[v], vertex_to_val_new_copy[v])
                 # changed_v_set.add(v)
         vertex_to_val = vertex_to_val_new_copy
         partition_mapping = partition_mapping_new_copy
@@ -158,4 +178,54 @@ def refine_by_diffusion(G: nx.Graph , partition_mapping_: typing.Dict[int,int], 
         # for _ in range(5):
         #     vertex_to_val = diffuse_one_round(G, partition_mapping, partition_count,vertex_to_val)
 
+    return [partition_mapping, vertex_to_val]
+
+
+
+def partitions_by_diffusion(G: nx.Graph ,seeds: list[int], partition_count: int) -> typing.Dict[int,int]:
+    vertex_to_val = {}
+    partition_mapping = {}
+    for v in G.nodes:
+        vertex_to_val[v] = 0.0
+    for p_i, s in enumerate(seeds):
+        vertex_to_val[s] = 1.0
+        partition_mapping[s] = p_i
+    
+    diffusion_rounds_stop_guess = 200
+    visited_all = False
+    d_i = 0
+    while d_i < diffusion_rounds_stop_guess:
+        d_i+=1
+        if (not visited_all) and (len(partition_mapping) == G.number_of_nodes()):
+            print(f"visited all at round = {d_i}")
+            visited_all = True
+            # diffusion_rounds_stop_guess = int(1.5*d_i)
+        part_sizes = get_part_sizes(partition_mapping, partition_count)
+        if visited_all:
+            max(part_sizes) <= 1.5 * np.mean(part_sizes)
+            print("1.5 criteria met. Stopping...")
+            break
+        part_diffusion_rates = get_diffusion_rates(part_sizes, partition_count, G.number_of_nodes())
+        partition_mapping_new_copy = copy.deepcopy(partition_mapping)
+
+        vertex_to_val_new_copy = copy.deepcopy(vertex_to_val)
+        for v in G.nodes:
+            incoming_flux = 0
+            neigh_parts = set()
+            outgoing_flux = vertex_to_val[v]*G.degree[v]*part_diffusion_rates[partition_mapping[v]] if (v in partition_mapping) else 0
+            for neigh in G.neighbors(v):
+                if neigh in partition_mapping:
+                    incoming_flux += vertex_to_val[neigh]*part_diffusion_rates[partition_mapping[neigh]]
+                    neigh_parts.add(partition_mapping[neigh])
+            vertex_to_val_new_copy[v]+=(incoming_flux - outgoing_flux)
+            if len(neigh_parts):
+                if ((v not in partition_mapping) or (vertex_to_val_new_copy[v] < 0.5)):      # first diffusion visit or alpha reduces
+                    min_part = min(neigh_parts, key=lambda k: part_diffusion_rates[k])
+                    vertex_to_val_new_copy[v] = incoming_flux /(G.degree(v)*part_diffusion_rates[min_part])
+                    partition_mapping_new_copy[v] =  min_part
+
+            vertex_to_val_new_copy[v] = max(min(1.0, vertex_to_val_new_copy[v]), 0)
+
+        vertex_to_val = vertex_to_val_new_copy
+        partition_mapping = partition_mapping_new_copy
     return [partition_mapping, vertex_to_val]

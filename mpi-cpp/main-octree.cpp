@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     // return 0;
 
     DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
-                            proc_element_counts_scanned,ghost_element_counts,MPI_COMM_WORLD);
+                            proc_element_counts_scanned,ghost_element_counts,DIST_GRAPH_VTX_EDGE_WEIGHTED,MPI_COMM_WORLD);
 
     MPI_Barrier(MPI_COMM_WORLD);
     auto graph_setup_end = std::chrono::high_resolution_clock::now();
@@ -207,20 +207,32 @@ int main(int argc, char *argv[])
 
     std::vector<uint32_t> global_bfs_partition_sizes;
     std::vector<uint32_t> global_bfs_partition_boundaries;
-    dist_graph.GetPartitionMetrics(local_bfs_partition_labels,global_bfs_partition_sizes, global_bfs_partition_boundaries);
+    std::vector<uint32_t> global_bfs_partition_cuts;
+
+    dist_graph.GetPartitionMetrics(local_bfs_partition_labels,global_bfs_partition_sizes, 
+                                   global_bfs_partition_boundaries, global_bfs_partition_cuts);
 
 
     std::vector<uint32_t> global_sfc_partition_sizes;
     std::vector<uint32_t> global_sfc_partition_boundaries;
-    dist_graph.GetPartitionMetrics(local_sfc_partition_labels,global_sfc_partition_sizes, global_sfc_partition_boundaries);
+    std::vector<uint32_t> global_sfc_partition_cuts;
+
+    dist_graph.GetPartitionMetrics(local_sfc_partition_labels,global_sfc_partition_sizes, 
+                                   global_sfc_partition_boundaries, global_sfc_partition_cuts);
 
     std::vector<uint32_t> global_parmetis_partition_sizes;
     std::vector<uint32_t> global_parmetis_partition_boundaries;
-    dist_graph.GetPartitionMetrics(local_parmetis_partition_labels,global_parmetis_partition_sizes, global_parmetis_partition_boundaries);
+    std::vector<uint32_t> global_parmetis_partition_cuts;
+
+    dist_graph.GetPartitionMetrics(local_parmetis_partition_labels,global_parmetis_partition_sizes, 
+                                   global_parmetis_partition_boundaries, global_parmetis_partition_cuts);
 
     std::vector<uint32_t> global_ptscotch_partition_sizes;
     std::vector<uint32_t> global_ptscotch_partition_boundaries;
-    dist_graph.GetPartitionMetrics(local_ptscotch_partition_labels,global_ptscotch_partition_sizes, global_ptscotch_partition_boundaries);
+    std::vector<uint32_t> global_ptscotch_partition_cuts;
+
+    dist_graph.GetPartitionMetrics(local_ptscotch_partition_labels,global_ptscotch_partition_sizes, 
+                                   global_ptscotch_partition_boundaries, global_ptscotch_partition_cuts);
 
 
 
@@ -315,10 +327,10 @@ int main(int argc, char *argv[])
 
         ExportMetricsToJson(mesh_file_path, file_idx, run_idx, numtasks, global_element_count,
                                 graph_setup_duration.count(),
-                                global_sfc_partition_sizes, global_sfc_partition_boundaries, sfc_status.time_us, 0, 0,
-                                global_bfs_partition_sizes,global_bfs_partition_boundaries, bfs_status.time_us, bfs_distribution_status.time_us, 0, 0,
-                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, parmetis_status.time_us, parmetis_distribution_status.time_us, 0, 0,
-                                global_ptscotch_partition_sizes,global_ptscotch_partition_boundaries, ptscotch_status.time_us, ptscotch_distribution_status.time_us, 0, 0,
+                                global_sfc_partition_sizes, global_sfc_partition_boundaries, global_sfc_partition_cuts, sfc_status.time_us, 0, 0,
+                                global_bfs_partition_sizes,global_bfs_partition_boundaries, global_bfs_partition_cuts, bfs_status.time_us, bfs_distribution_status.time_us, 0, 0,
+                                global_parmetis_partition_sizes,global_parmetis_partition_boundaries, global_parmetis_partition_cuts, parmetis_status.time_us, parmetis_distribution_status.time_us, 0, 0,
+                                global_ptscotch_partition_sizes,global_ptscotch_partition_boundaries, global_ptscotch_partition_cuts, ptscotch_status.time_us, ptscotch_distribution_status.time_us, 0, 0,
                                 metrics_out_file_path);
 
     }

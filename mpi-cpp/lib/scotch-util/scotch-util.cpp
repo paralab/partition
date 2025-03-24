@@ -7,9 +7,13 @@
 #include <chrono>
 #include <cassert>
 #include <stdexcept>
+#include "../dist-graph/dist-graph.hpp"
+
 
 PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj,
                                       std::vector<uint64_t>& adjncy, std::vector<uint32_t>& vertex_wgts,
+                                      std::vector<uint32_t>& adjwgt,
+                                      uint32_t wgt_flag,
                                       uint64_t num_vertices_local,
                                       uint64_t num_vertices_global, int partition_count,
                                       std::vector<uint16_t>& partition_labels_out, MPI_Comm comm) {
@@ -21,6 +25,8 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
 
     std::vector<SCOTCH_Num> vertloctab(xadj.begin(), xadj.end());
     std::vector<SCOTCH_Num> edgeloctab(adjncy.begin(), adjncy.end());
+    std::vector<SCOTCH_Num> edloloctab(adjwgt.begin(), adjwgt.end());
+
 
     SCOTCH_Num local_total_arcs = static_cast<SCOTCH_Num>(edgeloctab.size()); // including arcs to/from ghosts
 
@@ -30,8 +36,12 @@ PartitionStatus GetPtScotchPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     SCOTCH_dgraphInit(&graph, comm);
 
     SCOTCH_dgraphBuild(&graph, 0, static_cast<SCOTCH_Num>(num_vertices_local),
-                       static_cast<SCOTCH_Num>(num_vertices_local), vertloctab.data(), NULL, vertex_wgts__.data(), NULL,
-                       local_total_arcs, local_total_arcs, edgeloctab.data(), NULL, NULL);
+                       static_cast<SCOTCH_Num>(num_vertices_local), vertloctab.data(), NULL, 
+                       (wgt_flag == DIST_GRAPH_VTX_WEIGHTED || wgt_flag == DIST_GRAPH_VTX_EDGE_WEIGHTED)?  vertex_wgts__.data() : NULL, 
+                       NULL,
+                       local_total_arcs, local_total_arcs, edgeloctab.data(), 
+                       (wgt_flag == DIST_GRAPH_EDGE_WEIGHTED || wgt_flag == DIST_GRAPH_VTX_EDGE_WEIGHTED)? edloloctab.data() : NULL, 
+                       NULL);
     int graph_status = SCOTCH_dgraphCheck(&graph);
     if (! (graph_status==0))
     {

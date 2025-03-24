@@ -62,6 +62,13 @@ using bfs_label_t = uint16_t;
 #error "Invalid BFS_LABEL_TYPE specified. Allowed values: 16, 32, 64"
 #endif
 
+#define DIST_GRAPH_UNWEIGHTED           0
+#define DIST_GRAPH_VTX_WEIGHTED         1
+#define DIST_GRAPH_EDGE_WEIGHTED        2
+#define DIST_GRAPH_VTX_EDGE_WEIGHTED    3
+
+
+
 struct BFSValue
 {
     bfs_label_t label;
@@ -211,6 +218,10 @@ private:
     std::vector<uint32_t> local_vertex_wgts;
 
     std::vector<uint64_t> dist_adjncy;
+    std::vector<uint32_t> dist_adjwgt;
+
+    uint32_t wgt_flag;
+
 
     std::vector<uint64_t> vtx_dist;
 
@@ -257,6 +268,13 @@ private:
         T* recvbuf, int* recvcnts, int* rdispls, MPI_Comm comm);
     void GetVertexDegrees(std::vector<graph_indexing_t>& degrees_out);
 
+    void AssignRandomEdgeWeights(const std::vector<std::pair<ElementWithTag, ElementWithTag>>& local_connectivity,
+                                 const std::vector<std::pair<ElementWithTag, ElementWithTag>>& boundary_connectivity,
+                                 const std::vector<uint64_t>& proc_element_counts,
+                                 const std::vector<uint64_t>& proc_element_counts_scanned, 
+                                 std::vector<uint32_t>& local_edge_weights,
+                                 std::vector<uint32_t>& boundary_edge_weights);
+
 
 public:
     DistGraph(const std::vector<ElementWithCoord>& own_elements,const std::vector<ElementWithTag>& ghost_elements,
@@ -265,6 +283,7 @@ public:
                      const std::vector<uint64_t>& proc_element_counts,
                      const std::vector<uint64_t>& proc_element_counts_scanned, 
                      const std::vector<int>& ghost_element_counts,
+                     const uint32_t wgt_flag_,
                      MPI_Comm comm) ;
     std::string PrintLocal();
     std::string PrintDist();
@@ -276,7 +295,7 @@ public:
     PartitionStatus PartitionPtScotch(std::vector<uint16_t>& partition_labels_out);
 
     void GetPartitionMetrics(std::vector<uint16_t>& local_partition_labels, std::vector<uint32_t>& partition_sizes_out,
-                             std::vector<uint32_t>& partition_boundaries_out);
+                             std::vector<uint32_t>& partition_boundaries_out, std::vector<uint32_t>& partition_cuts_out);
     // ~DistGraph();
 
 

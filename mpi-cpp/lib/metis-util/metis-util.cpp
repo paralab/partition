@@ -7,6 +7,7 @@
 
 #include "metis-util.hpp"
 #include "../util/util.hpp"
+#include "../dist-graph/dist-graph.hpp"
 
 // std::vector<uint64_t> GetMETISPartitions(std::vector<uint64_t> &xadj, std::vector<uint64_t> &adjncy, int32_t num_vertices,
 //                                          int32_t partition_count)
@@ -33,6 +34,8 @@
 
 PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
                             std::vector<uint32_t>& vertex_wgts,
+                            std::vector<uint32_t>& adjwgt,
+                            uint32_t wgt_flag,
                           uint64_t num_vertices_local, int partition_count,
                           std::vector<uint16_t>& partition_labels_out, MPI_Comm comm) {
 
@@ -44,6 +47,8 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
     std::vector<idx_t> xadj__(xadj.begin(), xadj.end());
     std::vector<idx_t> adjncy__(adjncy.begin(), adjncy.end());
     std::vector<idx_t> vertex_wgts__(vertex_wgts.begin(), vertex_wgts.end());
+    std::vector<idx_t> adjwgt__(adjwgt.begin(), adjwgt.end());
+
 
     idx_t ncon = 1;
     idx_t partition_count__ = static_cast<idx_t>(partition_count);
@@ -60,16 +65,39 @@ PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vecto
 
     std::vector<real_t> ubvec = {1.05};
 
+    idx_t parmetis_wgtflag;
+
+    switch (wgt_flag)
+    {
+    case DIST_GRAPH_UNWEIGHTED:
+        parmetis_wgtflag = 0;
+        break;
+
+    case DIST_GRAPH_VTX_WEIGHTED:
+        parmetis_wgtflag = 2;
+        break;
+    case DIST_GRAPH_EDGE_WEIGHTED:
+        parmetis_wgtflag = 1;
+        break;
+    case DIST_GRAPH_VTX_EDGE_WEIGHTED:
+        parmetis_wgtflag = 3;
+        break;
+    
+    default:
+        std::runtime_error("passing invalid weight flag to parMETIS");
+        break;
+    }
+
     //warmup?
     MPI_Barrier(comm);
-    ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], NULL, &two, &zero,
+    ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], &adjwgt__[0], &parmetis_wgtflag, &zero,
                                             &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
                                             &partitions_labels[0], &comm);
 
     MPI_Barrier(comm);
     auto start = std::chrono::high_resolution_clock::now();
 
-    int return_code = ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], NULL, &two, &zero,
+    int return_code = ParMETIS_V3_PartKway(&vtxdist__[0], &xadj__[0], &adjncy__[0], &vertex_wgts__[0], &adjwgt__[0], &parmetis_wgtflag, &zero,
                                             &ncon, &partition_count__, &tpwgts[0], &ubvec[0], &options[0], &edgecut,
                                             &partitions_labels[0], &comm);
     MPI_Barrier(comm);

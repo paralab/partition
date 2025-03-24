@@ -13,6 +13,8 @@
 #include <numeric>
 #include "fastpart.h"
 #include <random>
+#include <map>
+
 
 
 // Overloading the << operator for BFSValue
@@ -56,6 +58,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
                      const std::vector<uint64_t>& proc_element_counts,
                      const std::vector<uint64_t>& proc_element_counts_scanned, 
                      const std::vector<int>& ghost_element_counts,
+                     const uint32_t wgt_flag_,
                      MPI_Comm comm) {
     this->comm = comm;
     int procs_n, my_rank;
@@ -80,6 +83,8 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
 
     this->local_adjncy.resize(2 * (local_connectivity.size() + boundary_connectivity.size()));
     this->dist_adjncy.resize(2*local_connectivity.size()  + boundary_connectivity.size());
+    this->dist_adjwgt.resize(2*local_connectivity.size()  + boundary_connectivity.size());
+
     this->ghost_counts.assign(ghost_element_counts.begin(), ghost_element_counts.end());
 
     this->ghost_counts_scanned.resize(procs_n);
@@ -150,13 +155,27 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             this->local_xdj[own_elements.size() + ghost_elements.size() -1 ] + this->local_degrees[own_elements.size() + ghost_elements.size()-1];
     // print_log("[", my_rank, "]: local_xdj ", VectorToString(local_xdj));
 
+    this->wgt_flag = wgt_flag_;
+
+    // for assigning random edge weights
+    std::vector<uint32_t> local_conectivity_weights(local_connectivity.size());
+    std::vector<uint32_t> boundary_connectivity_weights(boundary_connectivity_cpy.size());
+
+    this->AssignRandomEdgeWeights(local_connectivity, boundary_connectivity_cpy, 
+                                  proc_element_counts, proc_element_counts_scanned, 
+                                  local_conectivity_weights, boundary_connectivity_weights);
+
+    
+
+
     /**
      * populating adjacency structure
     */
     std::vector<uint64_t> next_index;
     next_index.assign(this->local_xdj.begin(), this->local_xdj.end()-1);
 
-    for (auto& edge : local_connectivity) {
+    for (size_t local_edge_i = 0; local_edge_i < local_connectivity.size(); local_edge_i++) {
+        auto edge = local_connectivity[local_edge_i];
         auto local_index_1 = edge.first.global_idx - proc_element_counts_scanned[my_rank];
         auto local_index_2 = edge.second.global_idx - proc_element_counts_scanned[my_rank];
 
@@ -166,6 +185,8 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
         this->dist_adjncy[next_index[local_index_1]] = edge.second.global_idx;
         this->dist_adjncy[next_index[local_index_2]] = edge.first.global_idx;
 
+        this->dist_adjwgt[next_index[local_index_1]] = local_conectivity_weights[local_edge_i];
+        this->dist_adjwgt[next_index[local_index_2]] = local_conectivity_weights[local_edge_i];
 
         next_index[local_index_1]++;
         next_index[local_index_2]++;
@@ -183,6 +204,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             this->local_adjncy[next_index[local_index_2]] = local_index_1;
 
             this->dist_adjncy[next_index[local_index_1]] = boundary_connectivity_cpy[0].second.global_idx;
+            this->dist_adjwgt[next_index[local_index_1]] = boundary_connectivity_weights[0];
 
             next_index[local_index_1]++;
             next_index[local_index_2]++;
@@ -203,6 +225,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
             this->local_adjncy[next_index[local_index_2]] = local_index_1;
 
             this->dist_adjncy[next_index[local_index_1]] = boundary_connectivity_cpy[boundary_edge_i].second.global_idx;
+            this->dist_adjwgt[next_index[local_index_1]] = boundary_connectivity_weights[boundary_edge_i];
 
 
 
@@ -351,6 +374,7 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
                      par::Mpi_datatype<uint32_t>::value(), this->local_vertex_wgts.data(), static_cast<int>(this->local_count), 
                      par::Mpi_datatype<uint32_t>::value(), 0, this->comm);
     }
+    // print_log(this->PrintDist());
     
     
     
@@ -363,6 +387,188 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
 //     // this->local_adjncy.clear();
 
 // }
+
+// assumes boundary_connectivity is sorted by the second element (i.e. the boundary elemnt)
+void DistGraph::AssignRandomEdgeWeights(const std::vector<std::pair<ElementWithTag, ElementWithTag>>& local_connectivity,
+                                        const std::vector<std::pair<ElementWithTag, ElementWithTag>>& boundary_connectivity,
+                                        const std::vector<uint64_t>& proc_element_counts,
+                                        const std::vector<uint64_t>& proc_element_counts_scanned, 
+                                        std::vector<uint32_t>& local_edge_weights,
+                                        std::vector<uint32_t>& boundary_edge_weights)
+{
+    int procs_n, my_rank;
+    MPI_Comm_size(comm, &procs_n);
+    MPI_Comm_rank(comm, &my_rank);
+
+    std::map<std::pair<uint64_t, uint64_t>, uint32_t> bdry_edge_to_weight;
+    std::vector<std::pair<uint64_t, uint64_t>> query_edges;
+
+    for (size_t bdry_edge_i = 0; bdry_edge_i < boundary_connectivity.size(); bdry_edge_i++)
+    {
+        uint64_t my_element_idx = boundary_connectivity[bdry_edge_i].first.global_idx;
+        uint64_t ghost_element_idx = boundary_connectivity[bdry_edge_i].second.global_idx;
+
+        // in a boundary edge, if my element idx is the lowest, then it is "MY" edge, and I will assign weight to it.
+        // later, the other MPI rank will query me to get the weight
+        if (my_element_idx < ghost_element_idx)
+        {   
+            //first assign a place holder value
+            bdry_edge_to_weight[{my_element_idx, ghost_element_idx}] = UINT32_MAX;
+        } else
+        {
+            query_edges.push_back({my_element_idx, ghost_element_idx});
+        }
+        
+    }
+
+    // triially, all local edges are also "MY" edges
+    int my_edge_count = local_connectivity.size() + bdry_edge_to_weight.size();
+
+    // we ask the root rank to generate all edge weights
+
+    std::vector<int> all_edge_counts;
+    if (!my_rank) all_edge_counts.resize(procs_n);
+
+    MPI_Gather(&my_edge_count, 1, MPI_INT, all_edge_counts.data(), 1, MPI_INT, 0, comm);
+
+    std::vector<uint32_t> my_edge_weights(my_edge_count);       // to be used as receiving buffer
+    if (!my_rank)
+    {
+        std::vector<int> all_edge_counts_scanned(procs_n);
+        std::exclusive_scan(all_edge_counts.begin(), all_edge_counts.end(), all_edge_counts_scanned.begin(), 0);
+
+        uint32_t all_edge_count = all_edge_counts[procs_n - 1] + all_edge_counts_scanned[procs_n - 1];
+
+        std::vector<uint32_t> all_edge_weights(all_edge_count);
+
+        std::mt19937 e2(41);
+
+        std::normal_distribution<> dist(10, 2);     // mean = 10, std dev = 2
+        {
+            size_t edge_i = 0;
+            while (edge_i < all_edge_count)
+            {
+                int weight = static_cast<int>(dist(e2));
+                if (weight <= 0)
+                {
+                    continue;
+                }
+                all_edge_weights[edge_i] = static_cast<uint32_t>(weight);
+                edge_i++;            
+            }
+            
+        } 
+        // shuffle once
+        std::ranges::shuffle(all_edge_weights, e2);
+
+        MPI_Scatterv(all_edge_weights.data(), all_edge_counts.data(), all_edge_counts_scanned.data(), 
+                     par::Mpi_datatype<uint32_t>::value(), my_edge_weights.data(), my_edge_count, 
+                     par::Mpi_datatype<uint32_t>::value(), 0, this->comm);
+    }else
+    {
+        MPI_Scatterv(NULL, NULL, NULL, 
+                     par::Mpi_datatype<uint32_t>::value(), my_edge_weights.data(), my_edge_count, 
+                     par::Mpi_datatype<uint32_t>::value(), 0, this->comm);
+    }
+
+    // now we can populate output buffer for local edge weights
+    for (size_t local_edge_i = 0; local_edge_i < local_connectivity.size(); local_edge_i++)
+    {
+        local_edge_weights[local_edge_i] = my_edge_weights[local_edge_i];
+    }
+
+    // then populate my bdry edge weights
+    int i_ = 0;
+    for (auto& [e, w] : bdry_edge_to_weight)
+    {
+        w = my_edge_weights[local_connectivity.size() + i_];
+        i_++;
+    }
+
+
+    // now we have to query neighbor procs for other boundary edge weights
+    std::vector<int> send_queries_per_proc(procs_n, 0);
+    std::vector<int> send_queries_per_proc_scanned(procs_n, 0);
+
+    {
+        int curr_other_proc = 0;
+
+        for (size_t i = 0; i < query_edges.size(); i++)
+        {
+            uint64_t bdry_element_idx = query_edges[i].second;
+
+            if (proc_element_counts_scanned[curr_other_proc] <= bdry_element_idx &&
+                bdry_element_idx < proc_element_counts_scanned[curr_other_proc] + proc_element_counts[curr_other_proc])
+            {
+                send_queries_per_proc[curr_other_proc]++;
+            }
+            else
+            {
+                while (1)
+                {
+                    curr_other_proc++;
+                    if (proc_element_counts_scanned[curr_other_proc] <= bdry_element_idx &&
+                        bdry_element_idx < proc_element_counts_scanned[curr_other_proc] + proc_element_counts[curr_other_proc])
+                    {
+                        send_queries_per_proc[curr_other_proc]++;
+                        break;
+                    }
+                }
+                
+            }
+        }
+    }
+    std::exclusive_scan(send_queries_per_proc.begin(), send_queries_per_proc.end(), send_queries_per_proc_scanned.begin(), 0);
+
+    std::vector<int> recv_queries_per_proc(procs_n, 0);
+    std::vector<int> recv_queries_per_proc_scanned(procs_n, 0);
+    par::Mpi_Alltoall(send_queries_per_proc.data(), recv_queries_per_proc.data(), 1, this->comm);
+
+
+    std::exclusive_scan(recv_queries_per_proc.begin(), recv_queries_per_proc.end(), recv_queries_per_proc_scanned.begin(), 0);
+
+    int total_recev_queries = recv_queries_per_proc_scanned[procs_n - 1] + recv_queries_per_proc[procs_n - 1];
+    std::vector<std::pair<uint64_t, uint64_t>> recev_query_edges(total_recev_queries);    
+    
+
+    MPI_Alltoallv(query_edges.data(),send_queries_per_proc.data(), send_queries_per_proc_scanned.data(), par::Mpi_pairtype<uint64_t, uint64_t>::value(), 
+                  recev_query_edges.data(), recv_queries_per_proc.data(), recv_queries_per_proc_scanned.data(), par::Mpi_pairtype<uint64_t, uint64_t>::value(), 
+                  this->comm);
+    
+    
+    std::vector<uint32_t> responses_to_send(total_recev_queries);
+
+    for (size_t q_i = 0; q_i < total_recev_queries; q_i++)
+    {
+        uint64_t my_element_idx = recev_query_edges[q_i].second;        // from receiver's POV, my element is the second element
+        uint64_t ghost_element_idx = recev_query_edges[q_i].first;
+
+        responses_to_send[q_i] = bdry_edge_to_weight[{my_element_idx, ghost_element_idx}];
+    }
+
+    std::vector<uint32_t> responses_received(query_edges.size());
+
+    par::Mpi_Alltoallv_sparse(responses_to_send.data(),recv_queries_per_proc.data(), recv_queries_per_proc_scanned.data(), 
+                              responses_received.data(), send_queries_per_proc.data(), send_queries_per_proc_scanned.data(), 
+                              this->comm);
+
+
+    // populate bdry_edge_to_weight with received responses
+    for (size_t q_i = 0; q_i < query_edges.size(); q_i++)
+    {
+        bdry_edge_to_weight[query_edges[q_i]] = responses_received[q_i];
+    }
+    
+    // now we can populate output buffer for boundary edge weights
+
+    for (size_t bdry_edge_i = 0; bdry_edge_i < boundary_connectivity.size(); bdry_edge_i++)
+    {
+        uint64_t my_element_idx = boundary_connectivity[bdry_edge_i].first.global_idx;
+        uint64_t ghost_element_idx = boundary_connectivity[bdry_edge_i].second.global_idx;
+
+        boundary_edge_weights[bdry_edge_i] = bdry_edge_to_weight[{my_element_idx, ghost_element_idx}];     
+    }
+}                                        
 
 
 std::string DistGraph::PrintLocal(){
@@ -383,13 +589,17 @@ std::string DistGraph::PrintLocal(){
 }
 
 std::string DistGraph::PrintDist(){
+    int procs_n, my_rank;
+    MPI_Comm_size(this->comm, &procs_n);
+    MPI_Comm_rank(this->comm, &my_rank);
+
     std::ostringstream output;
     for (size_t vertex_i = 0; vertex_i < this->local_count; vertex_i++)
     {
-        output << vertex_i << "\t->";
+        output << vertex_i + vtx_dist[my_rank] << "\t->";
         for (size_t neigh_i = this->local_xdj[vertex_i]; neigh_i < this->local_xdj[vertex_i+1]; neigh_i++)
         {
-            output << this->dist_adjncy[neigh_i] << ",";
+            output << this->dist_adjncy[neigh_i] << "(" << this->dist_adjwgt[neigh_i] << "), ";
         }
         output << "\n";
         
@@ -412,10 +622,12 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
     std::vector<fastpart_uint_t> adjncy__(this->dist_adjncy.begin(), this->dist_adjncy.end());
     std::vector<fastpart_uint_t> partitions_labels(this->local_count);
     std::vector<fastpart_uint_t> local_vertex_wgts__(this->local_vertex_wgts.begin(), this->local_vertex_wgts.end());
+    std::vector<fastpart_uint_t> adjwgt__(this->dist_adjwgt.begin(), this->dist_adjwgt.end());
+
 
 
     fastpart_ctrl ctrl;
-    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), FASTPART_VTX_WEIGHTED, &(this->comm));
+    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), adjwgt__.data(), FASTPART_VTX_EDGE_WEIGHTED, &(this->comm));
     MPI_Barrier(comm);
     auto start__ = std::chrono::high_resolution_clock::now();
     fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 0);
@@ -1230,14 +1442,16 @@ PartitionStatus DistGraph::PartitionParmetis(std::vector<uint16_t>& partition_la
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
-    return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_vertex_wgts,this->local_count,procs_n,partition_labels_out,this->comm);
+    return GetParMETISPartitions(this->vtx_dist,dist_xadj,this->dist_adjncy,this->local_vertex_wgts, this->dist_adjwgt, this->wgt_flag,
+                                 this->local_count,procs_n,partition_labels_out,this->comm);
 }
 
 PartitionStatus DistGraph::PartitionPtScotch(std::vector<uint16_t>& partition_labels_out) {
     int procs_n;
     MPI_Comm_size(this->comm, &procs_n);
     std::vector<uint64_t> dist_xadj(this->local_xdj.begin(), this->local_xdj.begin() + (this->local_count + 1));
-    return GetPtScotchPartitions(this->vtx_dist, dist_xadj, this->dist_adjncy,this->local_vertex_wgts, this->local_count, this->global_count,
+    return GetPtScotchPartitions(this->vtx_dist, dist_xadj, this->dist_adjncy,this->local_vertex_wgts, this->dist_adjwgt, this->wgt_flag,
+                                 this->local_count, this->global_count,
                                  procs_n, partition_labels_out, this-> comm);
 }
 
@@ -1247,7 +1461,8 @@ PartitionStatus DistGraph::PartitionPtScotch(std::vector<uint16_t>& partition_la
 */
 void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_labels,
                                     std::vector<uint32_t>& partition_sizes_out,
-                                    std::vector<uint32_t>& partition_boundaries_out) {
+                                    std::vector<uint32_t>& partition_boundaries_out,
+                                    std::vector<uint32_t>& partition_cuts_out) {
     int procs_n, my_rank;
     MPI_Comm_size(this->comm, &procs_n);
     MPI_Comm_rank(this->comm, &my_rank);
@@ -1255,7 +1470,9 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
 
     std::vector<uint32_t> local_partition_sizes(procs_n, 0);
     for (size_t local_i = 0; local_i < this->local_count; local_i++) {
-        local_partition_sizes[local_partition_labels[local_i]] += this->local_vertex_wgts[local_i];     // accounting for vertex weights now
+        uint32_t w = (this->wgt_flag == DIST_GRAPH_VTX_WEIGHTED || this->wgt_flag == DIST_GRAPH_VTX_EDGE_WEIGHTED) ? 
+                      this->local_vertex_wgts[local_i] : 1;
+        local_partition_sizes[local_partition_labels[local_i]] += w;
     }
 
     /**
@@ -1280,17 +1497,30 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
 
     // now calculating partition boundaries
     std::vector<uint32_t> local_partition_boundaries(procs_n, 0);
+    std::vector<uint32_t> local_partition_cuts(procs_n, 0);
+
 
     for (graph_indexing_t local_vertex = 0; local_vertex < this->local_count; local_vertex++) {
+
+        bool is_bdry_vertex = false;
 
         for (graph_indexing_t neighbor_i = this->local_xdj[local_vertex]; neighbor_i < this->local_xdj[local_vertex + 1];
              neighbor_i++) {
             auto neighbor = local_adjncy[neighbor_i];
+            auto edge_w = (this->wgt_flag == DIST_GRAPH_EDGE_WEIGHTED || this->wgt_flag == DIST_GRAPH_VTX_EDGE_WEIGHTED) ? 
+                           this->dist_adjwgt[neighbor_i] : 1;
             if (local_and_ghost_partition_labels[local_vertex] != local_and_ghost_partition_labels[neighbor]) {
-                local_partition_boundaries[local_and_ghost_partition_labels[local_vertex]]++;
-                break;
+                is_bdry_vertex = true;
+                local_partition_cuts[local_and_ghost_partition_labels[local_vertex]]+= edge_w;
             }
         }
+        if (is_bdry_vertex)
+        {
+            uint32_t w = (this->wgt_flag == DIST_GRAPH_VTX_WEIGHTED || this->wgt_flag == DIST_GRAPH_VTX_EDGE_WEIGHTED) ? 
+                          this->local_vertex_wgts[local_vertex] : 1;
+            local_partition_boundaries[local_and_ghost_partition_labels[local_vertex]]+=w;
+        }
+        
     }
 
     // collect results to 0 MPI proc
@@ -1300,10 +1530,15 @@ void DistGraph::GetPartitionMetrics(std::vector<uint16_t>& local_partition_label
         std::fill(partition_sizes_out.begin(), partition_sizes_out.end(), 0);
         partition_boundaries_out.resize(procs_n);
         std::fill(partition_boundaries_out.begin(), partition_boundaries_out.end(), 0);
+        partition_cuts_out.resize(procs_n);
+        std::fill(partition_cuts_out.begin(), partition_cuts_out.end(), 0);
     }
 
     MPI_Reduce(local_partition_sizes.data(), partition_sizes_out.data(), procs_n, MPI_UINT32_T, MPI_SUM, 0, this->comm);
     MPI_Barrier(this->comm);
     MPI_Reduce(local_partition_boundaries.data(), partition_boundaries_out.data(), procs_n, MPI_UINT32_T, MPI_SUM, 0,
+               this->comm);
+    MPI_Barrier(this->comm);
+    MPI_Reduce(local_partition_cuts.data(), partition_cuts_out.data(), procs_n, MPI_UINT32_T, MPI_SUM, 0,
                this->comm);
 }

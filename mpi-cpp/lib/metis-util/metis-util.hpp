@@ -7,6 +7,8 @@
 //                                          int32_t partition_count);
 PartitionStatus GetParMETISPartitions(std::vector<uint64_t>& vtxdist, std::vector<uint64_t>& xadj, std::vector<uint64_t>& adjncy,
                             std::vector<uint32_t>& vertex_wgts,
+                            std::vector<uint32_t>& adjwgt,
+                            uint32_t wgt_flag,                
                           uint64_t num_vertices_local, int32_t partition_count,
                           std::vector<uint16_t>& partition_labels_out, MPI_Comm comm);
 #endif

@@ -11,7 +11,7 @@ from sfc_utils import to_integer_coords, morton_compare
 from vtk_utils import export_points_with_parts_to_vtk, export_points_scalar_to_vtk
 from misc_utils import part_counts, print_metrics
 from BFS_Partition import get_BFS_partitions
-from diffusion_partition import diffuse_from_seeds, diffuse_from_partitions, refine_by_diffusion
+from diffusion_partition import diffuse_from_seeds, diffuse_from_partitions, refine_by_diffusion, partitions_by_diffusion
 
 
 
@@ -60,6 +60,8 @@ def run_single_file(file_name: str, parts_n: int):
     # exit()    
 
     element_to_fastpart_partition, element_to_diffusion_value  = refine_by_diffusion(e2e_graph,element_to_BFS_partition, parts_n)
+    # element_to_fastpart_partition, element_to_diffusion_value  = partitions_by_diffusion(e2e_graph,morton_seeds, parts_n)
+
 
     fastpart_partition_labels = [None for _ in range(element_count)]
 
@@ -120,12 +122,14 @@ def run_single_file(file_name: str, parts_n: int):
 def run_multiple(file_names: list[str]):
     return
 
-# input_file_name = "/home/budvin/research/Partitioning/mesh_generator/hex-box-50x50x2.msh"
-input_file_name = "/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
-input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/57181_sf_hexa.mesh_5006_17194.obj.mesh"
-input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/130968_sf_hexa.mesh_9940_38180.obj.mesh"       # disc
-input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/90280_sf_hexa.mesh_6608_22267.obj.mesh"
+input_file_name = "/home/budvin/research/Partitioning/mesh_generator/hex-box-50x50x2.msh"
+# input_file_name = "/home/budvin/research/Partitioning/mesh_generator/generated_tet_50x50x2.mesh"
+# input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/57181_sf_hexa.mesh_5006_17194.obj.mesh"
+# input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/130968_sf_hexa.mesh_9940_38180.obj.mesh"       # disc
+# input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/90280_sf_hexa.mesh_6608_22267.obj.mesh"
 # input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_hex/69930_sf_hexa.mesh"        # octopus
-run_single_file(input_file_name, 11)
+
+input_file_name = "/home/budvin/research/Partitioning/Meshes/10k_tet/1056913_sf_hexa.mesh_6420_23220.obj.mesh"
+run_single_file(input_file_name, 31)
 
 

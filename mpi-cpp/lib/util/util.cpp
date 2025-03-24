@@ -83,10 +83,14 @@ void GetSamplesFromOrdered(std::vector<uint64_t> &order, std::vector<uint64_t> &
 void ExportMetricsToJson(
     std::string mesh_file, int file_idx, int run_idx, int partition_count, uint64_t global_vertex_count,
     int graph_setup_time,
-    std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
-    std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
-    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
-    std::vector<uint32_t>& ptscotch_partition_sizes, std::vector<uint32_t>& ptscotch_partition_boundaries, int ptscotch_labeling_time, int ptscotch_redistribution_time, int ptscotch_mat_assembly_time, int ptscotch_matvec_time,
+    std::vector<uint32_t>& sfc_partition_sizes, std::vector<uint32_t>& sfc_partition_boundaries, std::vector<uint32_t>& sfc_partition_cuts,
+    int sfc_partition_time, int sfc_mat_assembly_time, int sfc_matvec_time,
+    std::vector<uint32_t>& bfs_partition_sizes, std::vector<uint32_t>& bfs_partition_boundaries, std::vector<uint32_t>& bfs_partition_cuts,
+    int bfs_labeling_time, int bfs_redistribution_time, int bfs_mat_assembly_time, int bfs_matvec_time,
+    std::vector<uint32_t>& parmetis_partition_sizes, std::vector<uint32_t>& parmetis_partition_boundaries, std::vector<uint32_t>& parmetis_partition_cuts,
+    int parmetis_labeling_time, int parmetis_redistribution_time, int parmetis_mat_assembly_time, int parmetis_matvec_time,
+    std::vector<uint32_t>& ptscotch_partition_sizes, std::vector<uint32_t>& ptscotch_partition_boundaries, std::vector<uint32_t>& ptscotch_partition_cuts,
+    int ptscotch_labeling_time, int ptscotch_redistribution_time, int ptscotch_mat_assembly_time, int ptscotch_matvec_time,
     std::string metrics_out_file_path)
 {
 
@@ -102,11 +106,13 @@ void ExportMetricsToJson(
         {"n", global_vertex_count},
         {"total_weight_sum", total_weight_sum},
 
-        {"SFC_morton_boundary_ratio", std::accumulate(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
+        {"SFC_morton_boundary_ratio", std::accumulate(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum)},
+        {"SFC_morton_cut_ratio", std::accumulate(sfc_partition_cuts.begin(), sfc_partition_cuts.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum*2)},       // dividing by 2 because egdes are counted twice
         {"SFC_morton_rho_max", static_cast<float>(*std::max_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/ideal_partition_weight},
         {"SFC_morton_rho_min", static_cast<float>(*std::min_element(sfc_partition_sizes.begin(), sfc_partition_sizes.end()))/ideal_partition_weight},
         {"SFC_morton_partition_sizes", sfc_partition_sizes},
         {"SFC_morton_partition_boundaries", sfc_partition_boundaries},
+        {"SFC_morton_partition_cuts", sfc_partition_cuts},
         {"SFC_morton_mat_assembly_time", sfc_mat_assembly_time},
         {"SFC_morton_matvec_time", sfc_matvec_time},
 
@@ -116,31 +122,37 @@ void ExportMetricsToJson(
         {"graph_setup_time", graph_setup_time},
 
 
-        {"BFS_boundary_ratio", std::accumulate(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
+        {"BFS_boundary_ratio", std::accumulate(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum)},
+        {"BFS_cut_ratio", std::accumulate(bfs_partition_cuts.begin(), bfs_partition_cuts.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum*2)},
         {"BFS_rho_max", static_cast<float>(*std::max_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/ideal_partition_weight},
         {"BFS_rho_min", static_cast<float>(*std::min_element(bfs_partition_sizes.begin(), bfs_partition_sizes.end()))/ideal_partition_weight},
         {"BFS_partition_sizes", bfs_partition_sizes},
         {"BFS_partition_boundaries", bfs_partition_boundaries},
+        {"BFS_partition_cuts", bfs_partition_cuts},
         {"BFS_mat_assembly_time", bfs_mat_assembly_time},
         {"BFS_matvec_time", bfs_matvec_time},
         {"BFS_labeling_time", bfs_labeling_time},
         {"BFS_redistribution_time", bfs_redistribution_time},
 
-        {"parMETIS_boundary_ratio", std::accumulate(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
+        {"parMETIS_boundary_ratio", std::accumulate(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum)},
+        {"parMETIS_cut_ratio", std::accumulate(parmetis_partition_cuts.begin(), parmetis_partition_cuts.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum*2)},
         {"parMETIS_rho_max", static_cast<float>(*std::max_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/ideal_partition_weight},
         {"parMETIS_rho_min", static_cast<float>(*std::min_element(parmetis_partition_sizes.begin(), parmetis_partition_sizes.end()))/ideal_partition_weight},
         {"parMETIS_partition_sizes", parmetis_partition_sizes},
         {"parMETIS_partition_boundaries", parmetis_partition_boundaries},
+        {"parMETIS_partition_cuts", parmetis_partition_cuts},
         {"parMETIS_mat_assembly_time", parmetis_mat_assembly_time},
         {"parMETIS_matvec_time", parmetis_matvec_time},
         {"parMETIS_labeling_time", parmetis_labeling_time},
         {"parMETIS_redistribution_time", parmetis_redistribution_time},
 
-        {"ptscotch_boundary_ratio", std::accumulate(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(global_vertex_count)},
+        {"ptscotch_boundary_ratio", std::accumulate(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum)},
+        {"ptscotch_cut_ratio", std::accumulate(ptscotch_partition_cuts.begin(), ptscotch_partition_cuts.end(), static_cast<uint32_t>(0))/static_cast<float>(total_weight_sum*2)},
         {"ptscotch_rho_max", static_cast<float>(*std::max_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/ideal_partition_weight},
         {"ptscotch_rho_min", static_cast<float>(*std::min_element(ptscotch_partition_sizes.begin(), ptscotch_partition_sizes.end()))/ideal_partition_weight},
         {"ptscotch_partition_sizes", ptscotch_partition_sizes},
         {"ptscotch_partition_boundaries", ptscotch_partition_boundaries},
+        {"ptscotch_partition_cuts", ptscotch_partition_cuts},
         {"ptscotch_mat_assembly_time", ptscotch_mat_assembly_time},
         {"ptscotch_matvec_time", ptscotch_matvec_time},
         {"ptscotch_labeling_time", ptscotch_labeling_time},
@@ -151,6 +163,12 @@ void ExportMetricsToJson(
     print_log("fastpart_rho_max: ", output_json["BFS_rho_max"]);
     print_log("parMETIS_rho_max: ", output_json["parMETIS_rho_max"]);
     print_log("ptscotch_rho_max: ", output_json["ptscotch_rho_max"]);
+    print_log("");
+
+    print_log("SFC_morton_cut_ratio: ", output_json["SFC_morton_cut_ratio"]);
+    print_log("fastpart_cut_ratio: ", output_json["BFS_cut_ratio"]);
+    print_log("parMETIS_cut_ratio: ", output_json["parMETIS_cut_ratio"]);
+    print_log("ptscotch_cut_ratio: ", output_json["ptscotch_cut_ratio"]);
     print_log("");
 
     print_log("SFC_morton_boundary_ratio: ", output_json["SFC_morton_boundary_ratio"]);
@@ -165,7 +183,11 @@ void ExportMetricsToJson(
     print_log("ptscotch_bdry_max: ", (*std::max_element(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end())));
     print_log("");
 
-
+    print_log("SFC_morton_cut_max: ", (*std::max_element(sfc_partition_cuts.begin(), sfc_partition_cuts.end())));
+    print_log("fastpart_cut_max: ", (*std::max_element(bfs_partition_cuts.begin(), bfs_partition_cuts.end())));
+    print_log("parMETIS_cut_max: ", (*std::max_element(parmetis_partition_cuts.begin(), parmetis_partition_cuts.end())));
+    print_log("ptscotch_cut_max: ", (*std::max_element(ptscotch_partition_cuts.begin(), ptscotch_partition_cuts.end())));
+    print_log("");
 
 
 
