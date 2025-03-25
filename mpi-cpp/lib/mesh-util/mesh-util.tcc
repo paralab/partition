@@ -737,9 +737,6 @@ DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_
     MPI_Comm_size(comm, &procs_n);
     MPI_Comm_rank(comm, &my_rank);
     if(!my_rank) print_log("starting redistribution");
-    MPI_Barrier(comm);
-    auto start = std::chrono::high_resolution_clock::now();
-
     assert(elements_in.size() == labeling.size());
     
     std::vector<std::pair<uint64_t, uint16_t>> idx_label_pairs(elements_in.size());    // temp array for sorting
@@ -812,10 +809,13 @@ DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_
     uint64_t new_element_count = recev_counts[procs_n-1]+recv_displs[procs_n-1];
     
     elements_out.resize(new_element_count);
+    auto start = std::chrono::high_resolution_clock::now();
     MPI_Alltoallv(elements_ordered.data(),
                   send_counts.data(), send_displs.data(), par::Mpi_datatype<T>::value(), 
                   elements_out.data(), recev_counts.data(), recv_displs.data(),
                   par::Mpi_datatype<T>::value(), comm);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
     // local sorting w.r.t. morton encoding
     omp_par::merge_sort(&elements_out[0], &elements_out[elements_out.size()]);
@@ -837,9 +837,6 @@ DistributionStatus Redistribute(std::vector<T> &elements_in, std::vector<uint16_
     }
 
     // print_log("[", my_rank, "]: new elements", VectorToString(elements_out));
-    MPI_Barrier(comm);
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     if(!my_rank)
     {
         print_log("redistribution done");
