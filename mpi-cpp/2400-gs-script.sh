@@ -1,15 +1,15 @@
 #!/bin/bash
-#SBATCH -t 2:00:00
-#SBATCH -n 2240
-#SBATCH -N 40
-#SBATCH -o /work2/10000/budvin/frontera/partition-project/diffusion-partition-repo/mpi-cpp/bfs_rounds_count_output.txt
-#SBATCH -e /work2/10000/budvin/frontera/partition-project/diffusion-partition-repo/mpi-cpp/bfs_rounds_count_error.txt
+#SBATCH -t 48:00:00
+#SBATCH -n 672
+#SBATCH -N 12
+#SBATCH -o /work2/10000/budvin/frontera/partition-project/partition-fixed-g-size-repo/mpi-cpp/2400g-output.txt
+#SBATCH -e /work2/10000/budvin/frontera/partition-project/partition-fixed-g-size-repo/mpi-cpp/2400g-error.txt
 
-#SBATCH -p development
+#SBATCH -p normal
 
 
 
-#SBATCH --mail-user=budvin.edippuliarachchi@tufts.edu
+#SBATCH --mail-user=budvin.edippuliarachchi@tufts.edu  
 #SBATCH --mail-type=FAIL
 
 
@@ -44,15 +44,6 @@ FASTPART_INSTALL_DIR_PATH=$WORK/partition-project/fastpart/build/install
 PETSC_INSTALL_DIR_PATH=${PETSC_DIR}
 
 
-root_dir=$PWD
-
-cd $WORK/partition-project/fastpart
-
-bash compile.sh
-
-cd $root_dir
-
-
 mkdir -p build
 
 cmake -S . -B build -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc \
@@ -69,9 +60,10 @@ cmake -S . -B build -DCMAKE_C_COMPILER=mpiicc -DCMAKE_CXX_COMPILER=mpiicpc \
 
 make -C ./build
 
+echo -e "===== compilation done ====="
+
 export LD_LIBRARY_PATH="${GMSH_SDK_PATH}/lib:${METIS_INSTALL_DIR_PATH}/lib:${GKLIB_INSTALL_DIR_PATH}/lib:${PARMETIS_INSTALL_DIR_PATH}/lib:${PETSC_INSTALL_DIR_PATH}/clx/lib:${TACC_FFTW3_LIB}:${MPI_ROOT}/lib:${SCOTCH_INSTALL_DIR_PATH}/lib:${FASTPART_INSTALL_DIR_PATH}/lib:${LD_LIBRARY_PATH}"
 
-echo -e "===== compilation done ====="
 
 # exit 0
 
@@ -79,18 +71,7 @@ echo -e "===== compilation done ====="
 dir=$PWD
 
 
-# metrics_file_path="$dir/results/diffusion_sc25_cutcells_w-edges_tet_meshes2025-03-26__10-58-34.json"
-# metrics_file_path="$dir/results/diffusion_sc25_unweighted_tet_meshes2025-03-26__23-25-06.json"
-metrics_file_path="$dir/results/tmp.json"
-
-
-echo "exporting metrics to file $metrics_file_path"
-
-# File containing list of mesh files
 file_list_file="$dir/connected_tet.txt"
-# file_list_file="$dir/octree_files.txt"
-
-
 
 
 # Read the file list into an array, skipping empty lines
@@ -100,21 +81,24 @@ mapfile -t mesh_file_list < <(grep -v '^$' "$file_list_file")
 
 
 
-# for file_idx in "${!mesh_file_list[@]}"; do 
-for ((file_idx=0; file_idx<10; file_idx++)); do
-    for np in 10 20 40 80 160 320 640 1280 2240
-    do
-        for run_idx in {0..1}; do
-            set +e
-            time ibrun -np $np ./build/main-new $SCRATCH/meshes/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz < /dev/null
-            # time ibrun -np $np ./build/main-octree $SCRATCH/meshes/octree/${mesh_file_list[$file_idx]} $file_idx $run_idx $metrics_file_path -no-viz < /dev/null
-            
-            set -e
-            sleep 2s
-        done
-    done
-done
+out_prefix="tet_unweighted_fixed_g_size"
+echo "out_prefix: $out_prefix"
+grain_size="2400"
+for ((file_idx=0; file_idx<${#mesh_file_list[@]}; file_idx++)); do 
 
+    file_path=$SCRATCH/meshes/${mesh_file_list[$file_idx]}
+    
+
+    np=$(./build/process_count $file_path $grain_size)
+    echo "[$file_idx]  partitioning $file_path for grain size $grain_size with $np processes"
+    for run_idx in {0..3}; do
+        set +e
+        time ibrun -np $np ./build/main-new $file_path $file_idx $run_idx $dir/results/${out_prefix}_$grain_size.json  -no-viz < /dev/null
+        set -e
+        sleep 2s
+    done
+    
+done
 
 
 echo "=====done======"
