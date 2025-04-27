@@ -11,7 +11,7 @@
 
 #include <chrono>
 #include <numeric>
-#include "fastpart.h"
+#include "amracut.h"
 #include <random>
 #include <map>
 #include <algorithm>
@@ -635,24 +635,24 @@ PartitionStatus DistGraph::PartitionBFS(std::vector<uint16_t>& partition_labels_
 
 
 
-    std::vector<fastpart_uint_t> xadj__(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
-    std::vector<fastpart_uint_t> vtxdist__(this->vtx_dist.begin(), this->vtx_dist.end());
-    std::vector<fastpart_uint_t> adjncy__(this->dist_adjncy.begin(), this->dist_adjncy.end());
-    std::vector<fastpart_uint_t> partitions_labels(this->local_count);
-    std::vector<fastpart_uint_t> local_vertex_wgts__(this->local_vertex_wgts.begin(), this->local_vertex_wgts.end());
-    std::vector<fastpart_uint_t> adjwgt__(this->dist_adjwgt.begin(), this->dist_adjwgt.end());
+    std::vector<amracut_uint_t> xadj__(this->local_xdj.begin(), this->local_xdj.begin()+ (this->local_count + 1));
+    std::vector<amracut_uint_t> vtxdist__(this->vtx_dist.begin(), this->vtx_dist.end());
+    std::vector<amracut_uint_t> adjncy__(this->dist_adjncy.begin(), this->dist_adjncy.end());
+    std::vector<amracut_uint_t> partitions_labels(this->local_count);
+    std::vector<amracut_uint_t> local_vertex_wgts__(this->local_vertex_wgts.begin(), this->local_vertex_wgts.end());
+    std::vector<amracut_uint_t> adjwgt__(this->dist_adjwgt.begin(), this->dist_adjwgt.end());
 
 
 
-    fastpart_ctrl ctrl;
-    fastpart_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), adjwgt__.data(), this->wgt_flag, &(this->comm));
+    amracut_ctrl ctrl;
+    amracut_setup(&ctrl, vtxdist__.data(), xadj__.data(), adjncy__.data(), local_vertex_wgts__.data(), adjwgt__.data(), this->wgt_flag, &(this->comm));
     MPI_Barrier(comm);
     auto start__ = std::chrono::high_resolution_clock::now();
-    fastpart_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 0);
+    amracut_partgraph(&ctrl,partitions_labels.data(), use_diffusion, &comm, 0);
     MPI_Barrier(comm);
     auto end__ = std::chrono::high_resolution_clock::now();
     auto duration__ = std::chrono::duration_cast<std::chrono::microseconds>(end__ - start__);
-    fastpart_destroy(&ctrl);
+    amracut_destroy(&ctrl);
 
 
     if (!my_rank) {

@@ -1,13 +1,16 @@
-Cmake dependencies
+Testing suite requires following dependencies
 
 - Gmsh SDK https://gmsh.info/#Download
-- VTK https://vtk.org/download/
 - METIS https://github.com/KarypisLab/METIS/tags
 - ParMETIS (depends on METIS) https://github.com/KarypisLab/ParMETIS
 - GKLIB (required for METIS) https://github.com/KarypisLab/GKlib
 - PtScotch https://gitlab.inria.fr/scotch/scotch
     - bison and flex should be installed in the system to build PtScotch
+- PETSc https://petsc.org/release/install/download/
 
+Paraview and VTK are optional. Required to visualize the partitioning
+- Paraview https://www.paraview.org/download/
+- VTK https://vtk.org/download/
 
 Note:
 Build GKLIB before building METIS. On METIS cmake file, You might have to set `set(GKLIB_PATH "/path-to/GKLIB/build-dir")` if GKLIB is not installed globally.
@@ -59,3 +62,25 @@ cmake -DCMAKE_C_FLAGS="-D__STDC_FORMAT_MACROS" -DCMAKE_C_COMPILER=mpiicc -DCMAKE
 
 make -j5 
 make install
+
+
+The add relevant paths of dependencies in the scripts.
+ - compile-and-run.sh
+   For viewing the partitioning in a GUI environment
+
+ - compile-and-run-frontera.sh
+   Run strong scalability experiments
+
+ - 2400-gs-script.sh
+   Run fixed grain size experiment. Replace "2400" with the desired grain size in the script.
+
+All experiments generate .json files as outputs. Use the following scripts to generate plots
+
+ - scaling_plot.ipynb
+   Plot for partition time in strong scalability
+
+ - metrics_plot.ipynb
+   Plot for partition quality metrics in strong scalability experiments
+
+ - fixed_g_size_plot.ipynb
+   Plot for fixed grain size experiments

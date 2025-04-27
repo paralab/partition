@@ -160,31 +160,31 @@ void ExportMetricsToJson(
 
     };
     print_log("SFC_morton_rho_max: ", output_json["SFC_morton_rho_max"]);
-    print_log("fastpart_rho_max: ", output_json["BFS_rho_max"]);
+    print_log("amracut_rho_max: ", output_json["BFS_rho_max"]);
     print_log("parMETIS_rho_max: ", output_json["parMETIS_rho_max"]);
     print_log("ptscotch_rho_max: ", output_json["ptscotch_rho_max"]);
     print_log("");
 
     print_log("SFC_morton_cut_ratio: ", output_json["SFC_morton_cut_ratio"]);
-    print_log("fastpart_cut_ratio: ", output_json["BFS_cut_ratio"]);
+    print_log("amracut_cut_ratio: ", output_json["BFS_cut_ratio"]);
     print_log("parMETIS_cut_ratio: ", output_json["parMETIS_cut_ratio"]);
     print_log("ptscotch_cut_ratio: ", output_json["ptscotch_cut_ratio"]);
     print_log("");
 
     print_log("SFC_morton_boundary_ratio: ", output_json["SFC_morton_boundary_ratio"]);
-    print_log("fastpart_boundary_ratio: ", output_json["BFS_boundary_ratio"]);
+    print_log("amracut_boundary_ratio: ", output_json["BFS_boundary_ratio"]);
     print_log("parMETIS_boundary_ratio: ", output_json["parMETIS_boundary_ratio"]);
     print_log("ptscotch_boundary_ratio: ", output_json["ptscotch_boundary_ratio"]);
     print_log("");
 
     print_log("SFC_morton_bdry_max: ", (*std::max_element(sfc_partition_boundaries.begin(), sfc_partition_boundaries.end())));
-    print_log("fastpart_bdry_max: ", (*std::max_element(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end())));
+    print_log("amracut_bdry_max: ", (*std::max_element(bfs_partition_boundaries.begin(), bfs_partition_boundaries.end())));
     print_log("parMETIS_bdry_max: ", (*std::max_element(parmetis_partition_boundaries.begin(), parmetis_partition_boundaries.end())));
     print_log("ptscotch_bdry_max: ", (*std::max_element(ptscotch_partition_boundaries.begin(), ptscotch_partition_boundaries.end())));
     print_log("");
 
     print_log("SFC_morton_cut_max: ", (*std::max_element(sfc_partition_cuts.begin(), sfc_partition_cuts.end())));
-    print_log("fastpart_cut_max: ", (*std::max_element(bfs_partition_cuts.begin(), bfs_partition_cuts.end())));
+    print_log("amracut_cut_max: ", (*std::max_element(bfs_partition_cuts.begin(), bfs_partition_cuts.end())));
     print_log("parMETIS_cut_max: ", (*std::max_element(parmetis_partition_cuts.begin(), parmetis_partition_cuts.end())));
     print_log("ptscotch_cut_max: ", (*std::max_element(ptscotch_partition_cuts.begin(), ptscotch_partition_cuts.end())));
     print_log("");
