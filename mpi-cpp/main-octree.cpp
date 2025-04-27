@@ -25,7 +25,7 @@
 
 #define OCTREE_BOUNDARY UINT_MAX
 
-typedef long int D_INT_L;
+
 struct SFCStatus
 {
     int return_code;
@@ -34,6 +34,9 @@ struct SFCStatus
 
 // template <class T>
 SFCStatus ReadAndDistributeSFC(std::string mesh_file_path, std::vector<OctreeElementWithNeigh>& elements_out, MPI_Comm comm);
+
+void GetInitialElementsDistributionOct(const std::string &mesh_file_path, std::vector<OctreeElementWithNeigh> &local_elements_out, 
+                                    MPI_Comm comm);
 
 void ResolveOctreeElementConnectivity(std::vector<OctreeElementWithNeigh> &local_elements,
                                 std::vector<uint64_t> &proc_element_counts,
@@ -112,7 +115,8 @@ int main(int argc, char *argv[])
     std::vector<ElementWithFace> local_unconnected_elements_faces;
 
 
-    SFCStatus sfc_status = ReadAndDistributeSFC(mesh_file_path, localElementsAllData, MPI_COMM_WORLD);
+    SFCStatus sfc_status ; /* = ReadAndDistributeSFC(mesh_file_path, localElementsAllData, MPI_COMM_WORLD); */
+    GetInitialElementsDistributionOct(mesh_file_path, localElementsAllData, MPI_COMM_WORLD);
 
    
     local_element_count = localElementsAllData.size();
@@ -172,7 +176,7 @@ int main(int argc, char *argv[])
     // return 0;
 
     DistGraph dist_graph(local_elements,ghost_elements,local_connected_element_pairs,boundary_connected_element_pairs,proc_element_counts,
-                            proc_element_counts_scanned,ghost_element_counts,DIST_GRAPH_VTX_EDGE_WEIGHTED,MPI_COMM_WORLD);
+                            proc_element_counts_scanned,ghost_element_counts,DIST_GRAPH_UNWEIGHTED,MPI_COMM_WORLD);
 
     MPI_Barrier(MPI_COMM_WORLD);
     auto graph_setup_end = std::chrono::high_resolution_clock::now();
@@ -345,29 +349,15 @@ void GetInitialElementsDistributionOct(const std::string &mesh_file_path, std::v
 {
     struct oct_data
     {
-        D_INT_L eid;
-        D_INT_L coord[3];
-        D_INT_L e2e[6];
-
-        oct_data(){};
-
-        oct_data(D_INT_L eid, D_INT_L coord[3], D_INT_L e2e[6])
-        {
-            this->eid=eid;
-
-            this->coord[0] = coord[0];
-            this->coord[1] = coord[1];
-            this->coord[2] = coord[2];
-
-            this->e2e[0]   = e2e[0];
-            this->e2e[1]   = e2e[1];
-            this->e2e[2]   = e2e[2];
-
-            this->e2e[3]   = e2e[3];
-            this->e2e[4]   = e2e[4];
-            this->e2e[5]   = e2e[5];
-
-        }
+        uint32_t rank;
+        uint32_t trank;
+        uint32_t eid;
+        uint32_t localid;
+        uint32_t coord[3];
+        uint32_t e2e[6];
+        uint32_t level;
+        // uint32_t edgeNeighbors[12];
+        // uint32_t vertexNeighbors[8];
 
     };
     int procs_n, my_rank;
@@ -438,6 +428,15 @@ void GetInitialElementsDistributionOct(const std::string &mesh_file_path, std::v
             all_elements[i].neigh[4] = all_elements_raw[i].e2e[4];
             all_elements[i].neigh[5] = all_elements_raw[i].e2e[5];
 
+            // for (int j = 0; j < 12; j++)
+            // {
+            //     all_elements[i].neigh[6+j] = all_elements_raw[i].edgeNeighbors[j];
+            // }
+            
+            // for (int j = 0; j < 8; j++)
+            // {
+            //     all_elements[i].neigh[18+j] = all_elements_raw[i].vertexNeighbors[j];
+            // }
         }
         uint64_t total_element_count = raw_element_count;
 

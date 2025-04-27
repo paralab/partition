@@ -14,6 +14,8 @@
 #include "fastpart.h"
 #include <random>
 #include <map>
+#include <algorithm>
+
 
 
 
@@ -376,6 +378,22 @@ DistGraph::DistGraph(const std::vector<ElementWithCoord>& own_elements,const std
     }
     // print_log(this->PrintDist());
     
+    // keep high weights only for cut cells
+    for (graph_indexing_t i = 0; i < this->local_count; i++)
+    {
+        graph_indexing_t degree = this->local_xdj[i+1] - this->local_xdj[i];
+        if (degree == 4)        // 4 for tets
+        {   // inside element
+            this->local_vertex_wgts[i] = 5;
+        }else
+        {   // boundary (cut) cell
+            this->local_vertex_wgts[i] = std::max(this->local_vertex_wgts[i], static_cast<uint32_t>(5));
+        }
+        
+        
+    }
+    
+    
     
     
 
@@ -443,7 +461,7 @@ void DistGraph::AssignRandomEdgeWeights(const std::vector<std::pair<ElementWithT
 
         std::mt19937 e2(41);
 
-        std::normal_distribution<> dist(10, 2);     // mean = 10, std dev = 2
+        std::normal_distribution<> dist(5, 2);     // mean = 5, std dev = 2
         {
             size_t edge_i = 0;
             while (edge_i < all_edge_count)
